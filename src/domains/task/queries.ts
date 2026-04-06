@@ -25,7 +25,8 @@ export async function getProjectTasks(
   // [ { id: '...', task_tags: [ { tags: { id: '...', name: '..' } } ] } ]
   // We need to map it to the TaskWithTags interface where `tags` is just an array of Tag
   
-  return (data as any[]).map((row) => {
+  type RawTask = (TaskWithTags & { task_tags?: { tags: Tag }[] })
+  return (data as any as RawTask[]).map((row) => {
     return {
       ...row,
       tags: row.task_tags ? row.task_tags.map((tt: any) => tt.tags).filter(Boolean) : [],

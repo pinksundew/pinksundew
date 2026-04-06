@@ -22,6 +22,11 @@ import { TaskCard } from './task-card'
 import { AbyssDropZone } from '@/components/abyss/abyss-drop-zone'
 import { CreateTaskModal } from '@/components/modals/create-task-modal'
 import { moveTask, deleteTask } from '@/domains/task/mutations'
+import { TaskDetailsModal } from '@/components/modals/task-details-modal'
+import { TagManagerModal } from '@/components/modals/tag-manager-modal'
+import { ExportModal } from '@/components/modals/export-modal'
+import { Settings, Tags, Download } from 'lucide-react'
+import Link from 'next/link'
 
 type KanbanBoardProps = {
   projectId: string
@@ -34,6 +39,10 @@ const COLUMNS: TaskStatus[] = ['todo', 'in-progress', 'done']
 export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TaskWithTags[]>(initialTasks)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<TaskWithTags | null>(null)
   const [activeTask, setActiveTask] = useState<TaskWithTags | null>(null)
   
   const supabase = createClient()
@@ -42,6 +51,21 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
     const channel = supabase.channel(`tasks_${projectId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${projectId}` }, (payload) => {
         console.log('Live change:', payload)
+        setTasks(prev => {
+          if (payload.eventType === 'INSERT') {
+            const newTask = payload.new as any
+            if (!prev.find(t => t.id === newTask.id)) {
+              return [...prev, { ...newTask, tags: [] }]
+            }
+          }
+          if (payload.eventType === 'UPDATE') {
+            return prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t)
+          }
+          if (payload.eventType === 'DELETE') {
+            return prev.filter(t => t.id !== payload.old.id)
+          }
+          return prev
+        })
       })
       .subscribe()
 
@@ -185,6 +209,24 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
 
         <AbyssDropZone isVisible={!!activeTask} />
       </DndContext>
+      <TaskDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => { setIsDetailsModalOpen(false); setSelectedTask(null); }}
+        task={selectedTask}
+        onUpdate={(updated) => setTasks(prev => prev.map(t => t.id === updated.id ? updated : t))}
+        onDelete={(taskId) => setTasks(prev => prev.filter(t => t.id !== taskId))}
+      />
+      <TagManagerModal
+        isOpen={isTagModalOpen}
+        onClose={() => setIsTagModalOpen(false)}
+        projectId={projectId}
+      />
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        tasks={tasks}
+        projectName={'Project'}
+      />
     </div>
   )
 }

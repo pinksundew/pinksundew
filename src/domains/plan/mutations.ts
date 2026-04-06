@@ -1,13 +1,13 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { Tag } from './types'
+import { TaskPlan } from './types'
 
-export async function createTag(
+export async function createTaskPlan(
   client: SupabaseClient,
-  tag: Omit<Tag, 'id'>
-): Promise<Tag> {
+  plan: Omit<TaskPlan, 'id' | 'created_at'>
+): Promise<TaskPlan> {
   const { data, error } = await client
-    .from('tags')
-    .insert(tag)
+    .from('task_plans')
+    .insert(plan)
     .select()
     .single()
 
@@ -15,13 +15,13 @@ export async function createTag(
   return data
 }
 
-export async function updateTag(
+export async function updateTaskPlan(
   client: SupabaseClient,
   id: string,
-  updates: Partial<Omit<Tag, 'id' | 'created_at' | 'project_id'>>
-): Promise<Tag> {
+  updates: Partial<Omit<TaskPlan, 'id' | 'created_at' | 'task_id' | 'created_by'>>
+): Promise<TaskPlan> {
   const { data, error } = await client
-    .from('tags')
+    .from('task_plans')
     .update(updates)
     .eq('id', id)
     .select()
@@ -31,12 +31,12 @@ export async function updateTag(
   return data
 }
 
-export async function deleteTag(
+export async function deleteTaskPlan(
   client: SupabaseClient,
   id: string
 ): Promise<void> {
   const { error } = await client
-    .from('tags')
+    .from('task_plans')
     .delete()
     .eq('id', id)
 

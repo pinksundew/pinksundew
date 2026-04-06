@@ -29,3 +29,57 @@ export async function createProject(
 
   return project
 }
+
+export async function updateProject(
+  client: SupabaseClient,
+  id: string,
+  updates: Partial<Omit<Project, 'id' | 'created_at' | 'created_by'>>
+): Promise<Project> {
+  const { data, error } = await client
+    .from('projects')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function deleteProject(
+  client: SupabaseClient,
+  id: string
+): Promise<void> {
+  const { error } = await client
+    .from('projects')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw error
+}
+
+export async function inviteMember(
+  client: SupabaseClient,
+  projectId: string,
+  userId: string,
+  role: string = 'member'
+): Promise<void> {
+  const { error } = await client
+    .from('project_members')
+    .insert({ project_id: projectId, user_id: userId, role })
+
+  if (error) throw error
+}
+
+export async function removeMember(
+  client: SupabaseClient,
+  projectId: string,
+  userId: string
+): Promise<void> {
+  const { error } = await client
+    .from('project_members')
+    .delete()
+    .match({ project_id: projectId, user_id: userId })
+
+  if (error) throw error
+}

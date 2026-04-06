@@ -14,3 +14,19 @@ export async function getProfile(
   if (error) throw error
   return data
 }
+
+export async function getProjectMembers(
+  client: SupabaseClient,
+  projectId: string
+): Promise<Profile[]> {
+  const { data, error } = await client
+    .from('project_members')
+    .select(`
+      user_id,
+      profiles (*)
+    `)
+    .eq('project_id', projectId)
+
+  if (error) throw error
+  return (data as any[]).map(r => r.profiles)
+}

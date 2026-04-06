@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { createTask } from '@/domains/task/mutations'
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient } from '@/lib/supabase/client'
 import { TaskStatus, TaskPriority, TaskWithTags } from '@/domains/task/types'
 
 type CreateTaskModalProps = {
@@ -21,10 +21,7 @@ export function CreateTaskModal({ isOpen, onClose, projectId, onSuccess }: Creat
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [loading, setLoading] = useState(false)
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

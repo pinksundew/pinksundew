@@ -1,9 +1,29 @@
 {
-	"servers": {
-		"supabase": {
-			"type": "http",
-			"url": "https://mcp.supabase.com/mcp?project_ref=gsjyabekiucdkzhulvip"
-		}
-	},
-	"inputs": []
+  "servers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=gsjyabekiucdkzhulvip"
+    },
+    "kanban": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp-server/dist/index.js"],
+      "env": {
+        "SUPABASE_URL": "${input:supabaseUrl}",
+        "SUPABASE_SERVICE_ROLE_KEY": "${input:serviceRoleKey}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "id": "supabaseUrl",
+      "type": "promptString",
+      "description": "Supabase Project URL (e.g. https://xxx.supabase.co)"
+    },
+    {
+      "id": "serviceRoleKey",
+      "type": "promptString",
+      "description": "Supabase Service Role Key (Keep this secret!)"
+    }
+  ]
 }

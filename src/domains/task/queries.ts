@@ -11,7 +11,7 @@ export async function getProjectTasks(
     .from('tasks')
     .select(`
       *,
-      task_tags!inner(
+      task_tags(
         tags (*)
       )
     `)
@@ -28,7 +28,7 @@ export async function getProjectTasks(
   return (data as any[]).map((row) => {
     return {
       ...row,
-      tags: row.task_tags.map((tt: any) => tt.tags),
+      tags: row.task_tags ? row.task_tags.map((tt: any) => tt.tags).filter(Boolean) : [],
       task_tags: undefined // remove the raw join table data
     }
   })

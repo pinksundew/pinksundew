@@ -3,7 +3,7 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TaskWithTags } from '@/domains/task/types'
-import { Calendar, User, AlignLeft, Gripper } from 'lucide-react'
+import { Calendar, User, AlignLeft, GripVertical } from 'lucide-react'
 
 type TaskCardProps = {
   task: TaskWithTags
@@ -60,7 +60,7 @@ export function TaskCard({ task, isOverlay }: TaskCardProps) {
           {task.priority}
         </span>
         <button className="text-muted-foreground/0 group-hover:text-muted-foreground transition-colors p-1 hover:bg-muted rounded">
-          <Gripper className="w-4 h-4" />
+          <GripVertical className="w-4 h-4" />
         </button>
       </div>
 

@@ -14,7 +14,7 @@ import {
   DragEndEvent
 } from '@dnd-kit/core'
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { createBrowserClient } from '@supabase/ssr'
+import { createClient } from '@/lib/supabase/client'
 import { TaskWithTags, TaskStatus } from '@/domains/task/types'
 import { Tag } from '@/domains/tag/types'
 import { KanbanColumn } from './column'
@@ -36,10 +36,7 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [activeTask, setActiveTask] = useState<TaskWithTags | null>(null)
   
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = createClient()
 
   useEffect(() => {
     const channel = supabase.channel(`tasks_${projectId}`)

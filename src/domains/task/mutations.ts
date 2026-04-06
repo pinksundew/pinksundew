@@ -29,16 +29,6 @@ export async function updateTask(
 
   if (error) throw error
   
-  // Basic hook-up point for email notifications when assignee changes
-  if (updates.assignee_id !== undefined) {
-    // Fire & forget internal API call for email notifs
-    fetch('/api/notifications/task-assigned', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: id, assigneeId: updates.assignee_id })
-    }).catch(console.error)
-  }
-
   return data
 }
 

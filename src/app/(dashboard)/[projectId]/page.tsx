@@ -12,8 +12,8 @@ export default async function ProjectBoardPage({
   const supabase = await createClient()
 
   // Pre-fetch tasks and tags for SSR
-  let initialTasks = []
-  let projectTags = []
+  let initialTasks: import("/Users/quentinadolphe/My Projects/AgentPlanner/src/domains/task/types").TaskWithTags[] = []
+  let projectTags: import("@/domains/tag/types").Tag[] = []
 
   try {
     initialTasks = await getProjectTasks(supabase, pageParams.projectId)

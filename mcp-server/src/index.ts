@@ -15,7 +15,7 @@ const server = new Server(
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
   const projects = await resources.getProjects();
   return {
-    resources: projects.map(p => ({
+    resources: projects.map((p: any) => ({
       uri: `kanban://board/${p.id}`,
       name: `Board: ${p.name}`,
       mimeType: 'application/json',

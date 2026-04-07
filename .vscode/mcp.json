@@ -9,21 +9,21 @@
       "command": "node",
       "args": ["${workspaceFolder}/mcp-server/dist/index.js"],
       "env": {
-        "SUPABASE_URL": "${input:supabaseUrl}",
-        "SUPABASE_SERVICE_ROLE_KEY": "${input:serviceRoleKey}"
+        "AGENTPLANNER_API_KEY": "${input:apiKey}",
+        "AGENTPLANNER_URL": "${input:appUrl}"
       }
     }
   },
   "inputs": [
     {
-      "id": "supabaseUrl",
+      "id": "apiKey",
       "type": "promptString",
-      "description": "Supabase Project URL (e.g. https://xxx.supabase.co)"
+      "description": "Your AgentPlanner API key (generate one from Profile → API Keys)"
     },
     {
-      "id": "serviceRoleKey",
+      "id": "appUrl",
       "type": "promptString",
-      "description": "Supabase Service Role Key (Keep this secret!)"
+      "description": "AgentPlanner URL (e.g. https://d1abc2def3.cloudfront.net or http://localhost:3000)"
     }
   ]
 }

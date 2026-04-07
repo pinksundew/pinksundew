@@ -39,7 +39,8 @@ export default function SignupPage() {
     supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/callback`
+        redirectTo: `${window.location.origin}/callback`,
+        scopes: provider === 'github' ? 'repo' : undefined,
       }
     })
   }

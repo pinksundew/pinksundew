@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { createProject } from '@/domains/project/mutations'
@@ -8,11 +8,30 @@ import { createProject } from '@/domains/project/mutations'
 export default function CreateProjectPage() {
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
+  const [repos, setRepos] = useState<{ id: number, full_name: string, description: string | null }[]>([])
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
   const router = useRouter()
 
   const supabase = createClient()
+
+  useEffect(() => {
+    async function loadRepos() {
+      const { data } = await supabase.auth.getSession()
+      const token = data.session?.provider_token
+      if (token) {
+        try {
+          const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=10', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+          if (res.ok) {
+            setRepos(await res.json())
+          }
+        } catch(e) {}
+      }
+    }
+    loadRepos()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,6 +69,28 @@ export default function CreateProjectPage() {
         </div>
 
         {errorMsg && <div className="text-red-600 text-sm">{errorMsg}</div>}
+
+        {repos.length > 0 && (
+          <div className="space-y-2 border-b border-border pb-4">
+            <label className="block text-sm font-medium text-foreground">Import from GitHub Repo</label>
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {repos.slice(0, 5).map(repo => (
+                <button
+                  key={repo.id}
+                  type="button"
+                  onClick={() => {
+                    setName(repo.full_name)
+                    setDesc(repo.description || `Task board for ${repo.full_name}`)
+                  }}
+                  className="whitespace-nowrap px-3 py-1.5 text-xs rounded-md border border-border bg-white text-foreground hover:bg-muted focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {repo.full_name.split('/')[1] || repo.full_name}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">Select a recent repository to pre-fill the form.</p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

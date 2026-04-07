@@ -2,8 +2,10 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getProfile } from '@/domains/profile/queries'
 import { updateProfile } from '@/domains/profile/mutations'
+import { getUserApiKeys } from '@/domains/api-key/queries'
 import { revalidatePath } from 'next/cache'
 import { User } from 'lucide-react'
+import ApiKeyManager from '@/components/api-key-manager'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -14,6 +16,7 @@ export default async function ProfilePage() {
   }
 
   const profile = await getProfile(supabase, user.id)
+  const apiKeys = await getUserApiKeys(supabase, user.id)
 
   async function updateProfileActions(formData: FormData) {
     'use server'
@@ -69,6 +72,10 @@ export default async function ProfilePage() {
           Save Changes
         </button>
       </form>
+
+      <div className="border-t pt-6 mt-6">
+        <ApiKeyManager initialKeys={apiKeys} />
+      </div>
     </div>
   )
 }

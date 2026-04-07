@@ -57,3 +57,24 @@ export async function moveTask(
 
   if (error) throw error
 }
+
+export async function persistTaskOrder(
+  client: SupabaseClient,
+  tasks: Array<Pick<Task, 'id' | 'status' | 'position'>>
+): Promise<void> {
+  const updates = tasks.map((task) =>
+    client
+      .from('tasks')
+      .update({
+        status: task.status,
+        position: task.position,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', task.id)
+  )
+
+  const results = await Promise.all(updates)
+  const failedUpdate = results.find((result) => result.error)
+
+  if (failedUpdate?.error) throw failedUpdate.error
+}

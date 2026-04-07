@@ -3,11 +3,14 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TaskWithTags } from '@/domains/task/types'
-import { Calendar, User, AlignLeft, GripVertical } from 'lucide-react'
+import { Calendar, User, AlignLeft, CheckCircle2, Circle, GripVertical } from 'lucide-react'
 
 type TaskCardProps = {
   task: TaskWithTags
   isOverlay?: boolean
+  isSelected?: boolean
+  isSelectionMode?: boolean
+  onClick?: (task: TaskWithTags) => void
 }
 
 const PRIORITY_COLORS = {
@@ -16,7 +19,7 @@ const PRIORITY_COLORS = {
   high: 'bg-rose-50 text-rose-700 border-rose-200'
 }
 
-export function TaskCard({ task, isOverlay }: TaskCardProps) {
+export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode = false, onClick }: TaskCardProps) {
   const {
     setNodeRef,
     attributes,
@@ -27,6 +30,7 @@ export function TaskCard({ task, isOverlay }: TaskCardProps) {
   } = useSortable({
     id: task.id,
     data: { type: 'Task', task },
+    disabled: isSelectionMode,
   })
 
   const style = {
@@ -50,18 +54,32 @@ export function TaskCard({ task, isOverlay }: TaskCardProps) {
       style={style}
       {...attributes}
       {...listeners}
+      onClick={() => onClick?.(task)}
       className={`
-        group flex flex-col bg-white border border-border p-4 rounded-xl cursor-grab active:cursor-grabbing hover:border-primary/40 hover:shadow-md transition-all shadow-sm
+        group flex flex-col bg-white border border-border p-4 rounded-xl transition-all shadow-sm
+        ${isSelectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}
+        ${isSelected ? 'border-primary ring-2 ring-primary/20 shadow-md' : 'hover:border-primary/40 hover:shadow-md'}
         ${isOverlay ? 'rotate-2 scale-105 shadow-xl z-50 cursor-grabbing bg-white/95' : ''}
       `}
     >
       <div className="flex justify-between items-start mb-2">
-        <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border ${PRIORITY_COLORS[task.priority]}`}>
-          {task.priority}
-        </span>
-        <button className="text-muted-foreground/0 group-hover:text-muted-foreground transition-colors p-1 hover:bg-muted rounded">
-          <GripVertical className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          {isSelectionMode ? (
+            isSelected ? (
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+            ) : (
+              <Circle className="h-4 w-4 text-muted-foreground" />
+            )
+          ) : null}
+          <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border ${PRIORITY_COLORS[task.priority]}`}>
+            {task.priority}
+          </span>
+        </div>
+        {!isSelectionMode ? (
+          <button className="text-muted-foreground/0 group-hover:text-muted-foreground transition-colors p-1 hover:bg-muted rounded">
+            <GripVertical className="w-4 h-4" />
+          </button>
+        ) : null}
       </div>
 
       <h4 className="text-sm font-semibold text-foreground leading-tight mb-2">

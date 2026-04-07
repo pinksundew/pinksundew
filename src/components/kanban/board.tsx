@@ -16,32 +16,32 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { createClient } from '@/lib/supabase/client'
 import { TaskWithTags, TaskStatus } from '@/domains/task/types'
-import { Tag } from '@/domains/tag/types'
 import { KanbanColumn } from './column'
 import { TaskCard } from './task-card'
 import { AbyssDropZone } from '@/components/abyss/abyss-drop-zone'
 import { CreateTaskModal } from '@/components/modals/create-task-modal'
-import { moveTask, deleteTask } from '@/domains/task/mutations'
+import { deleteTask, persistTaskOrder } from '@/domains/task/mutations'
 import { TaskDetailsModal } from '@/components/modals/task-details-modal'
 import { TagManagerModal } from '@/components/modals/tag-manager-modal'
 import { ExportModal } from '@/components/modals/export-modal'
-import { Settings, Tags, Download } from 'lucide-react'
-import Link from 'next/link'
+import { CheckSquare, Download, Square } from 'lucide-react'
 
 type KanbanBoardProps = {
   projectId: string
+  projectName: string
   initialTasks: TaskWithTags[]
-  projectTags: Tag[]
 }
 
 const COLUMNS: TaskStatus[] = ['todo', 'in-progress', 'done']
 
-export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoardProps) {
+export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TaskWithTags[]>(initialTasks)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [selectedTask, setSelectedTask] = useState<TaskWithTags | null>(null)
   const [activeTask, setActiveTask] = useState<TaskWithTags | null>(null)
   
@@ -53,7 +53,7 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
         console.log('Live change:', payload)
         setTasks(prev => {
           if (payload.eventType === 'INSERT') {
-            const newTask = payload.new as any
+            const newTask = payload.new as TaskWithTags
             if (!prev.find(t => t.id === newTask.id)) {
               return [...prev, { ...newTask, tags: [] }]
             }
@@ -78,6 +78,44 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
+
+  const selectedTasks = tasks.filter((task) => selectedTaskIds.has(task.id))
+
+  const toggleSelectionMode = () => {
+    setIsSelectionMode((prev) => {
+      const next = !prev
+      if (!next) {
+        setSelectedTaskIds(new Set())
+      }
+      return next
+    })
+  }
+
+  const handleTaskClick = (task: TaskWithTags) => {
+    if (isSelectionMode) {
+      setSelectedTaskIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(task.id)) {
+          next.delete(task.id)
+        } else {
+          next.add(task.id)
+        }
+        return next
+      })
+      return
+    }
+
+    setSelectedTask(task)
+    setIsDetailsModalOpen(true)
+  }
+
+  const openExportModal = () => {
+    if (selectedTasks.length === 0) return
+    setIsExportModalOpen(true)
+  }
+
+  const normalizeTaskPositions = (taskList: TaskWithTags[]) =>
+    taskList.map((task, index) => ({ ...task, position: index }))
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event
@@ -128,7 +166,7 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
     if (over.id === 'abyss-drop-zone') {
       const isConfirmed = window.confirm("Throw this task into the abyss?")
       if (isConfirmed) {
-        setTasks((prev) => prev.filter((t) => t.id !== active.id))
+        setTasks((prev) => normalizeTaskPositions(prev.filter((t) => t.id !== active.id)))
         await deleteTask(supabase, active.id as string).catch(console.error)
       }
       return
@@ -139,8 +177,8 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
 
     if (activeId !== overId) {
       setTasks((prev) => {
-        const activeIdx = prev.findIndex((t) => t.id === activeId)
-        const overIdx = prev.findIndex((t) => t.id === overId)
+        const activeIdx = prev.findIndex((task) => task.id === activeId)
+        const overIdx = prev.findIndex((task) => task.id === overId)
         
         let newStatus: TaskStatus | undefined
 
@@ -150,15 +188,24 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
           newStatus = prev[overIdx].status
         }
         
-        const newArray = arrayMove(prev, activeIdx, overIdx === -1 ? prev.length - 1 : overIdx)
-        
-        const finalArray = newArray.map((t, idx) => ({
-          ...t, position: idx, status: (t.id === activeId && newStatus) ? newStatus : t.status
-        }))
+        const nextIndex = overIdx === -1 ? prev.length - 1 : overIdx
+        const reorderedTasks = arrayMove(prev, activeIdx, nextIndex)
 
-        if (newStatus) {
-           moveTask(supabase, activeId as string, newStatus, overIdx).catch(console.error)
-        }
+        const finalArray = normalizeTaskPositions(
+          reorderedTasks.map((task) => ({
+            ...task,
+            status: task.id === activeId && newStatus ? newStatus : task.status,
+          }))
+        )
+
+        persistTaskOrder(
+          supabase,
+          finalArray.map((task) => ({
+            id: task.id,
+            status: task.status,
+            position: task.position,
+          }))
+        ).catch(console.error)
 
         return finalArray
       })
@@ -168,8 +215,25 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
   return (
     <div className="h-full flex flex-col items-start w-full relative">
       <div className="w-full flex justify-between items-center mb-6 shrink-0">
-         <h1 className="text-2xl font-bold text-foreground">Project Board</h1>
+         <div>
+           <h1 className="text-2xl font-bold text-foreground">{projectName}</h1>
+           <p className="text-sm text-muted-foreground">Project Board</p>
+         </div>
          <div className="flex gap-2">
+            <button
+              onClick={toggleSelectionMode}
+              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
+            >
+              {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+              {isSelectionMode ? `Selecting (${selectedTaskIds.size})` : 'Selection Mode'}
+            </button>
+            <button
+              onClick={openExportModal}
+              disabled={!isSelectionMode || selectedTaskIds.size === 0}
+              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Download className="h-4 w-4" /> Export
+            </button>
             <button 
               onClick={() => setIsCreateModalOpen(true)}
               className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 transition text-sm font-medium"
@@ -199,15 +263,18 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
               key={columnId}
               columnId={columnId}
               tasks={tasks.filter((t) => t.status === columnId)}
+              isSelectionMode={isSelectionMode}
+              selectedTaskIds={selectedTaskIds}
+              onTaskClick={handleTaskClick}
             />
           ))}
         </div>
 
         <DragOverlay>
-          {activeTask ? <TaskCard task={activeTask} isOverlay /> : null}
+          {activeTask && !isSelectionMode ? <TaskCard task={activeTask} isOverlay /> : null}
         </DragOverlay>
 
-        <AbyssDropZone isVisible={!!activeTask} />
+        <AbyssDropZone isVisible={!!activeTask && !isSelectionMode} />
       </DndContext>
       <TaskDetailsModal
         isOpen={isDetailsModalOpen}
@@ -221,12 +288,14 @@ export function KanbanBoard({ projectId, initialTasks, projectTags }: KanbanBoar
         onClose={() => setIsTagModalOpen(false)}
         projectId={projectId}
       />
-      <ExportModal
-        isOpen={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        tasks={tasks}
-        projectName={'Project'}
-      />
+      {isExportModalOpen ? (
+        <ExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          tasks={selectedTasks}
+          projectName={projectName}
+        />
+      ) : null}
     </div>
   )
 }

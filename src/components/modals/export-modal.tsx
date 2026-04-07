@@ -1,9 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Download, FileJson, FileText } from 'lucide-react'
+import { Check, Clipboard, Plus, Trash2, X } from 'lucide-react'
 import { TaskWithTags } from '@/domains/task/types'
+
+type CustomInstruction = {
+  id: string
+  title: string
+  content: string
+}
 
 type ExportModalProps = {
   isOpen: boolean
@@ -12,57 +18,135 @@ type ExportModalProps = {
   projectName: string
 }
 
+const CUSTOM_INSTRUCTIONS_STORAGE_KEY = 'planner_custom_instructions'
+
+function loadCustomInstructions() {
+  if (typeof window === 'undefined') return [] as CustomInstruction[]
+
+  const rawValue = window.localStorage.getItem(CUSTOM_INSTRUCTIONS_STORAGE_KEY)
+  if (!rawValue) return [] as CustomInstruction[]
+
+  try {
+    const parsed = JSON.parse(rawValue) as CustomInstruction[]
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    window.localStorage.removeItem(CUSTOM_INSTRUCTIONS_STORAGE_KEY)
+    return [] as CustomInstruction[]
+  }
+}
+
+function generateExportText(
+  tasks: TaskWithTags[],
+  selectedInstructions: CustomInstruction[]
+) {
+  const taskSections = tasks.map((task, index) => {
+    const tags = task.tags.length > 0 ? task.tags.map((tag) => tag.name).join(', ') : 'None'
+    const description = task.description?.trim() || 'No description provided.'
+
+    return [
+      `${index + 1}. ${task.title.toUpperCase()}`,
+      `Description: ${description}`,
+      `Tags: ${tags}`,
+      `Priority: ${task.priority}`,
+    ].join('\n')
+  })
+
+  let content = `Implement these tasks:\n\n${taskSections.join('\n\n')}`
+
+  if (selectedInstructions.length > 0) {
+    const instructionSections = selectedInstructions.map(
+      (instruction) => `[${instruction.title}]\n${instruction.content}`
+    )
+
+    content += `\n\n--- CUSTOM INSTRUCTIONS ---\n\n${instructionSections.join('\n\n')}`
+  }
+
+  return content
+}
+
 export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModalProps) {
-  const [format, setFormat] = useState<'json' | 'csv' | 'markdown'>('json')
+  const [customInstructions, setCustomInstructions] = useState<CustomInstruction[]>(loadCustomInstructions)
+  const [selectedInstructionIds, setSelectedInstructionIds] = useState<Set<string>>(new Set())
+  const selectedInstructions = useMemo(
+    () => customInstructions.filter((instruction) => selectedInstructionIds.has(instruction.id)),
+    [customInstructions, selectedInstructionIds]
+  )
+  const [exportText, setExportText] = useState(() => generateExportText(tasks, selectedInstructions))
+  const [exportCopied, setExportCopied] = useState(false)
+  const [instructionTitle, setInstructionTitle] = useState('')
+  const [instructionContent, setInstructionContent] = useState('')
 
-  const handleExport = () => {
-    let content = ''
-    let mimeType = 'text/plain'
-    let ext = format
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(CUSTOM_INSTRUCTIONS_STORAGE_KEY, JSON.stringify(customInstructions))
+  }, [customInstructions])
 
-    if (format === 'json') {
-      content = JSON.stringify(tasks, null, 2)
-      mimeType = 'application/json'
-    } else if (format === 'csv') {
-      const headers = ['ID', 'Title', 'Status', 'Priority', 'Description']
-      const rows = tasks.map(t => [
-        t.id, 
-        `"${t.title.replace(/"/g, '""')}"`, 
-        t.status, 
-        t.priority, 
-        `"${(t.description || '').replace(/"/g, '""')}"`
-      ])
-      content = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-      mimeType = 'text/csv'
-    } else if (format === 'markdown') {
-      content = `# ${projectName} Tasks\n\n`
-      const byStatus = tasks.reduce((acc, t) => {
-        acc[t.status] = acc[t.status] || []
-        acc[t.status].push(t)
-        return acc
-      }, {} as Record<string, TaskWithTags[]>)
+  const handleAddInstruction = () => {
+    const nextTitle = instructionTitle.trim()
+    const nextContent = instructionContent.trim()
 
-      for (const [status, group] of Object.entries(byStatus)) {
-        content += `## ${status.toUpperCase()}\n\n`
-        group.forEach(t => {
-          content += `- **${t.title}** (Priority: ${t.priority})\n`
-          if (t.description) content += `  > ${t.description.split('\n').join('\n  > ')}\n`
-        })
-        content += '\n'
-      }
-      ext = 'markdown'
+    if (!nextTitle || !nextContent) return
+
+    const instruction: CustomInstruction = {
+      id: crypto.randomUUID(),
+      title: nextTitle,
+      content: nextContent,
     }
 
-    const blob = new Blob([content], { type: mimeType })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${projectName.toLowerCase().replace(/\s+/g, '-')}-export.${ext}`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    onClose()
+    const nextInstructions = [...customInstructions, instruction]
+    const nextSelectedInstructionIds = new Set(selectedInstructionIds)
+    nextSelectedInstructionIds.add(instruction.id)
+
+    setCustomInstructions(nextInstructions)
+    setSelectedInstructionIds(nextSelectedInstructionIds)
+    setExportText(
+      generateExportText(
+        tasks,
+        nextInstructions.filter((item) => nextSelectedInstructionIds.has(item.id))
+      )
+    )
+    setInstructionTitle('')
+    setInstructionContent('')
+  }
+
+  const handleDeleteInstruction = (instructionId: string) => {
+    const nextInstructions = customInstructions.filter((instruction) => instruction.id !== instructionId)
+    const nextSelectedInstructionIds = new Set(selectedInstructionIds)
+    nextSelectedInstructionIds.delete(instructionId)
+
+    setCustomInstructions(nextInstructions)
+    setSelectedInstructionIds(nextSelectedInstructionIds)
+    setExportText(
+      generateExportText(
+        tasks,
+        nextInstructions.filter((item) => nextSelectedInstructionIds.has(item.id))
+      )
+    )
+  }
+
+  const toggleInstruction = (instructionId: string) => {
+    const nextSelectedInstructionIds = new Set(selectedInstructionIds)
+    if (nextSelectedInstructionIds.has(instructionId)) {
+      nextSelectedInstructionIds.delete(instructionId)
+    } else {
+      nextSelectedInstructionIds.add(instructionId)
+    }
+
+    setSelectedInstructionIds(nextSelectedInstructionIds)
+    setExportText(
+      generateExportText(
+        tasks,
+        customInstructions.filter((instruction) => nextSelectedInstructionIds.has(instruction.id))
+      )
+    )
+  }
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(exportText)
+    setExportCopied(true)
+    window.setTimeout(() => {
+      setExportCopied(false)
+    }, 2000)
   }
 
   if (!isOpen) return null
@@ -81,65 +165,126 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="relative w-full max-w-sm overflow-hidden rounded-xl bg-white shadow-xl"
+          className="relative w-full max-w-4xl overflow-hidden rounded-xl bg-white shadow-xl"
         >
           <div className="flex items-center justify-between border-b p-4">
-            <h2 className="text-xl font-semibold">Export Tasks</h2>
+            <div>
+              <h2 className="text-xl font-semibold">Export Prompt</h2>
+              <p className="text-sm text-muted-foreground">
+                Build an AI-ready prompt from {tasks.length} selected task{tasks.length === 1 ? '' : 's'} in {projectName}.
+              </p>
+            </div>
             <button onClick={onClose} className="rounded-full p-2 hover:bg-gray-100">
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          <div className="p-4 space-y-4">
-            <p className="text-sm text-gray-600">
-              Export {tasks.length} tasks from &quot;{projectName}&quot;. Select your preferred format:
-            </p>
-            
-            <div className="space-y-2">
-              <label 
-                className={`flex cursor-pointer items-center justify-between rounded-lg border p-4 hover:border-blue-500 ${format === 'json' ? 'border-blue-500 bg-blue-50' : ''}`}
-                onClick={() => setFormat('json')}
-              >
-                <div className="flex items-center gap-3">
-                  <FileJson className={`h-5 w-5 ${format === 'json' ? 'text-blue-600' : 'text-gray-500'}`} />
-                  <span className="font-medium">JSON File</span>
-                </div>
-                <input type="radio" name="format" checked={format === 'json'} readOnly className="h-4 w-4" />
-              </label>
-
-              <label 
-                className={`flex cursor-pointer items-center justify-between rounded-lg border p-4 hover:border-blue-500 ${format === 'csv' ? 'border-blue-500 bg-blue-50' : ''}`}
-                onClick={() => setFormat('csv')}
-              >
-                <div className="flex items-center gap-3">
-                  <span className={`flex h-5 w-5 items-center justify-center font-bold text-xs ${format === 'csv' ? 'text-blue-600' : 'text-gray-500'}`}>CSV</span>
-                  <span className="font-medium">Spreadsheet (CSV)</span>
-                </div>
-                <input type="radio" name="format" checked={format === 'csv'} readOnly className="h-4 w-4" />
-              </label>
-
-              <label 
-                className={`flex cursor-pointer items-center justify-between rounded-lg border p-4 hover:border-blue-500 ${format === 'markdown' ? 'border-blue-500 bg-blue-50' : ''}`}
-                onClick={() => setFormat('markdown')}
-              >
-                <div className="flex items-center gap-3">
-                  <FileText className={`h-5 w-5 ${format === 'markdown' ? 'text-blue-600' : 'text-gray-500'}`} />
-                  <span className="font-medium">Markdown</span>
-                </div>
-                <input type="radio" name="format" checked={format === 'markdown'} readOnly className="h-4 w-4" />
-              </label>
+          <div className="grid gap-0 md:grid-cols-[1.1fr_0.9fr]">
+            <div className="border-b p-4 md:border-b-0 md:border-r">
+              <label className="mb-2 block text-sm font-medium text-foreground">Prompt Preview</label>
+              <textarea
+                value={exportText}
+                onChange={(event) => setExportText(event.target.value)}
+                className="min-h-[420px] w-full rounded-lg border border-border px-3 py-3 text-sm leading-6 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              />
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
-              <button onClick={onClose} className="rounded-md border px-4 py-2 hover:bg-gray-50">
-                Cancel
-              </button>
-              <button 
-                onClick={handleExport}
-                className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-              >
-                <Download className="h-4 w-4" /> Export
-              </button>
+            <div className="flex min-h-[420px] flex-col">
+              <div className="space-y-4 p-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Custom Instructions</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Save reusable AI guidance and choose which snippets to append.
+                  </p>
+                </div>
+
+                <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Title
+                    </label>
+                    <input
+                      value={instructionTitle}
+                      onChange={(event) => setInstructionTitle(event.target.value)}
+                      placeholder="Use Tailwind CSS"
+                      className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Content
+                    </label>
+                    <textarea
+                      value={instructionContent}
+                      onChange={(event) => setInstructionContent(event.target.value)}
+                      placeholder="Prefer utility classes, keep components small, and preserve the existing design tokens."
+                      rows={4}
+                      className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddInstruction}
+                    className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Plus className="h-4 w-4" /> Add Instruction
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {customInstructions.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      No saved instructions yet.
+                    </div>
+                  ) : (
+                    customInstructions.map((instruction) => (
+                      <div
+                        key={instruction.id}
+                        className="rounded-lg border border-border p-3 transition-colors hover:border-primary/40"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <label className="flex flex-1 cursor-pointer items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedInstructionIds.has(instruction.id)}
+                              onChange={() => toggleInstruction(instruction.id)}
+                              className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                            />
+                            <div>
+                              <div className="text-sm font-medium text-foreground">{instruction.title}</div>
+                              <div className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                                {instruction.content}
+                              </div>
+                            </div>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteInstruction(instruction.id)}
+                            className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+                            aria-label={`Delete ${instruction.title}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-auto flex items-center justify-between border-t bg-muted/20 px-4 py-3">
+                <div className="text-sm text-muted-foreground">
+                  {tasks.length} task{tasks.length === 1 ? '' : 's'} selected
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  {exportCopied ? <Check className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}
+                  {exportCopied ? 'Copied!' : 'Copy to Clipboard'}
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>

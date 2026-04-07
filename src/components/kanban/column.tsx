@@ -9,6 +9,9 @@ import { useMemo } from 'react'
 type ColumnProps = {
   columnId: TaskStatus
   tasks: TaskWithTags[]
+  isSelectionMode?: boolean
+  selectedTaskIds?: Set<string>
+  onTaskClick?: (task: TaskWithTags) => void
 }
 
 const COLUMN_TITLES: Record<TaskStatus, string> = {
@@ -17,7 +20,13 @@ const COLUMN_TITLES: Record<TaskStatus, string> = {
   done: 'Done'
 }
 
-export function KanbanColumn({ columnId, tasks }: ColumnProps) {
+export function KanbanColumn({
+  columnId,
+  tasks,
+  isSelectionMode = false,
+  selectedTaskIds = new Set<string>(),
+  onTaskClick,
+}: ColumnProps) {
   const { setNodeRef } = useDroppable({
     id: columnId,
     data: { type: 'Column', columnId },
@@ -42,7 +51,13 @@ export function KanbanColumn({ columnId, tasks }: ColumnProps) {
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 min-h-[150px]">
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard
+              key={task.id}
+              task={task}
+              isSelected={selectedTaskIds.has(task.id)}
+              isSelectionMode={isSelectionMode}
+              onClick={onTaskClick}
+            />
           ))}
         </SortableContext>
       </div>

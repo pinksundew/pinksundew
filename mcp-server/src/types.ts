@@ -21,6 +21,15 @@ export type Tag = {
   color: string
 }
 
+export type AgentInstruction = {
+  id: string
+  project_id: string
+  file_name: string
+  content: string
+  created_at: string
+  updated_at: string
+}
+
 export type TaskPlan = {
   id: string
   task_id: string
@@ -84,6 +93,7 @@ export type BoardState = {
   project: Project | null
   tasks: Task[]
   tags: Tag[]
+  instructions: AgentInstruction[]
 }
 
 export type AbyssState = {

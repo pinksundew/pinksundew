@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
 import { requireProjectMembership } from '@/lib/bridge-access'
+import { getProjectAgentInstructions } from '@/domains/agent-instruction/queries'
 import { getProjectTasks } from '@/domains/task/queries'
 
 export async function GET(
@@ -34,5 +35,7 @@ export async function GET(
     .select('*')
     .eq('project_id', projectId)
 
-  return NextResponse.json({ project, tasks, tags })
+  const instructions = await getProjectAgentInstructions(auth.supabase, projectId)
+
+  return NextResponse.json({ project, tasks, tags, instructions })
 }

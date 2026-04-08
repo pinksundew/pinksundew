@@ -21,13 +21,14 @@ import { TaskCard } from './task-card'
 import { AbyssDropZone } from '@/components/abyss/abyss-drop-zone'
 import { CreateTaskModal } from '@/components/modals/create-task-modal'
 import { deleteTask, persistTaskOrderWithKeepalive } from '@/domains/task/mutations'
+import { AgentInstructionsModal } from '@/components/modals/agent-instructions-modal'
 import { TaskDetailsModal } from '@/components/modals/task-details-modal'
 import { TagManagerModal } from '@/components/modals/tag-manager-modal'
 import { ExportModal } from '@/components/modals/export-modal'
 import { ConfirmModal } from '@/components/modals/confirm-modal'
 import { AbyssModal } from '@/components/modals/abyss-modal'
 import { ConnectMcpModal } from '@/components/modals/connect-mcp-modal'
-import { CheckSquare, Download, Ghost, PlugZap, Square } from 'lucide-react'
+import { CheckSquare, Download, FileText, Ghost, PlugZap, Square } from 'lucide-react'
 import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility'
 
 type KanbanBoardProps = {
@@ -52,6 +53,23 @@ function mergeRealtimeTask(task: Partial<TaskWithTags>, existing?: TaskWithTags 
   } as TaskWithTags
 }
 
+function applyStatusSideEffects(task: TaskWithTags, nextStatus: TaskStatus): TaskWithTags {
+  if (nextStatus !== 'done' || task.status === 'done') {
+    return { ...task, status: nextStatus }
+  }
+
+  return {
+    ...task,
+    status: nextStatus,
+    workflow_signal: null,
+    workflow_signal_message: null,
+    workflow_signal_updated_at: new Date().toISOString(),
+    workflow_signal_updated_by: null,
+    agent_lock_until: null,
+    agent_lock_reason: null,
+  }
+}
+
 export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoardProps) {
   const [tasks, setTasks] = useState<TaskWithTags[]>(() =>
     normalizeVisibleTasks(initialTasks)
@@ -59,6 +77,7 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
+  const [isAgentInstructionsOpen, setIsAgentInstructionsOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [isAbyssModalOpen, setIsAbyssModalOpen] = useState(false)
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
@@ -315,7 +334,7 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
     }
 
     const reordered = arrayMove(taskList, activeIndex, nextIndex).map((task) =>
-      task.id === activeId ? { ...task, status: nextStatus } : task
+      task.id === activeId ? applyStatusSideEffects(task, nextStatus) : task
     )
 
     return normalizeTaskPositions(reordered)
@@ -454,6 +473,12 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
               {isSelectionMode ? `Selecting (${selectedTaskIds.size})` : 'Selection Mode'}
             </button>
             <button
+              onClick={() => setIsAgentInstructionsOpen(true)}
+              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              <FileText className="h-4 w-4" /> Agent Instructions
+            </button>
+            <button
               onClick={openExportModal}
               disabled={!isSelectionMode || selectedTaskIds.size === 0}
               className={`inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
@@ -543,23 +568,26 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
         isOpen={isDetailsModalOpen}
         onClose={() => { setIsDetailsModalOpen(false); setSelectedTask(null); }}
         task={selectedTask}
-        onUpdate={(updated) => setTasks((prev) => {
-          if (!isVisibleOnBoard(updated)) {
-            const nextTasks = prev.filter((task) => task.id !== updated.id)
+        onUpdate={(updated) => {
+          setSelectedTask(updated)
+          setTasks((prev) => {
+            if (!isVisibleOnBoard(updated)) {
+              const nextTasks = prev.filter((task) => task.id !== updated.id)
+              tasksRef.current = nextTasks
+              lastPersistedTasksRef.current = nextTasks
+              return nextTasks
+            }
+
+            const nextTasks = normalizeVisibleTasks(
+              prev.some((task) => task.id === updated.id)
+                ? prev.map((task) => (task.id === updated.id ? updated : task))
+                : [...prev, updated]
+            )
             tasksRef.current = nextTasks
             lastPersistedTasksRef.current = nextTasks
             return nextTasks
-          }
-
-          const nextTasks = normalizeVisibleTasks(
-            prev.some((task) => task.id === updated.id)
-              ? prev.map((task) => (task.id === updated.id ? updated : task))
-              : [...prev, updated]
-          )
-          tasksRef.current = nextTasks
-          lastPersistedTasksRef.current = nextTasks
-          return nextTasks
-        })}
+          })
+        }}
         onDelete={(taskId) => setTasks((prev) => {
           const nextTasks = prev.filter((task) => task.id !== taskId)
           tasksRef.current = nextTasks
@@ -571,6 +599,11 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
       <TagManagerModal
         isOpen={isTagModalOpen}
         onClose={() => setIsTagModalOpen(false)}
+        projectId={projectId}
+      />
+      <AgentInstructionsModal
+        isOpen={isAgentInstructionsOpen}
+        onClose={() => setIsAgentInstructionsOpen(false)}
         projectId={projectId}
       />
       {isExportModalOpen ? (

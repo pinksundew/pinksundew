@@ -316,9 +316,9 @@ export function TaskDetailsModal({
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-border bg-background shadow-xl"
+          className="relative max-h-[90vh] w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-background shadow-xl flex flex-col"
         >
-          <div className="flex items-center justify-between border-b border-border bg-muted/30 p-4">
+          <div className="flex items-center justify-between border-b border-border bg-muted/30 p-4 shrink-0">
             <h2 className="text-xl font-semibold text-foreground">Task Details</h2>
             <button
               type="button"
@@ -329,7 +329,8 @@ export function TaskDetailsModal({
             </button>
           </div>
 
-          <form onSubmit={handleUpdate} className="space-y-4 p-4">
+          <form onSubmit={handleUpdate} className="flex flex-col flex-1 min-h-0">
+            <div className="space-y-4 p-4 overflow-y-auto flex-1">
             <div>
               <label className="mb-1 block text-sm font-medium text-foreground">Title</label>
               <input
@@ -550,7 +551,9 @@ export function TaskDetailsModal({
               </div>
             ) : null}
 
-            <div className="flex flex-col-reverse justify-between gap-2 pt-4 sm:flex-row">
+            </div>
+
+            <div className="flex flex-col-reverse justify-between gap-2 border-t border-border bg-background p-4 shrink-0 sm:flex-row">
               <button
                 type="button"
                 onClick={handleDelete}
@@ -560,22 +563,13 @@ export function TaskDetailsModal({
                 <Trash2 className="h-4 w-4" /> Move To Abyss
               </button>
 
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="rounded-md border border-border bg-white px-4 py-2 text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-                >
-                  <Save className="h-4 w-4" /> {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                <Save className="h-4 w-4" /> {loading ? 'Saving...' : 'Save Changes'}
+              </button>
             </div>
           </form>
         </motion.div>

@@ -348,6 +348,7 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
 
     const preview = buildReorderedTasks(tasksRef.current, activeId, overId, over.data.current?.type)
     if (preview && hasOrderChanged(tasksRef.current, preview)) {
+      tasksRef.current = preview
       setTasks(preview)
     }
   }
@@ -360,25 +361,43 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
 
     setActiveTask(null)
     const dragStartTasks = dragStartTasksRef.current ?? tasksRef.current
+    const currentPreviewTasks = tasksRef.current
     dragStartTasksRef.current = null
 
-    if (!over) return
+    if (!over) {
+      // DragOver may have already moved the task visually; persist if changed
+      if (hasOrderChanged(dragStartTasks, currentPreviewTasks)) {
+        queuePersistTaskOrder(currentPreviewTasks)
+      } else {
+        tasksRef.current = dragStartTasks
+        setTasks(dragStartTasks)
+      }
+      return
+    }
 
     if (over.id === 'abyss-drop-zone') {
       setTaskToDelete(activeId)
       return
     }
 
-    if (!overId || activeId === overId) return
-
-    const finalTasks = buildReorderedTasks(dragStartTasks, activeId, overId, overType)
-    if (!finalTasks || !hasOrderChanged(dragStartTasks, finalTasks)) {
+    if (!overId || activeId === overId) {
+      // Even when over matches active, the preview may have a valid cross-column move
+      if (hasOrderChanged(dragStartTasks, currentPreviewTasks)) {
+        queuePersistTaskOrder(currentPreviewTasks)
+      }
       return
     }
 
-    tasksRef.current = finalTasks
-    setTasks(finalTasks)
-    queuePersistTaskOrder(finalTasks)
+    const finalTasks = buildReorderedTasks(dragStartTasks, activeId, overId, overType)
+    if (finalTasks && hasOrderChanged(dragStartTasks, finalTasks)) {
+      tasksRef.current = finalTasks
+      setTasks(finalTasks)
+      queuePersistTaskOrder(finalTasks)
+    } else if (hasOrderChanged(dragStartTasks, currentPreviewTasks)) {
+      // buildReorderedTasks couldn't compute a result, but the DragOver preview
+      // already captured the correct state — persist it instead
+      queuePersistTaskOrder(currentPreviewTasks)
+    }
   }
 
   const handleConfirmDelete = async () => {
@@ -407,7 +426,7 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
 
   return (
     <div className="h-full flex flex-col items-start w-full relative">
-      <div className="w-full flex justify-between items-center mb-6 shrink-0 font-sans">
+      <div className="w-full flex justify-between items-center mb-6 shrink-0 font-sans sticky top-24 z-30 bg-[var(--color-muted)]/20 backdrop-blur-sm py-2 -mt-2">
          <div>
            <div className="flex items-center gap-3">
              <h1 className="text-2xl font-bold text-foreground">{projectName}</h1>

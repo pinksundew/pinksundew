@@ -52,6 +52,7 @@ type ExportOptions = {
   format: ExportFormat
   includeTags: boolean
   includePriority: boolean
+  includeTicketNumber: boolean
 }
 
 const CUSTOM_INSTRUCTIONS_STORAGE_KEY = 'planner_custom_instructions'
@@ -82,6 +83,7 @@ function formatTaskBlock(task: TaskWithTags, index: number, options: ExportOptio
   const description = task.description?.trim() || 'No description provided.'
   const tags = task.tags.length > 0 ? task.tags.map((tag) => tag.name).join(', ') : 'None'
   const detailLines = [
+    options.includeTicketNumber ? `Ticket Number: ${task.id}` : null,
     `Description: ${description}`,
     options.includeTags ? `Tags: ${tags}` : null,
     options.includePriority ? `Priority: ${task.priority}` : null,
@@ -177,6 +179,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
   const [format, setFormat] = useState<ExportFormat>('numbered')
   const [includeTags, setIncludeTags] = useState(true)
   const [includePriority, setIncludePriority] = useState(true)
+  const [includeTicketNumber, setIncludeTicketNumber] = useState(true)
   const [isAddInstructionOpen, setIsAddInstructionOpen] = useState(false)
   const [exportText, setExportText] = useState('')
   const [exportCopied, setExportCopied] = useState(false)
@@ -206,9 +209,10 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
         format,
         includeTags,
         includePriority,
+        includeTicketNumber,
       })
     )
-  }, [orderedTasks, selectedInstructions, format, includeTags, includePriority])
+  }, [orderedTasks, selectedInstructions, format, includeTags, includePriority, includeTicketNumber])
 
   const handleAddInstruction = () => {
     const nextTitle = instructionTitle.trim()
@@ -302,8 +306,8 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
             </button>
           </div>
 
-          <div className="grid flex-1 min-h-0 lg:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.95fr)] overflow-hidden">
-            <div className="flex flex-col border-b p-5 lg:border-b-0 lg:border-r min-h-0">
+          <div className="grid flex-1 min-h-0 overflow-hidden md:grid-cols-[minmax(0,1.85fr)_minmax(270px,0.75fr)]">
+            <div className="flex flex-col border-b p-5 md:border-b-0 md:border-r min-h-0">
               <div className="mb-2 flex items-center justify-between gap-3 shrink-0">
                 <label className="block text-sm font-medium text-foreground">Prompt Preview</label>
                 <span className="text-xs text-muted-foreground">Updates automatically from the controls.</span>
@@ -344,6 +348,15 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                   </div>
 
                   <div className="mt-4 flex flex-col gap-3">
+                    <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={includeTicketNumber}
+                        onChange={(event) => setIncludeTicketNumber(event.target.checked)}
+                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      Include ticket number
+                    </label>
                     <label className="inline-flex items-center gap-2 text-sm text-foreground">
                       <input
                         type="checkbox"

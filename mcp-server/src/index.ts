@@ -141,7 +141,7 @@ const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_project_board',
-    description: 'Returns the current visible board state for a project, including tasks, tags, and agent instructions.',
+    description: 'Returns the current visible board state for a project, including tasks, tags, and instruction sets.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -153,7 +153,7 @@ const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'get_task_details',
-    description: 'Returns a task with tags, plans, and timeline information.',
+    description: 'Returns a task with tags, plans, timeline, linked instruction sets, and resolved instruction content.',
     inputSchema: {
       type: 'object',
       properties: {

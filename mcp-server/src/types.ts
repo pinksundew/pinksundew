@@ -3,6 +3,7 @@ export type TaskPriority = 'low' | 'medium' | 'high'
 export type TaskSignal = 'ready_for_review' | 'needs_help'
 export type TaskStateMessageSignal = TaskSignal | 'note'
 export type ExportFormat = 'numbered' | 'bullets' | 'checkboxes' | 'compact'
+export type InstructionSetScope = 'global' | 'specialized'
 
 export type Project = {
   id: string
@@ -21,13 +22,46 @@ export type Tag = {
   color: string
 }
 
-export type AgentInstruction = {
-  id: string
-  project_id: string
+export type AgentInstructionFile = {
   file_name: string
-  content: string
-  created_at: string
-  updated_at: string
+  content?: string
+  content_hash?: string
+  updated_at?: string
+}
+
+export type AgentInstructionSet = {
+  id: string
+  project_id?: string
+  name: string
+  code: string
+  scope: InstructionSetScope
+  description?: string | null
+  sort_order?: number
+  is_active?: boolean
+  created_at?: string
+  updated_at?: string
+  files: AgentInstructionFile[]
+}
+
+export type LinkedInstructionSetSummary = {
+  id: string
+  name: string
+  code: string
+  scope: InstructionSetScope
+}
+
+export type ResolvedInstructionSet = {
+  id: string
+  name: string
+  code: string
+  scope: InstructionSetScope
+  source: 'global' | 'linked'
+  files: Array<{
+    file_name: string
+    content: string
+    content_hash: string
+    updated_at: string
+  }>
 }
 
 export type TaskPlan = {
@@ -77,6 +111,9 @@ export type Task = {
   tags: Tag[]
   plans?: TaskPlan[]
   signal_messages?: TaskStateMessage[]
+  linked_instruction_set_ids?: string[]
+  linked_instruction_sets?: LinkedInstructionSetSummary[]
+  resolved_instructions?: ResolvedInstructionSet[]
   timeline?: TaskTimeline
 }
 
@@ -93,7 +130,8 @@ export type BoardState = {
   project: Project | null
   tasks: Task[]
   tags: Tag[]
-  instructions: AgentInstruction[]
+  instructions: AgentInstructionSet[]
+  instruction_sets?: AgentInstructionSet[]
 }
 
 export type AbyssState = {

@@ -9,6 +9,15 @@ import {
   listTaskStateMessages,
   updateTask,
 } from '@/domains/task/mutations'
+import {
+  linkInstructionSetToTask,
+  unlinkInstructionSetFromTask,
+} from '@/domains/agent-instruction/mutations'
+import {
+  getProjectInstructionSetMetadata,
+  getTaskLinkedInstructionSetIds,
+} from '@/domains/agent-instruction/queries'
+import { AgentInstructionSetWithFileMeta } from '@/domains/agent-instruction/types'
 import { createClient } from '@/lib/supabase/client'
 import { TaskPriority, TaskStateMessage, TaskStatus, TaskWithTags } from '@/domains/task/types'
 import { TaskPlan } from '@/domains/plan/types'
@@ -44,6 +53,9 @@ export function TaskDetailsModal({
   const [loading, setLoading] = useState(false)
   const [plans, setPlans] = useState<TaskPlan[]>([])
   const [signalMessages, setSignalMessages] = useState<TaskStateMessage[]>([])
+  const [instructionSets, setInstructionSets] = useState<AgentInstructionSetWithFileMeta[]>([])
+  const [linkedInstructionSetIds, setLinkedInstructionSetIds] = useState<Set<string>>(new Set())
+  const [initialLinkedInstructionSetIds, setInitialLinkedInstructionSetIds] = useState<Set<string>>(new Set())
 
   const [supabase] = useState(() => createClient())
 
@@ -51,6 +63,9 @@ export function TaskDetailsModal({
     if (!task) {
       setPlans([])
       setSignalMessages([])
+      setInstructionSets([])
+      setLinkedInstructionSetIds(new Set())
+      setInitialLinkedInstructionSetIds(new Set())
       setReplyMessage('')
       return
     }
@@ -62,6 +77,7 @@ export function TaskDetailsModal({
     setReplyMessage('')
     void fetchPlans(task.id)
     void fetchSignalMessages(task.id)
+    void fetchInstructionContext(task.project_id, task.id)
   }, [task])
 
   const fetchPlans = async (taskId: string) => {
@@ -82,6 +98,45 @@ export function TaskDetailsModal({
       console.error('Error loading task signal messages:', error)
       setSignalMessages([])
     }
+  }
+
+  const fetchInstructionContext = async (projectId: string, taskId: string) => {
+    try {
+      const [availableSets, linkedSetIds] = await Promise.all([
+        getProjectInstructionSetMetadata(supabase, projectId),
+        getTaskLinkedInstructionSetIds(supabase, taskId),
+      ])
+
+      const specializedSets = availableSets.filter(
+        (set) => set.scope === 'specialized' && set.is_active
+      )
+
+      const specializedSetIds = new Set(specializedSets.map((set) => set.id))
+      const nextLinkedSetIds = new Set(
+        linkedSetIds.filter((setId) => specializedSetIds.has(setId))
+      )
+
+      setInstructionSets(specializedSets)
+      setLinkedInstructionSetIds(nextLinkedSetIds)
+      setInitialLinkedInstructionSetIds(new Set(nextLinkedSetIds))
+    } catch (error) {
+      console.error('Error loading instruction sets for task:', error)
+      setInstructionSets([])
+      setLinkedInstructionSetIds(new Set())
+      setInitialLinkedInstructionSetIds(new Set())
+    }
+  }
+
+  const toggleInstructionSetLink = (setId: string) => {
+    setLinkedInstructionSetIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(setId)) {
+        next.delete(setId)
+      } else {
+        next.add(setId)
+      }
+      return next
+    })
   }
 
   const persistTask = async (
@@ -116,14 +171,44 @@ export function TaskDetailsModal({
     return nextTask
   }
 
+  const syncInstructionLinks = async (taskId: string, createdBy: string | null) => {
+    const previousIds = initialLinkedInstructionSetIds
+    const nextIds = linkedInstructionSetIds
+
+    const toAdd = Array.from(nextIds).filter((setId) => !previousIds.has(setId))
+    const toRemove = Array.from(previousIds).filter((setId) => !nextIds.has(setId))
+
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      return
+    }
+
+    await Promise.all([
+      ...toAdd.map((setId) =>
+        linkInstructionSetToTask(supabase, {
+          task_id: taskId,
+          set_id: setId,
+          created_by: createdBy,
+        })
+      ),
+      ...toRemove.map((setId) => unlinkInstructionSetFromTask(supabase, taskId, setId)),
+    ])
+
+    setInitialLinkedInstructionSetIds(new Set(nextIds))
+  }
+
   const handleUpdate = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!task || !title.trim()) return
 
     setLoading(true)
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
       const nextTask = await persistTask(status)
       if (nextTask) {
+        await syncInstructionLinks(nextTask.id, user?.id ?? null)
         onClose()
       }
     } catch (error) {
@@ -138,9 +223,14 @@ export function TaskDetailsModal({
 
     setLoading(true)
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
       if (status === 'todo') {
         const nextTask = await persistTask('in-progress')
         if (nextTask) {
+          await syncInstructionLinks(nextTask.id, user?.id ?? null)
           onClose()
         }
         return
@@ -149,6 +239,7 @@ export function TaskDetailsModal({
       if (status === 'in-progress') {
         const nextTask = await persistTask('done')
         if (nextTask) {
+          await syncInstructionLinks(nextTask.id, user?.id ?? null)
           onClose()
         }
         return
@@ -156,6 +247,7 @@ export function TaskDetailsModal({
 
       const nextTask = await persistTask('done')
       if (nextTask) {
+        await syncInstructionLinks(nextTask.id, user?.id ?? null)
         onClose()
         onCompleteAndFollowUp(nextTask)
       }
@@ -301,6 +393,44 @@ export function TaskDetailsModal({
                     <option value="high">High</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <h3 className="text-md font-semibold text-foreground">Instruction Sets</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Global instruction sets apply automatically. Link specialized sets to this ticket.
+                </p>
+
+                {instructionSets.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {instructionSets.map((instructionSet) => (
+                      <label
+                        key={instructionSet.id}
+                        className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-white px-3 py-2.5 hover:border-primary/40"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={linkedInstructionSetIds.has(instructionSet.id)}
+                          onChange={() => toggleInstructionSetLink(instructionSet.id)}
+                          className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-foreground">
+                            {instructionSet.name}
+                          </div>
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {instructionSet.code} · {instructionSet.files.length} file
+                            {instructionSet.files.length === 1 ? '' : 's'}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-md border border-dashed border-border bg-white px-3 py-4 text-sm text-muted-foreground">
+                    No specialized instruction sets are available for this project yet.
+                  </div>
+                )}
               </div>
 
               <div className="rounded-xl border border-border bg-muted/20 p-4">

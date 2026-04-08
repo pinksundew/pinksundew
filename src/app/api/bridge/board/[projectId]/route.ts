@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
 import { requireProjectMembership } from '@/lib/bridge-access'
+import { getProjectAgentControls } from '@/domains/agent-control/queries'
 import { getProjectInstructionSetMetadata } from '@/domains/agent-instruction/queries'
 import { getProjectTasks } from '@/domains/task/queries'
 
@@ -35,7 +36,10 @@ export async function GET(
     .select('*')
     .eq('project_id', projectId)
 
-  const instructions = await getProjectInstructionSetMetadata(auth.supabase, projectId)
+  const [instructions, agentControls] = await Promise.all([
+    getProjectInstructionSetMetadata(auth.supabase, projectId),
+    getProjectAgentControls(auth.supabase, projectId),
+  ])
 
   return NextResponse.json({
     project,
@@ -43,5 +47,6 @@ export async function GET(
     tags,
     instructions,
     instruction_sets: instructions,
+    agent_controls: agentControls,
   })
 }

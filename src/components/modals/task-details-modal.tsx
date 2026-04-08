@@ -281,16 +281,45 @@ export function TaskDetailsModal({
         prev.some((message) => message.id === reply.id) ? prev : [reply, ...prev]
       )
 
+      const shouldReopenForWork =
+        task.workflow_signal === 'ready_for_review' && status === 'done'
+      const nextStatus = shouldReopenForWork ? 'in-progress' : status
+
+      const nextTask = await persistTask(nextStatus, {
+        clearSignal: true,
+        updatedBy: user?.id ?? null,
+      })
+
+      if (nextTask) {
+        setStatus(nextTask.status)
+        setReplyMessage('')
+      }
+    } catch (error) {
+      console.error('Error replying to task signal:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleReviewComplete = async () => {
+    if (!task || task.workflow_signal !== 'ready_for_review') return
+
+    setLoading(true)
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
       const nextTask = await persistTask(status, {
         clearSignal: true,
         updatedBy: user?.id ?? null,
       })
 
       if (nextTask) {
-        setReplyMessage('')
+        setStatus(nextTask.status)
       }
     } catch (error) {
-      console.error('Error replying to task signal:', error)
+      console.error('Error completing review:', error)
     } finally {
       setLoading(false)
     }
@@ -446,7 +475,7 @@ export function TaskDetailsModal({
                       task.workflow_signal === 'needs_help'
                         ? 'border-rose-200 bg-rose-50 text-rose-700'
                         : task.workflow_signal === 'ready_for_review'
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          ? 'border-violet-200 bg-violet-50 text-violet-700'
                           : 'border-border bg-white text-muted-foreground'
                     }`}
                   >
@@ -507,12 +536,15 @@ export function TaskDetailsModal({
                       rows={3}
                       value={replyMessage}
                       onChange={(event) => setReplyMessage(event.target.value)}
-                      placeholder={`Reply to ${formatSignalLabel(task.workflow_signal).toLowerCase()} and clear the active signal.`}
+                      placeholder={`Reply to ${formatSignalLabel(task.workflow_signal).toLowerCase()} and clear the active signal.${task.workflow_signal === 'ready_for_review' ? ' This reply will also move the task back to in progress.' : ''}`}
                       className="w-full rounded-md border border-border bg-white p-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                     <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs text-muted-foreground">
                         Sending a reply clears the current signal and leaves the conversation in history.
+                        {task.workflow_signal === 'ready_for_review'
+                          ? ' For review requests, this also reopens the ticket to in progress.'
+                          : ''}
                       </p>
                       <button
                         type="button"
@@ -570,6 +602,17 @@ export function TaskDetailsModal({
                 >
                   <Save className="h-4 w-4" /> {loading ? 'Saving...' : 'Save Changes'}
                 </button>
+
+                {task.workflow_signal === 'ready_for_review' ? (
+                  <button
+                    type="button"
+                    onClick={handleReviewComplete}
+                    disabled={loading}
+                    className="inline-flex items-center justify-center rounded-md border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Review Complete
+                  </button>
+                ) : null}
 
                 {quickAction ? (
                   <button
@@ -634,7 +677,7 @@ function buildThreadMessages(task: TaskWithTags, messages: TaskStateMessage[]): 
 }
 
 function formatSignalLabel(signal: TaskStateMessage['signal'] | TaskWithTags['workflow_signal']) {
-  if (signal === 'ready_for_review') return 'Ready For Review'
+  if (signal === 'ready_for_review') return 'Needs Review'
   if (signal === 'needs_help') return 'Needs Help'
   return 'Note'
 }
@@ -657,7 +700,7 @@ function getThreadBubbleClassName(signal: TaskStateMessage['signal']) {
   }
 
   if (signal === 'ready_for_review') {
-    return 'border border-emerald-200 bg-emerald-50'
+    return 'border border-violet-200 bg-violet-50'
   }
 
   return 'border border-border bg-white'

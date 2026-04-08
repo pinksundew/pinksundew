@@ -5,6 +5,35 @@ export type TaskStateMessageSignal = TaskSignal | 'note'
 export type ExportFormat = 'numbered' | 'bullets' | 'checkboxes' | 'compact'
 export type InstructionSetScope = 'global' | 'specialized'
 
+export type CoreMcpToolName =
+  | 'get_project_board'
+  | 'get_task_details'
+  | 'list_abyss_tasks'
+  | 'list_project_tags'
+  | 'create_task'
+  | 'update_task'
+  | 'move_task'
+  | 'set_task_signal'
+  | 'list_task_messages'
+  | 'add_task_message'
+  | 'move_task_to_abyss'
+  | 'restore_task'
+  | 'add_plan_to_task'
+  | 'create_tag'
+  | 'delete_tag'
+  | 'export_tasks'
+
+export type ToolToggleMap = Partial<Record<CoreMcpToolName, boolean>>
+
+export type AgentControls = {
+  project_id: string
+  allow_task_completion: boolean
+  tool_toggles: ToolToggleMap
+  created_at: string
+  updated_at: string
+  updated_by: string | null
+}
+
 export type Project = {
   id: string
   name: string
@@ -132,6 +161,7 @@ export type BoardState = {
   tags: Tag[]
   instructions: AgentInstructionSet[]
   instruction_sets?: AgentInstructionSet[]
+  agent_controls?: AgentControls
 }
 
 export type AbyssState = {

@@ -8,8 +8,14 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { getAbyssState, getBoardState, getProjects, getTaskDetails } from './resources.js'
-import { getAllowedTaskStatuses, isTaskCompletionAllowed } from './supabase.js'
+import {
+  getAbyssState,
+  getBoardState,
+  getProjectAgentControls,
+  getProjects,
+  getTagDetails,
+  getTaskDetails,
+} from './resources.js'
 import {
   addTaskMessage,
   addPlanToTask,
@@ -29,11 +35,29 @@ import {
   listTaskMessages,
   updateTask,
 } from './tools.js'
-import { ExportFormat, TaskPriority } from './types.js'
+import { CoreMcpToolName, ExportFormat, TaskPriority, TaskStatus } from './types.js'
 
-const SERVER_VERSION = '1.2.0'
-const allowedTaskStatuses = getAllowedTaskStatuses()
-const completionEnabled = isTaskCompletionAllowed()
+const SERVER_VERSION = '1.4.0'
+const allowedTaskStatuses: TaskStatus[] = ['todo', 'in-progress', 'done']
+
+const projectScopedToolNames = new Set<CoreMcpToolName>([
+  'get_project_board',
+  'get_task_details',
+  'list_abyss_tasks',
+  'list_project_tags',
+  'create_task',
+  'update_task',
+  'move_task',
+  'set_task_signal',
+  'list_task_messages',
+  'add_task_message',
+  'move_task_to_abyss',
+  'restore_task',
+  'add_plan_to_task',
+  'create_tag',
+  'delete_tag',
+  'export_tasks',
+])
 
 type ToolDefinition = {
   name: string
@@ -127,6 +151,53 @@ function getOptionalInstructions(args: Record<string, unknown>, key: string) {
     const content = getString(instruction, 'content')
     return { title, content }
   })
+}
+
+function isProjectScopedToolName(toolName: string): toolName is CoreMcpToolName {
+  return projectScopedToolNames.has(toolName as CoreMcpToolName)
+}
+
+function isToolEnabled(
+  controls: Awaited<ReturnType<typeof getProjectAgentControls>>,
+  toolName: CoreMcpToolName
+) {
+  return controls.tool_toggles?.[toolName] !== false
+}
+
+async function resolveProjectIdForTool(
+  toolName: CoreMcpToolName,
+  args: Record<string, unknown>
+): Promise<string> {
+  switch (toolName) {
+    case 'get_project_board':
+    case 'list_abyss_tasks':
+    case 'list_project_tags':
+    case 'create_task':
+    case 'create_tag':
+    case 'export_tasks':
+      return getString(args, 'projectId')
+
+    case 'get_task_details':
+    case 'update_task':
+    case 'move_task':
+    case 'set_task_signal':
+    case 'list_task_messages':
+    case 'add_task_message':
+    case 'move_task_to_abyss':
+    case 'restore_task':
+    case 'add_plan_to_task': {
+      const task = await getTaskDetails(getString(args, 'taskId'))
+      return task.project_id
+    }
+
+    case 'delete_tag': {
+      const tag = await getTagDetails(getString(args, 'tagId'))
+      return tag.project_id
+    }
+
+    default:
+      throw new Error(`Unable to resolve project for tool ${toolName}`)
+  }
 }
 
 const toolDefinitions: ToolDefinition[] = [
@@ -248,9 +319,8 @@ const toolDefinitions: ToolDefinition[] = [
   },
   {
     name: 'move_task',
-    description: completionEnabled
-      ? 'Moves a task between board stages and optionally updates its position within the destination column.'
-      : 'Moves a task between active board stages. Completion is disabled until AGENTPLANNER_ALLOW_TASK_COMPLETION=true is set on the server.',
+    description:
+      'Moves a task between board stages and optionally updates its position within the destination column. Completion behavior is controlled by project Agent Controls.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -544,6 +614,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const args = (request.params.arguments ?? {}) as Record<string, unknown>
 
   try {
+    if (isProjectScopedToolName(tool.name)) {
+      const projectId = await resolveProjectIdForTool(tool.name, args)
+      const controls = await getProjectAgentControls(projectId)
+
+      if (!isToolEnabled(controls, tool.name)) {
+        throw new Error(`Tool ${tool.name} is disabled for this project in Agent Controls.`)
+      }
+
+      if (tool.name === 'move_task') {
+        const status = getString(args, 'status') as TaskStatus
+        if (status === 'done' && !controls.allow_task_completion) {
+          throw new Error(
+            'Task completion is disabled for this project. Enable "Allow Task Completion" in Agent Controls to move tasks to done.'
+          )
+        }
+      }
+
+      if (tool.name === 'create_task') {
+        const requestedStatus = getOptionalString(args, 'status') as TaskStatus | undefined
+        if (requestedStatus === 'done' && !controls.allow_task_completion) {
+          throw new Error(
+            'Task completion is disabled for this project. Enable "Allow Task Completion" in Agent Controls to create done tasks.'
+          )
+        }
+      }
+    }
+
     const result = await tool.call(args)
     return {
       content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],

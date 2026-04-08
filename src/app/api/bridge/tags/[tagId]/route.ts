@@ -69,6 +69,29 @@ export async function PATCH(
   return NextResponse.json(updated)
 }
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ tagId: string }> }
+) {
+  const { tagId } = await params
+  const access = await getTagProject(request, tagId)
+  if (access.response) {
+    return access.response
+  }
+
+  const { data: tag, error } = await access.auth.supabase
+    .from('tags')
+    .select('*')
+    .eq('id', tagId)
+    .single()
+
+  if (error || !tag) {
+    return NextResponse.json({ error: 'Tag not found' }, { status: 404 })
+  }
+
+  return NextResponse.json(tag)
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ tagId: string }> }

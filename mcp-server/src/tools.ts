@@ -1,6 +1,6 @@
 import { generateExportText } from './formatters.js'
 import { getAbyssState, getBoardState, getProjects, getTaskDetails } from './resources.js'
-import { assertTaskCompletionAllowed, bridgeFetch } from './supabase.js'
+import { bridgeFetch } from './supabase.js'
 import {
   ExportFormat,
   ExportInstruction,
@@ -74,7 +74,6 @@ export async function listTags(projectId: string) {
 
 export async function createTask(input: CreateTaskInput) {
   const status = input.status ?? 'todo'
-  assertTaskCompletionAllowed(status)
 
   return bridgeFetch<Task>('/tasks', {
     method: 'POST',
@@ -113,11 +112,17 @@ export async function updateTask(input: UpdateTaskInput) {
 }
 
 export async function moveTask(taskId: string, status: TaskStatus, position?: number) {
-  assertTaskCompletionAllowed(status)
-
   const body: Record<string, unknown> = { status }
+
   if (typeof position === 'number') {
     body.position = position
+  }
+
+  if (status === 'done') {
+    body.workflow_signal = 'ready_for_review'
+    body.workflow_signal_message = 'Completed by MCP agent. Please review before final acceptance.'
+    body.agent_lock_until = null
+    body.agent_lock_reason = null
   }
 
   return bridgeFetch<Task>(`/tasks/${taskId}`, {

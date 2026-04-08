@@ -1,9 +1,19 @@
 import { SupabaseClient } from '@supabase/supabase-js'
-import { Task } from './types'
+import { Task, TaskStateMessage, TaskStateMessageSignal } from './types'
 
 type CreateTaskInput = Omit<
   Task,
-  'id' | 'created_at' | 'updated_at' | 'is_deleted' | 'completed_at'
+  | 'id'
+  | 'created_at'
+  | 'updated_at'
+  | 'is_deleted'
+  | 'completed_at'
+  | 'workflow_signal'
+  | 'workflow_signal_message'
+  | 'workflow_signal_updated_at'
+  | 'workflow_signal_updated_by'
+  | 'agent_lock_until'
+  | 'agent_lock_reason'
 >
 
 export async function createTask(
@@ -68,6 +78,112 @@ export async function updateTask(
   if (error) throw error
   
   return data
+}
+
+type SetTaskSignalInput = {
+  taskId: string
+  signal: Task['workflow_signal']
+  message: string | null
+  updatedBy: string | null
+  lockUntil?: string | null
+  lockReason?: string | null
+}
+
+type CreateTaskStateMessageInput = {
+  taskId: string
+  signal: TaskStateMessageSignal
+  message: string
+  createdBy?: string | null
+}
+
+export async function setTaskSignal(
+  client: SupabaseClient,
+  input: SetTaskSignalInput
+): Promise<Task> {
+  const now = new Date().toISOString()
+  const updatePayload: Partial<Task> & { updated_at: string } = {
+    updated_at: now,
+    workflow_signal: input.signal,
+    workflow_signal_message: input.message,
+    workflow_signal_updated_at: now,
+    workflow_signal_updated_by: input.updatedBy,
+  }
+
+  if (input.lockUntil !== undefined) {
+    updatePayload.agent_lock_until = input.lockUntil
+  }
+
+  if (input.lockReason !== undefined) {
+    updatePayload.agent_lock_reason = input.lockReason
+  }
+
+  const { data, error } = await client
+    .from('tasks')
+    .update(updatePayload)
+    .eq('id', input.taskId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+export async function listTaskStateMessages(
+  client: SupabaseClient,
+  taskId: string,
+  limit = 25
+): Promise<TaskStateMessage[]> {
+  const safeLimit = Math.min(Math.max(limit, 1), 100)
+  const { data, error } = await client
+    .from('task_state_messages')
+    .select('*')
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: false })
+    .limit(safeLimit)
+
+  if (error) throw error
+  return (data ?? []) as TaskStateMessage[]
+}
+
+export async function createTaskStateMessage(
+  client: SupabaseClient,
+  input: CreateTaskStateMessageInput
+): Promise<TaskStateMessage> {
+  const { data, error } = await client
+    .from('task_state_messages')
+    .insert({
+      task_id: input.taskId,
+      signal: input.signal,
+      message: input.message,
+      created_by: input.createdBy ?? null,
+    })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data as TaskStateMessage
+}
+
+export async function persistTaskOrderWithKeepalive(
+  projectId: string,
+  tasks: Array<{ id: string; status: string; position: number }>
+): Promise<void> {
+  const response = await fetch('/api/tasks/reorder', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    keepalive: true,
+    body: JSON.stringify({ projectId, tasks }),
+  })
+
+  if (response.ok) {
+    return
+  }
+
+  const errorBody = await response.text()
+  throw new Error(errorBody || 'Failed to persist task order')
 }
 
 export async function deleteTask(

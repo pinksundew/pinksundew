@@ -11,6 +11,7 @@ import {
 import { getAbyssState, getBoardState, getProjects, getTaskDetails } from './resources.js'
 import { getAllowedTaskStatuses, isTaskCompletionAllowed } from './supabase.js'
 import {
+  addTaskMessage,
   addPlanToTask,
   createTag,
   createTask,
@@ -24,11 +25,13 @@ import {
   moveTask,
   moveTaskToAbyss,
   restoreTask,
+  setTaskSignal,
+  listTaskMessages,
   updateTask,
 } from './tools.js'
 import { ExportFormat, TaskPriority } from './types.js'
 
-const SERVER_VERSION = '1.1.0'
+const SERVER_VERSION = '1.2.0'
 const allowedTaskStatuses = getAllowedTaskStatuses()
 const completionEnabled = isTaskCompletionAllowed()
 
@@ -54,6 +57,20 @@ function getOptionalString(args: Record<string, unknown>, key: string) {
   }
   if (typeof value !== 'string') {
     throw new Error(`${key} must be a string if provided`)
+  }
+  return value
+}
+
+function getOptionalNullableString(args: Record<string, unknown>, key: string) {
+  const value = args[key]
+  if (value === undefined) {
+    return undefined
+  }
+  if (value === null) {
+    return null
+  }
+  if (typeof value !== 'string') {
+    throw new Error(`${key} must be a string or null if provided`)
   }
   return value
 }
@@ -248,6 +265,69 @@ const toolDefinitions: ToolDefinition[] = [
         getString(args, 'taskId'),
         getString(args, 'status') as typeof allowedTaskStatuses[number],
         getOptionalNumber(args, 'position')
+      ),
+  },
+  {
+    name: 'set_task_signal',
+    description:
+      'Sets or clears workflow overlays on a task (ready_for_review or needs_help), with optional lock metadata for AI ownership windows.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string' },
+        signal: {
+          anyOf: [
+            { type: 'string', enum: ['ready_for_review', 'needs_help'] },
+            { type: 'null' },
+          ],
+        },
+        message: { type: ['string', 'null'] },
+        lockMinutes: { type: 'number' },
+        lockReason: { type: ['string', 'null'] },
+      },
+      required: ['taskId'],
+    },
+    call: async (args) =>
+      setTaskSignal({
+        taskId: getString(args, 'taskId'),
+        signal: getOptionalNullableString(args, 'signal') as 'ready_for_review' | 'needs_help' | null | undefined,
+        message: getOptionalNullableString(args, 'message'),
+        lockMinutes: getOptionalNumber(args, 'lockMinutes'),
+        lockReason: getOptionalNullableString(args, 'lockReason'),
+      }),
+  },
+  {
+    name: 'list_task_messages',
+    description: 'Lists workflow signal messages for a task (most recent first).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string' },
+        limit: { type: 'number' },
+      },
+      required: ['taskId'],
+    },
+    call: async (args) =>
+      listTaskMessages(getString(args, 'taskId'), getOptionalNumber(args, 'limit')),
+  },
+  {
+    name: 'add_task_message',
+    description: 'Adds a note or signal-specific message to a task without changing its board status.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string' },
+        message: { type: 'string' },
+        signal: { type: 'string', enum: ['ready_for_review', 'needs_help', 'note'] },
+      },
+      required: ['taskId', 'message'],
+    },
+    call: async (args) =>
+      addTaskMessage(
+        getString(args, 'taskId'),
+        getString(args, 'message'),
+        (getOptionalString(args, 'signal') as 'ready_for_review' | 'needs_help' | 'note' | undefined) ??
+          'note'
       ),
   },
   {

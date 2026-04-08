@@ -3,6 +3,7 @@ import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
 import { requireTaskAccess } from '@/lib/bridge-access'
 import { getTaskPlans } from '@/domains/plan/queries'
 import { mapTaskWithTags, TaskWithTaskTagsRow } from '@/domains/task/normalization'
+import { listTaskStateMessages } from '@/domains/task/mutations'
 
 const TASK_TIMELINE_SELECT = 'id, title, status, priority, predecessor_id, is_deleted, completed_at'
 
@@ -53,6 +54,8 @@ export async function GET(
     successorsQuery,
   ])
 
+  const signalMessages = await listTaskStateMessages(auth.supabase, taskId, 25)
+
   if (predecessorResult.error) {
     return NextResponse.json({ error: predecessorResult.error.message }, { status: 500 })
   }
@@ -64,6 +67,7 @@ export async function GET(
   return NextResponse.json({
     ...taskData,
     plans,
+    signal_messages: signalMessages,
     timeline: {
       predecessor: predecessorResult.data ?? null,
       successors: successorsResult.data ?? [],

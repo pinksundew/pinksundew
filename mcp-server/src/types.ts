@@ -1,5 +1,7 @@
 export type TaskStatus = 'todo' | 'in-progress' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high'
+export type TaskSignal = 'ready_for_review' | 'needs_help'
+export type TaskStateMessageSignal = TaskSignal | 'note'
 export type ExportFormat = 'numbered' | 'bullets' | 'checkboxes' | 'compact'
 
 export type Project = {
@@ -55,11 +57,27 @@ export type Task = {
   position: number
   is_deleted: boolean
   completed_at: string | null
+  workflow_signal: TaskSignal | null
+  workflow_signal_message: string | null
+  workflow_signal_updated_at: string | null
+  workflow_signal_updated_by: string | null
+  agent_lock_until: string | null
+  agent_lock_reason: string | null
   created_at: string
   updated_at: string
   tags: Tag[]
   plans?: TaskPlan[]
+  signal_messages?: TaskStateMessage[]
   timeline?: TaskTimeline
+}
+
+export type TaskStateMessage = {
+  id: string
+  task_id: string
+  signal: TaskStateMessageSignal
+  message: string
+  created_by: string | null
+  created_at: string
 }
 
 export type BoardState = {

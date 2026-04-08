@@ -1,7 +1,18 @@
 import { generateExportText } from './formatters.js'
 import { getAbyssState, getBoardState, getProjects, getTaskDetails } from './resources.js'
 import { assertTaskCompletionAllowed, bridgeFetch } from './supabase.js'
-import { ExportFormat, ExportInstruction, ExportTasksResult, Tag, Task, TaskPriority, TaskStatus } from './types.js'
+import {
+  ExportFormat,
+  ExportInstruction,
+  ExportTasksResult,
+  Tag,
+  Task,
+  TaskPriority,
+  TaskSignal,
+  TaskStateMessage,
+  TaskStateMessageSignal,
+  TaskStatus,
+} from './types.js'
 
 type CreateTaskInput = {
   projectId: string
@@ -23,6 +34,14 @@ type UpdateTaskInput = {
   assigneeId?: string | null
   dueDate?: string | null
   predecessorId?: string | null
+}
+
+type SetTaskSignalInput = {
+  taskId: string
+  signal?: TaskSignal | null
+  message?: string | null
+  lockMinutes?: number | null
+  lockReason?: string | null
 }
 
 function ensureTaskFound(tasks: Task[], taskId: string) {
@@ -104,6 +123,57 @@ export async function moveTask(taskId: string, status: TaskStatus, position?: nu
   return bridgeFetch<Task>(`/tasks/${taskId}`, {
     method: 'PATCH',
     body: JSON.stringify(body),
+  })
+}
+
+export async function setTaskSignal(input: SetTaskSignalInput) {
+  const updates: Record<string, unknown> = {}
+
+  if (input.signal !== undefined) {
+    updates.workflow_signal = input.signal
+  }
+
+  if (input.message !== undefined) {
+    updates.workflow_signal_message = input.message
+  }
+
+  if (input.lockMinutes !== undefined) {
+    if (input.lockMinutes === null || input.lockMinutes <= 0) {
+      updates.agent_lock_until = null
+    } else {
+      updates.agent_lock_until = new Date(Date.now() + input.lockMinutes * 60 * 1000).toISOString()
+    }
+  }
+
+  if (input.lockReason !== undefined) {
+    updates.agent_lock_reason = input.lockReason
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw new Error('At least one of signal, message, lockMinutes, or lockReason must be provided')
+  }
+
+  return bridgeFetch<Task>(`/tasks/${input.taskId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  })
+}
+
+export async function listTaskMessages(taskId: string, limit?: number) {
+  const safeLimit = Math.min(Math.max(limit ?? 25, 1), 100)
+  return bridgeFetch<TaskStateMessage[]>(
+    `/tasks/${taskId}/messages?limit=${encodeURIComponent(String(safeLimit))}`
+  )
+}
+
+export async function addTaskMessage(
+  taskId: string,
+  message: string,
+  signal: TaskStateMessageSignal = 'note'
+) {
+  return bridgeFetch<TaskStateMessage>(`/tasks/${taskId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ message, signal }),
   })
 }
 

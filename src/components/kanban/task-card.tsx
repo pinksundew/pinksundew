@@ -42,6 +42,14 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
     transform: CSS.Transform.toString(transform),
   }
 
+  const isReadyForReview = task.workflow_signal === 'ready_for_review'
+  const isNeedsHelp = task.workflow_signal === 'needs_help'
+  const signalClassName = isNeedsHelp
+    ? 'task-signal-needs-help'
+    : isReadyForReview
+      ? 'task-signal-ready-for-review'
+      : ''
+
   if (isDragging && !isOverlay) {
     return (
       <div
@@ -61,6 +69,7 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
       onClick={() => onClick?.(task)}
       className={`
         group flex flex-col bg-white border p-4 rounded-xl transition-all shadow-sm
+        ${signalClassName}
         ${isSelectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing border-border hover:border-primary/40 hover:shadow-md'}
         ${isSelected 
           ? 'border-rose-300 bg-rose-50/50 ring-2 ring-rose-200/50 shadow-md' 
@@ -80,6 +89,16 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
           <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border ${PRIORITY_COLORS[task.priority]}`}>
             {task.priority}
           </span>
+          {isReadyForReview ? (
+            <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700">
+              Review
+            </span>
+          ) : null}
+          {isNeedsHelp ? (
+            <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border border-rose-200 bg-rose-50 text-rose-700">
+              Needs Help
+            </span>
+          ) : null}
         </div>
         {!isSelectionMode ? (
           <div className="text-muted-foreground/50 group-hover:text-muted-foreground transition-colors p-1 hover:bg-muted rounded">
@@ -98,6 +117,12 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
           <span className="text-xs truncate max-w-[200px]">{task.description}</span>
         </div>
       )}
+
+      {isNeedsHelp && task.workflow_signal_message ? (
+        <div className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs text-rose-800">
+          {task.workflow_signal_message}
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-1.5 mb-4">
         {task.tags?.map((tag) => (

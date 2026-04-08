@@ -27,3 +27,41 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
 }
+
+@keyframes reviewPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35);
+  }
+
+  70% {
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes needsHelpPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 9px rgba(244, 63, 94, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0);
+  }
+}
+
+.task-signal-ready-for-review {
+  border-color: #34d399;
+  animation: reviewPulse 2.1s ease-in-out infinite;
+}
+
+.task-signal-needs-help {
+  border-color: #fb7185;
+  animation: needsHelpPulse 1.7s ease-in-out infinite;
+}

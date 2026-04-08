@@ -20,13 +20,14 @@ import { KanbanColumn } from './column'
 import { TaskCard } from './task-card'
 import { AbyssDropZone } from '@/components/abyss/abyss-drop-zone'
 import { CreateTaskModal } from '@/components/modals/create-task-modal'
-import { deleteTask, persistTaskOrder } from '@/domains/task/mutations'
+import { deleteTask, persistTaskOrderWithKeepalive } from '@/domains/task/mutations'
 import { TaskDetailsModal } from '@/components/modals/task-details-modal'
 import { TagManagerModal } from '@/components/modals/tag-manager-modal'
 import { ExportModal } from '@/components/modals/export-modal'
 import { ConfirmModal } from '@/components/modals/confirm-modal'
 import { AbyssModal } from '@/components/modals/abyss-modal'
-import { CheckSquare, Download, Ghost, Square } from 'lucide-react'
+import { ConnectMcpModal } from '@/components/modals/connect-mcp-modal'
+import { CheckSquare, Download, Ghost, PlugZap, Square } from 'lucide-react'
 import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility'
 
 type KanbanBoardProps = {
@@ -60,6 +61,7 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [isAbyssModalOpen, setIsAbyssModalOpen] = useState(false)
+  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
@@ -70,17 +72,26 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
   const tasksRef = useRef<TaskWithTags[]>(normalizeVisibleTasks(initialTasks))
   const dragStartTasksRef = useRef<TaskWithTags[] | null>(null)
   const isPersistingOrderRef = useRef(false)
+  const lastPersistedTasksRef = useRef<TaskWithTags[]>(normalizeVisibleTasks(initialTasks))
+  const pendingPersistRef = useRef<{
+    tasks: TaskWithTags[]
+    payload: PersistedTaskOrder[]
+  } | null>(null)
+  const isPersistLoopRunningRef = useRef(false)
 
   useEffect(() => {
     const nextTasks = normalizeVisibleTasks(initialTasks)
     setTasks(nextTasks)
     tasksRef.current = nextTasks
+    lastPersistedTasksRef.current = nextTasks
   }, [initialTasks])
 
   useEffect(() => {
     const channel = supabase.channel(`tasks_${projectId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${projectId}` }, (payload) => {
         setTasks(prev => {
+          let nextTasks = prev
+
           if (payload.eventType === 'INSERT') {
             const newTask = mergeRealtimeTask(payload.new as Partial<TaskWithTags>)
             if (!isVisibleOnBoard(newTask)) {
@@ -88,7 +99,7 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
             }
 
             if (!prev.find(t => t.id === newTask.id)) {
-              return normalizeVisibleTasks([...prev, newTask])
+              nextTasks = normalizeVisibleTasks([...prev, newTask])
             }
           }
 
@@ -97,23 +108,25 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
             const nextTask = mergeRealtimeTask(payload.new as Partial<TaskWithTags>, existingTask)
 
             if (!isVisibleOnBoard(nextTask)) {
-              return prev.filter((task) => task.id !== nextTask.id)
+              nextTasks = prev.filter((task) => task.id !== nextTask.id)
+            } else if (!existingTask) {
+              nextTasks = normalizeVisibleTasks([...prev, nextTask])
+            } else {
+              nextTasks = normalizeVisibleTasks(
+                prev.map((task) => (task.id === nextTask.id ? nextTask : task))
+              )
             }
-
-            if (!existingTask) {
-              return normalizeVisibleTasks([...prev, nextTask])
-            }
-
-            return normalizeVisibleTasks(
-              prev.map((task) => (task.id === nextTask.id ? nextTask : task))
-            )
           }
 
           if (payload.eventType === 'DELETE') {
-            return prev.filter(t => t.id !== payload.old.id)
+            nextTasks = prev.filter(t => t.id !== payload.old.id)
           }
 
-          return prev
+          if (!isPersistingOrderRef.current) {
+            lastPersistedTasksRef.current = nextTasks
+          }
+
+          return nextTasks
         })
       })
       .subscribe()
@@ -207,6 +220,42 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
       status: task.status,
       position: task.position,
     }))
+
+  const flushPersistQueue = async () => {
+    if (isPersistLoopRunningRef.current) return
+
+    isPersistLoopRunningRef.current = true
+    isPersistingOrderRef.current = true
+
+    try {
+      while (pendingPersistRef.current) {
+        const nextPersist = pendingPersistRef.current
+        pendingPersistRef.current = null
+
+        try {
+          await persistTaskOrderWithKeepalive(projectId, nextPersist.payload)
+          lastPersistedTasksRef.current = nextPersist.tasks
+        } catch {
+          if (!pendingPersistRef.current) {
+            tasksRef.current = lastPersistedTasksRef.current
+            setTasks(lastPersistedTasksRef.current)
+          }
+        }
+      }
+    } finally {
+      isPersistingOrderRef.current = false
+      isPersistLoopRunningRef.current = false
+    }
+  }
+
+  const queuePersistTaskOrder = (taskList: TaskWithTags[]) => {
+    pendingPersistRef.current = {
+      tasks: taskList,
+      payload: toPersistedTaskOrder(taskList),
+    }
+
+    void flushPersistQueue()
+  }
 
   const getColumnDropIndex = (
     taskList: TaskWithTags[],
@@ -327,19 +376,9 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
       return
     }
 
-    const previousTasks = tasksRef.current
     tasksRef.current = finalTasks
     setTasks(finalTasks)
-    isPersistingOrderRef.current = true
-
-    try {
-      await persistTaskOrder(supabase, projectId, toPersistedTaskOrder(finalTasks))
-    } catch {
-      tasksRef.current = previousTasks
-      setTasks(previousTasks)
-    } finally {
-      isPersistingOrderRef.current = false
-    }
+    queuePersistTaskOrder(finalTasks)
   }
 
   const handleConfirmDelete = async () => {
@@ -351,19 +390,17 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
 
     tasksRef.current = remainingTasks
     setTasks(remainingTasks)
-    isPersistingOrderRef.current = true
-
     try {
       await deleteTask(supabase, id)
+      lastPersistedTasksRef.current = remainingTasks
 
       if (remainingTasks.length > 0) {
-        await persistTaskOrder(supabase, projectId, toPersistedTaskOrder(remainingTasks))
+        queuePersistTaskOrder(remainingTasks)
       }
     } catch {
       tasksRef.current = previousTasks
       setTasks(previousTasks)
     } finally {
-      isPersistingOrderRef.current = false
       setTaskToDelete(null)
     }
   }
@@ -372,7 +409,17 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
     <div className="h-full flex flex-col items-start w-full relative">
       <div className="w-full flex justify-between items-center mb-6 shrink-0 font-sans">
          <div>
-           <h1 className="text-2xl font-bold text-foreground">{projectName}</h1>
+           <div className="flex items-center gap-3">
+             <h1 className="text-2xl font-bold text-foreground">{projectName}</h1>
+             <button
+               type="button"
+               onClick={() => setIsConnectModalOpen(true)}
+               className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.08em] text-primary-foreground uppercase transition-colors hover:bg-primary/20"
+             >
+               <PlugZap className="h-3.5 w-3.5" />
+               Connect
+             </button>
+           </div>
            <p className="text-sm text-muted-foreground">Project Board</p>
          </div>
          <div className="flex gap-2">
@@ -416,7 +463,12 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
         projectId={projectId}
         initialPredecessorTask={followUpSourceTask}
         onSuccess={(newTask) => {
-          setTasks((prev) => normalizeVisibleTasks([...prev, newTask]))
+          setTasks((prev) => {
+            const nextTasks = normalizeVisibleTasks([...prev, newTask])
+            tasksRef.current = nextTasks
+            lastPersistedTasksRef.current = nextTasks
+            return nextTasks
+          })
           setFollowUpSourceTask(null)
         }}
       />
@@ -474,16 +526,27 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
         task={selectedTask}
         onUpdate={(updated) => setTasks((prev) => {
           if (!isVisibleOnBoard(updated)) {
-            return prev.filter((task) => task.id !== updated.id)
+            const nextTasks = prev.filter((task) => task.id !== updated.id)
+            tasksRef.current = nextTasks
+            lastPersistedTasksRef.current = nextTasks
+            return nextTasks
           }
 
-          return normalizeVisibleTasks(
+          const nextTasks = normalizeVisibleTasks(
             prev.some((task) => task.id === updated.id)
               ? prev.map((task) => (task.id === updated.id ? updated : task))
               : [...prev, updated]
           )
+          tasksRef.current = nextTasks
+          lastPersistedTasksRef.current = nextTasks
+          return nextTasks
         })}
-        onDelete={(taskId) => setTasks((prev) => prev.filter((task) => task.id !== taskId))}
+        onDelete={(taskId) => setTasks((prev) => {
+          const nextTasks = prev.filter((task) => task.id !== taskId)
+          tasksRef.current = nextTasks
+          lastPersistedTasksRef.current = nextTasks
+          return nextTasks
+        })}
         onCompleteAndFollowUp={(task) => openCreateModal({ id: task.id, title: task.title })}
       />
       <TagManagerModal
@@ -512,6 +575,10 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
         isOpen={isAbyssModalOpen}
         onClose={() => setIsAbyssModalOpen(false)}
         projectId={projectId}
+      />
+      <ConnectMcpModal
+        isOpen={isConnectModalOpen}
+        onClose={() => setIsConnectModalOpen(false)}
       />
     </div>
   )

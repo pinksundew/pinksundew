@@ -56,19 +56,21 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
       {...listeners}
       onClick={() => onClick?.(task)}
       className={`
-        group flex flex-col bg-white border border-border p-4 rounded-xl transition-all shadow-sm
+        group flex flex-col bg-white border p-4 rounded-xl transition-all shadow-sm
         ${isSelectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}
-        ${isSelected ? 'border-primary ring-2 ring-primary/20 shadow-md' : 'hover:border-primary/40 hover:shadow-md'}
-        ${isOverlay ? 'rotate-2 scale-105 shadow-xl z-50 cursor-grabbing bg-white/95' : ''}
+        ${isSelected 
+          ? 'border-rose-300 bg-rose-50/50 ring-2 ring-rose-200/50 shadow-md' 
+          : 'border-border hover:border-primary/40 hover:shadow-md'}
+        ${isOverlay ? 'scale-105 shadow-xl z-50 cursor-grabbing bg-white/95' : ''}
       `}
     >
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-2">
           {isSelectionMode ? (
             isSelected ? (
-              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <CheckCircle2 className="h-4 w-4 text-rose-500" />
             ) : (
-              <Circle className="h-4 w-4 text-muted-foreground" />
+              <Circle className="h-4 w-4 text-muted-foreground/50" />
             )
           ) : null}
           <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border ${PRIORITY_COLORS[task.priority]}`}>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { 
   DndContext, 
   DragOverlay, 
@@ -24,7 +24,10 @@ import { deleteTask, persistTaskOrder } from '@/domains/task/mutations'
 import { TaskDetailsModal } from '@/components/modals/task-details-modal'
 import { TagManagerModal } from '@/components/modals/tag-manager-modal'
 import { ExportModal } from '@/components/modals/export-modal'
+import { ConfirmModal } from '@/components/modals/confirm-modal'
+import { AbyssModal } from '@/components/modals/abyss-modal'
 import { CheckSquare, Download, Square } from 'lucide-react'
+import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility'
 
 type KanbanBoardProps = {
   projectId: string
@@ -34,36 +37,81 @@ type KanbanBoardProps = {
 
 const COLUMNS: TaskStatus[] = ['todo', 'in-progress', 'done']
 
+type PersistedTaskOrder = Pick<TaskWithTags, 'id' | 'status' | 'position'>
+
+function normalizeVisibleTasks(taskList: TaskWithTags[]) {
+  return sortTasksByPosition(taskList.filter((task) => isVisibleOnBoard(task)))
+}
+
+function mergeRealtimeTask(task: Partial<TaskWithTags>, existing?: TaskWithTags | null) {
+  return {
+    ...existing,
+    ...task,
+    tags: existing?.tags ?? [],
+  } as TaskWithTags
+}
+
 export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoardProps) {
-  const [tasks, setTasks] = useState<TaskWithTags[]>(initialTasks)
+  const [tasks, setTasks] = useState<TaskWithTags[]>(() =>
+    normalizeVisibleTasks(initialTasks)
+  )
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isAbyssModalOpen, setIsAbyssModalOpen] = useState(false)
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [selectedTask, setSelectedTask] = useState<TaskWithTags | null>(null)
   const [activeTask, setActiveTask] = useState<TaskWithTags | null>(null)
-  
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
+  const tasksRef = useRef<TaskWithTags[]>(normalizeVisibleTasks(initialTasks))
+  const dragStartTasksRef = useRef<TaskWithTags[] | null>(null)
+  const isPersistingOrderRef = useRef(false)
+
+  useEffect(() => {
+    const nextTasks = normalizeVisibleTasks(initialTasks)
+    setTasks(nextTasks)
+    tasksRef.current = nextTasks
+  }, [initialTasks])
 
   useEffect(() => {
     const channel = supabase.channel(`tasks_${projectId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${projectId}` }, (payload) => {
-        console.log('Live change:', payload)
         setTasks(prev => {
           if (payload.eventType === 'INSERT') {
-            const newTask = payload.new as TaskWithTags
+            const newTask = mergeRealtimeTask(payload.new as Partial<TaskWithTags>)
+            if (!isVisibleOnBoard(newTask)) {
+              return prev
+            }
+
             if (!prev.find(t => t.id === newTask.id)) {
-              return [...prev, { ...newTask, tags: [] }]
+              return normalizeVisibleTasks([...prev, newTask])
             }
           }
+
           if (payload.eventType === 'UPDATE') {
-            return prev.map(t => t.id === payload.new.id ? { ...t, ...payload.new } : t)
+            const existingTask = prev.find((task) => task.id === payload.new.id)
+            const nextTask = mergeRealtimeTask(payload.new as Partial<TaskWithTags>, existingTask)
+
+            if (!isVisibleOnBoard(nextTask)) {
+              return prev.filter((task) => task.id !== nextTask.id)
+            }
+
+            if (!existingTask) {
+              return normalizeVisibleTasks([...prev, nextTask])
+            }
+
+            return normalizeVisibleTasks(
+              prev.map((task) => (task.id === nextTask.id ? nextTask : task))
+            )
           }
+
           if (payload.eventType === 'DELETE') {
             return prev.filter(t => t.id !== payload.old.id)
           }
+
           return prev
         })
       })
@@ -73,6 +121,24 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
       supabase.removeChannel(channel)
     }
   }, [projectId, supabase])
+
+  useEffect(() => {
+    tasksRef.current = tasks
+  }, [tasks])
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isPersistingOrderRef.current) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -117,104 +183,167 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
   const normalizeTaskPositions = (taskList: TaskWithTags[]) =>
     taskList.map((task, index) => ({ ...task, position: index }))
 
+  const hasOrderChanged = (before: TaskWithTags[], after: TaskWithTags[]) =>
+    before.length !== after.length ||
+    before.some((task, index) => {
+      const nextTask = after[index]
+      return (
+        !nextTask ||
+        nextTask.id !== task.id ||
+        nextTask.status !== task.status ||
+        nextTask.position !== task.position
+      )
+    })
+
+  const toPersistedTaskOrder = (taskList: TaskWithTags[]): PersistedTaskOrder[] =>
+    taskList.map((task) => ({
+      id: task.id,
+      status: task.status,
+      position: task.position,
+    }))
+
+  const getColumnDropIndex = (
+    taskList: TaskWithTags[],
+    activeId: string,
+    targetStatus: TaskStatus
+  ) => {
+    let lastTargetIndex = -1
+
+    taskList.forEach((task, index) => {
+      if (task.id !== activeId && task.status === targetStatus) {
+        lastTargetIndex = index
+      }
+    })
+
+    return lastTargetIndex === -1 ? taskList.length - 1 : lastTargetIndex
+  }
+
+  const buildReorderedTasks = (
+    taskList: TaskWithTags[],
+    activeId: string,
+    overId: string,
+    overType?: string
+  ) => {
+    const activeIndex = taskList.findIndex((task) => task.id === activeId)
+    if (activeIndex === -1) return null
+
+    let nextStatus = taskList[activeIndex].status
+    let nextIndex = activeIndex
+
+    if (overType === 'Column') {
+      nextStatus = overId as TaskStatus
+      nextIndex = getColumnDropIndex(taskList, activeId, nextStatus)
+    } else if (overType === 'Task') {
+      nextIndex = taskList.findIndex((task) => task.id === overId)
+      if (nextIndex === -1) return null
+      nextStatus = taskList[nextIndex].status
+    } else {
+      return null
+    }
+
+    return normalizeTaskPositions(
+      arrayMove(taskList, activeIndex, nextIndex).map((task) =>
+        task.id === activeId ? { ...task, status: nextStatus } : task
+      )
+    )
+  }
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event
-    setActiveTask(tasks.find((t) => t.id === active.id) || null)
+    const activeId = String(active.id)
+    dragStartTasksRef.current = tasksRef.current
+    setActiveTask(tasksRef.current.find((task) => task.id === activeId) || null)
   }
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event
     if (!over) return
 
-    const activeId = active.id
-    const overId = over.id
-    
+    const activeId = String(active.id)
+    const overId = String(over.id)
+
     if (activeId === overId) return
     if (overId === 'abyss-drop-zone') return
 
     setTasks((prev) => {
-      const activeIdx = prev.findIndex((t) => t.id === activeId)
-      const overIdx = prev.findIndex((t) => t.id === overId)
+      const preview = buildReorderedTasks(prev, activeId, overId, over.data.current?.type)
 
-      let newStatus: TaskStatus | undefined
-
-      if (over.data.current?.type === 'Column') {
-        newStatus = over.id as TaskStatus
-      } else if (over.data.current?.type === 'Task') {
-        const overTask = prev[overIdx]
-        newStatus = overTask.status
+      if (!preview || !hasOrderChanged(prev, preview)) {
+        return prev
       }
 
-      if (newStatus && prev[activeIdx].status !== newStatus) {
-        return arrayMove(prev, activeIdx, overIdx === -1 ? prev.length - 1 : overIdx).map((t, idx) => {
-          if (t.id === activeId) {
-            return { ...t, status: newStatus as TaskStatus, position: idx }
-          }
-          return { ...t, position: idx }
-        })
-      }
-      return prev
+      return preview
     })
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
+    const activeId = String(active.id)
+    const overId = over ? String(over.id) : null
+    const overType = over?.data.current?.type
+
     setActiveTask(null)
+    const dragStartTasks = dragStartTasksRef.current ?? tasksRef.current
+    dragStartTasksRef.current = null
 
     if (!over) return
 
     if (over.id === 'abyss-drop-zone') {
-      const isConfirmed = window.confirm("Throw this task into the abyss?")
-      if (isConfirmed) {
-        setTasks((prev) => normalizeTaskPositions(prev.filter((t) => t.id !== active.id)))
-        await deleteTask(supabase, active.id as string).catch(console.error)
-      }
+      setTaskToDelete(activeId)
       return
     }
 
-    const activeId = active.id
-    const overId = over.id
+    if (!overId || activeId === overId) return
 
-    if (activeId !== overId) {
-      setTasks((prev) => {
-        const activeIdx = prev.findIndex((task) => task.id === activeId)
-        const overIdx = prev.findIndex((task) => task.id === overId)
-        
-        let newStatus: TaskStatus | undefined
+    const finalTasks = buildReorderedTasks(dragStartTasks, activeId, overId, overType)
+    if (!finalTasks || !hasOrderChanged(dragStartTasks, finalTasks)) {
+      return
+    }
 
-        if (over.data.current?.type === 'Column') {
-          newStatus = over.id as TaskStatus
-        } else if (over.data.current?.type === 'Task') {
-          newStatus = prev[overIdx].status
-        }
-        
-        const nextIndex = overIdx === -1 ? prev.length - 1 : overIdx
-        const reorderedTasks = arrayMove(prev, activeIdx, nextIndex)
+    const previousTasks = tasksRef.current
+    tasksRef.current = finalTasks
+    setTasks(finalTasks)
+    isPersistingOrderRef.current = true
 
-        const finalArray = normalizeTaskPositions(
-          reorderedTasks.map((task) => ({
-            ...task,
-            status: task.id === activeId && newStatus ? newStatus : task.status,
-          }))
-        )
+    try {
+      await persistTaskOrder(supabase, projectId, toPersistedTaskOrder(finalTasks))
+    } catch {
+      tasksRef.current = previousTasks
+      setTasks(previousTasks)
+    } finally {
+      isPersistingOrderRef.current = false
+    }
+  }
 
-        persistTaskOrder(
-          supabase,
-          finalArray.map((task) => ({
-            id: task.id,
-            status: task.status,
-            position: task.position,
-          }))
-        ).catch(console.error)
+  const handleConfirmDelete = async () => {
+    if (!taskToDelete) return
 
-        return finalArray
-      })
+    const id = taskToDelete
+    const previousTasks = tasksRef.current
+    const remainingTasks = normalizeTaskPositions(previousTasks.filter((task) => task.id !== id))
+
+    tasksRef.current = remainingTasks
+    setTasks(remainingTasks)
+    isPersistingOrderRef.current = true
+
+    try {
+      await deleteTask(supabase, id)
+
+      if (remainingTasks.length > 0) {
+        await persistTaskOrder(supabase, projectId, toPersistedTaskOrder(remainingTasks))
+      }
+    } catch {
+      tasksRef.current = previousTasks
+      setTasks(previousTasks)
+    } finally {
+      isPersistingOrderRef.current = false
+      setTaskToDelete(null)
     }
   }
 
   return (
     <div className="h-full flex flex-col items-start w-full relative">
-      <div className="w-full flex justify-between items-center mb-6 shrink-0">
+      <div className="w-full flex justify-between items-center mb-6 shrink-0 font-sans">
          <div>
            <h1 className="text-2xl font-bold text-foreground">{projectName}</h1>
            <p className="text-sm text-muted-foreground">Project Board</p>
@@ -222,7 +351,11 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
          <div className="flex gap-2">
             <button
               onClick={toggleSelectionMode}
-              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
+              className={`inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                isSelectionMode 
+                  ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100' 
+                  : 'border-border text-foreground hover:bg-muted'
+              }`}
             >
               {isSelectionMode ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
               {isSelectionMode ? `Selecting (${selectedTaskIds.size})` : 'Selection Mode'}
@@ -230,9 +363,19 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
             <button
               onClick={openExportModal}
               disabled={!isSelectionMode || selectedTaskIds.size === 0}
-              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              className={`inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                isSelectionMode && selectedTaskIds.size > 0
+                  ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+                  : 'border-border text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50'
+              }`}
             >
               <Download className="h-4 w-4" /> Export
+            </button>
+            <button
+              onClick={() => setIsAbyssModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            >
+              Abyss
             </button>
             <button 
               onClick={() => setIsCreateModalOpen(true)}
@@ -247,7 +390,7 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         projectId={projectId}
-        onSuccess={(newTask) => setTasks((prev) => [...prev, newTask])}
+        onSuccess={(newTask) => setTasks((prev) => normalizeVisibleTasks([...prev, newTask]))}
       />
       
       <DndContext
@@ -280,8 +423,18 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
         isOpen={isDetailsModalOpen}
         onClose={() => { setIsDetailsModalOpen(false); setSelectedTask(null); }}
         task={selectedTask}
-        onUpdate={(updated) => setTasks(prev => prev.map(t => t.id === updated.id ? updated : t))}
-        onDelete={(taskId) => setTasks(prev => prev.filter(t => t.id !== taskId))}
+        onUpdate={(updated) => setTasks((prev) => {
+          if (!isVisibleOnBoard(updated)) {
+            return prev.filter((task) => task.id !== updated.id)
+          }
+
+          return normalizeVisibleTasks(
+            prev.some((task) => task.id === updated.id)
+              ? prev.map((task) => (task.id === updated.id ? updated : task))
+              : [...prev, updated]
+          )
+        })}
+        onDelete={(taskId) => setTasks((prev) => prev.filter((task) => task.id !== taskId))}
       />
       <TagManagerModal
         isOpen={isTagModalOpen}
@@ -296,6 +449,20 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
           projectName={projectName}
         />
       ) : null}
+      <ConfirmModal
+        isOpen={taskToDelete !== null}
+        title="Move Task To The Abyss"
+        message="This task will be hidden from the board and can be restored later from the abyss."
+        confirmText="Move Task"
+        isDestructive
+        onConfirm={handleConfirmDelete}
+        onClose={() => setTaskToDelete(null)}
+      />
+      <AbyssModal
+        isOpen={isAbyssModalOpen}
+        onClose={() => setIsAbyssModalOpen(false)}
+        projectId={projectId}
+      />
     </div>
   )
 }

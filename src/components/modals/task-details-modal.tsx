@@ -70,7 +70,7 @@ export function TaskDetailsModal({ isOpen, onClose, task, onUpdate, onDelete }: 
 
   const handleDelete = async () => {
     if (!task) return
-    if (!confirm('Are you sure you want to delete this task?')) return
+    if (!confirm('Move this task to the abyss? You can restore it later.')) return
     setLoading(true)
     try {
       await deleteTask(supabase, task.id)
@@ -182,7 +182,7 @@ export function TaskDetailsModal({ isOpen, onClose, task, onUpdate, onDelete }: 
                 disabled={loading}
                 className="flex items-center justify-center gap-2 rounded-md bg-red-500 px-4 py-2 text-white hover:bg-red-600 disabled:opacity-50"
               >
-                <Trash2 className="h-4 w-4" /> Delete Task
+                <Trash2 className="h-4 w-4" /> Move To Abyss
               </button>
               <div className="flex gap-2 justify-end">
                 <button

@@ -14,6 +14,8 @@ export type Task = {
   due_date: string | null
   predecessor_id: string | null
   position: number
+  is_deleted: boolean
+  completed_at: string | null
   created_at: string
   updated_at: string
 }

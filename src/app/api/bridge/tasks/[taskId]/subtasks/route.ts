@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
+import { requireTaskAccess } from '@/lib/bridge-access'
 import { createTask } from '@/domains/task/mutations'
+import { isTaskPriority } from '@/domains/task/types'
+
+type ParentTaskRow = {
+  project_id: string
+}
 
 export async function POST(
   request: NextRequest,
@@ -16,33 +22,27 @@ export async function POST(
     return NextResponse.json({ error: 'subtasks array is required' }, { status: 400 })
   }
 
-  // Get the parent task to verify project membership and get project_id
-  const { data: parentTask } = await auth.supabase
-    .from('tasks')
-    .select('project_id')
-    .eq('id', taskId)
-    .single()
+  const parentTaskResult = await requireTaskAccess<ParentTaskRow>(
+    auth.supabase,
+    auth.userId,
+    taskId,
+    'project_id'
+  )
 
-  if (!parentTask) {
-    return NextResponse.json({ error: 'Parent task not found' }, { status: 404 })
+  if (parentTaskResult.response) {
+    return parentTaskResult.response
   }
 
-  const taskData = parentTask as any
-
-  const { data: membership } = await auth.supabase
-    .from('project_members')
-    .select('id')
-    .eq('project_id', taskData.project_id)
-    .eq('user_id', auth.userId)
-    .single()
-
-  if (!membership) {
-    return NextResponse.json({ error: 'Not a member of this project' }, { status: 403 })
-  }
+  const taskData = parentTaskResult.task
 
   const created = []
   for (let i = 0; i < body.subtasks.length; i++) {
     const sub = body.subtasks[i]
+
+    if (sub.priority !== undefined && !isTaskPriority(sub.priority)) {
+      return NextResponse.json({ error: 'Invalid priority in subtasks payload' }, { status: 400 })
+    }
+
     const task = await createTask(auth.supabase, {
       project_id: taskData.project_id,
       title: sub.title,

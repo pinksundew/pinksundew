@@ -1,7 +1,18 @@
 import { Tag } from '../tag/types'
 
-export type TaskStatus = 'todo' | 'in-progress' | 'done'
-export type TaskPriority = 'low' | 'medium' | 'high'
+export const TASK_STATUSES = ['todo', 'in-progress', 'done'] as const
+export const TASK_PRIORITIES = ['low', 'medium', 'high'] as const
+
+export type TaskStatus = (typeof TASK_STATUSES)[number]
+export type TaskPriority = (typeof TASK_PRIORITIES)[number]
+
+export function isTaskStatus(value: unknown): value is TaskStatus {
+  return typeof value === 'string' && TASK_STATUSES.includes(value as TaskStatus)
+}
+
+export function isTaskPriority(value: unknown): value is TaskPriority {
+  return typeof value === 'string' && TASK_PRIORITIES.includes(value as TaskPriority)
+}
 
 export type Task = {
   id: string

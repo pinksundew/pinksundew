@@ -1,13 +1,22 @@
-import { bridgeFetch } from './supabase.js';
+import { bridgeFetch } from './supabase.js'
+import { AbyssState, BoardState, Project, Tag, Task } from './types.js'
 
 export async function getProjects() {
-  return bridgeFetch('/projects');
+  return bridgeFetch<Project[]>('/projects')
 }
 
 export async function getBoardState(projectId: string) {
-  return bridgeFetch(`/board/${projectId}`);
+  return bridgeFetch<BoardState>(`/board/${projectId}`)
 }
 
 export async function getTaskDetails(taskId: string) {
-  return bridgeFetch(`/task/${taskId}`);
+  return bridgeFetch<Task>(`/task/${taskId}`)
+}
+
+export async function getAbyssState(projectId: string) {
+  return bridgeFetch<AbyssState>(`/abyss/${projectId}`)
+}
+
+export async function getProjectTags(projectId: string) {
+  return bridgeFetch<Tag[]>(`/tags?projectId=${encodeURIComponent(projectId)}`)
 }

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
+import { requireTaskAccess } from '@/lib/bridge-access'
 import { createTaskPlan } from '@/domains/plan/mutations'
+
+type TaskProjectRow = {
+  project_id: string
+}
 
 export async function POST(
   request: NextRequest,
@@ -16,28 +21,15 @@ export async function POST(
     return NextResponse.json({ error: 'content is required' }, { status: 400 })
   }
 
-  // Get the task to verify project membership
-  const { data: task } = await auth.supabase
-    .from('tasks')
-    .select('project_id')
-    .eq('id', taskId)
-    .single()
+  const taskResult = await requireTaskAccess<TaskProjectRow>(
+    auth.supabase,
+    auth.userId,
+    taskId,
+    'project_id'
+  )
 
-  if (!task) {
-    return NextResponse.json({ error: 'Task not found' }, { status: 404 })
-  }
-
-  const taskData = task as any
-
-  const { data: membership } = await auth.supabase
-    .from('project_members')
-    .select('id')
-    .eq('project_id', taskData.project_id)
-    .eq('user_id', auth.userId)
-    .single()
-
-  if (!membership) {
-    return NextResponse.json({ error: 'Not a member of this project' }, { status: 403 })
+  if (taskResult.response) {
+    return taskResult.response
   }
 
   const plan = await createTaskPlan(auth.supabase, {

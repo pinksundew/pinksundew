@@ -230,40 +230,52 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
     overId: string,
     overType?: string
   ) => {
-    const activeIndex = taskList.findIndex((task) => task.id === activeId)
+    const activeIndex = taskList.findIndex((t) => t.id === activeId)
     if (activeIndex === -1) return null
 
-    let nextStatus = taskList[activeIndex].status
+    const overIndex = taskList.findIndex((t) => t.id === overId)
+    const activeTask = taskList[activeIndex]
+    let nextStatus = activeTask.status
     let nextIndex = activeIndex
 
     if (overType === 'Column') {
       nextStatus = overId as TaskStatus
-      // If moving to a column, find the last task in that column
-      const tasksInColumn = taskList.filter(t => t.status === nextStatus && t.id !== activeId)
+      // If dropping on a column, move to the end of that column
+      const tasksInColumn = taskList.filter((t) => t.status === nextStatus && t.id !== activeId)
       if (tasksInColumn.length > 0) {
-        nextIndex = taskList.indexOf(tasksInColumn[tasksInColumn.length - 1])
+        // Find global index of the last task in this column
+        const lastTaskInColumn = tasksInColumn[tasksInColumn.length - 1]
+        nextIndex = taskList.indexOf(lastTaskInColumn)
       } else {
+        // Empty column - find where to insert
+        // This is complex for a flat array, but simplest is move to end
         nextIndex = taskList.length - 1
       }
     } else if (overType === 'Task') {
-      nextIndex = taskList.findIndex((task) => task.id === overId)
-      if (nextIndex === -1) return null
-      nextStatus = taskList[nextIndex].status
+      if (overIndex === -1) return null
+      const overTask = taskList[overIndex]
+      nextStatus = overTask.status
+      nextIndex = overIndex
     } else {
       return null
     }
 
-    return normalizeTaskPositions(
-      arrayMove(taskList, activeIndex, nextIndex).map((task) =>
-        task.id === activeId ? { ...task, status: nextStatus } : task
-      )
+    // Optimization: If status and general position haven't changed, return null to skip state update
+    if (activeTask.status === nextStatus && activeIndex === nextIndex) {
+      return null
+    }
+
+    const reordered = arrayMove(taskList, activeIndex, nextIndex).map((task) =>
+      task.id === activeId ? { ...task, status: nextStatus } : task
     )
+
+    return normalizeTaskPositions(reordered)
   }
 
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event
     const activeId = String(active.id)
-    dragStartTasksRef.current = tasksRef.current
+    dragStartTasksRef.current = [...tasksRef.current]
     setActiveTask(tasksRef.current.find((task) => task.id === activeId) || null)
   }
 
@@ -277,15 +289,18 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
     if (activeId === overId) return
     if (overId === 'abyss-drop-zone') return
 
-    setTasks((prev) => {
-      const preview = buildReorderedTasks(prev, activeId, overId, over.data.current?.type)
+    // If active task status hasn't changed AND it's a Column, skip
+    // Sorting within column is handled by SortableContext automatic logic 
+    // but building the preview for cross-column needs to be careful
+    const activeTaskInList = tasksRef.current.find(t => t.id === activeId)
+    if (over.data.current?.type === 'Column' && activeTaskInList?.status === overId) {
+      return
+    }
 
-      if (!preview || !hasOrderChanged(prev, preview)) {
-        return prev
-      }
-
-      return preview
-    })
+    const preview = buildReorderedTasks(tasksRef.current, activeId, overId, over.data.current?.type)
+    if (preview && hasOrderChanged(tasksRef.current, preview)) {
+      setTasks(preview)
+    }
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {

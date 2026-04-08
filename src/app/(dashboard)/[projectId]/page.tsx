@@ -2,12 +2,29 @@ import { createClient } from '@/lib/supabase/server'
 import { getProject } from '@/domains/project/queries'
 import { getProjectTasks } from '@/domains/task/queries'
 import { KanbanBoard } from '@/components/kanban/board'
+import { Metadata } from 'next'
+
+type Props = {
+  params: Promise<{ projectId: string }>
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const pageParams = await params
+  const supabase = await createClient()
+  
+  try {
+    const project = await getProject(supabase, pageParams.projectId)
+    return {
+      title: project?.name || 'Project',
+    }
+  } catch {
+    return { title: 'Project' }
+  }
+}
 
 export default async function ProjectBoardPage({
   params,
-}: {
-  params: Promise<{ projectId: string }>
-}) {
+}: Props) {
   const pageParams = await params
   const supabase = await createClient()
 

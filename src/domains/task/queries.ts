@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { TaskWithTags } from './types'
-import { Tag } from '../tag/types'
+import { mapTasksWithTags, TaskWithTaskTagsRow } from './normalization'
 import { isVisibleOnBoard, sortTasksByPosition } from './visibility'
 
 export async function getProjectTasks(
@@ -26,14 +26,7 @@ export async function getProjectTasks(
   // [ { id: '...', task_tags: [ { tags: { id: '...', name: '..' } } ] } ]
   // We need to map it to the TaskWithTags interface where `tags` is just an array of Tag
   
-  type RawTask = (TaskWithTags & { task_tags?: { tags: Tag }[] })
-  const mappedTasks = (data as unknown as RawTask[]).map((row) => {
-    return {
-      ...row,
-      tags: row.task_tags ? row.task_tags.map((tt: any) => tt.tags).filter(Boolean) : [],
-      task_tags: undefined,
-    }
-  })
+  const mappedTasks = mapTasksWithTags(data as unknown as TaskWithTaskTagsRow[])
 
   return sortTasksByPosition(mappedTasks.filter((task) => isVisibleOnBoard(task)))
 }

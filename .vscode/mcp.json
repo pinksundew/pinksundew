@@ -4,26 +4,11 @@
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=gsjyabekiucdkzhulvip"
     },
-    "kanban": {
+    "agentplanner": {
       "type": "stdio",
-      "command": "node",
-      "args": ["${workspaceFolder}/mcp-server/dist/index.js"],
-      "env": {
-        "AGENTPLANNER_API_KEY": "${input:apiKey}",
-        "AGENTPLANNER_URL": "${input:appUrl}"
-      }
+      "command": "npx",
+      "args": ["-y", "@saltedroads/agentplanner-mcp"],
+      "envFile": "${workspaceFolder}/.vscode/.env.mcp"
     }
-  },
-  "inputs": [
-    {
-      "id": "apiKey",
-      "type": "promptString",
-      "description": "Your AgentPlanner API key (generate one from Profile → API Keys)"
-    },
-    {
-      "id": "appUrl",
-      "type": "promptString",
-      "description": "AgentPlanner URL (e.g. https://d1abc2def3.cloudfront.net or http://localhost:3000)"
-    }
-  ]
+  }
 }

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
-import { updateTask } from '@/domains/task/mutations'
+import { deleteTask, updateTask } from '@/domains/task/mutations'
+import { requireTaskAccess } from '@/lib/bridge-access'
+import { isTaskPriority, isTaskStatus } from '@/domains/task/types'
+
+type TaskProjectRow = {
+  project_id: string
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -12,31 +18,27 @@ export async function PATCH(
   const { taskId } = await params
   const body = await request.json()
 
-  // Get the task to verify project membership
-  const { data: task } = await auth.supabase
-    .from('tasks')
-    .select('project_id')
-    .eq('id', taskId)
-    .single()
+  const taskResult = await requireTaskAccess<TaskProjectRow>(
+    auth.supabase,
+    auth.userId,
+    taskId,
+    'project_id'
+  )
 
-  if (!task) {
-    return NextResponse.json({ error: 'Task not found' }, { status: 404 })
-  }
-
-  const taskData = task as any
-
-  const { data: membership } = await auth.supabase
-    .from('project_members')
-    .select('id')
-    .eq('project_id', taskData.project_id)
-    .eq('user_id', auth.userId)
-    .single()
-
-  if (!membership) {
-    return NextResponse.json({ error: 'Not a member of this project' }, { status: 403 })
+  if (taskResult.response) {
+    return taskResult.response
   }
 
   const { title, description, status, priority, assignee_id, due_date, position, predecessor_id } = body
+
+  if (status !== undefined && !isTaskStatus(status)) {
+    return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+  }
+
+  if (priority !== undefined && !isTaskPriority(priority)) {
+    return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
+  }
+
   const updates: Record<string, unknown> = {}
   if (title !== undefined) updates.title = title
   if (description !== undefined) updates.description = description
@@ -49,4 +51,27 @@ export async function PATCH(
 
   const updated = await updateTask(auth.supabase, taskId, updates)
   return NextResponse.json(updated)
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ taskId: string }> }
+) {
+  const auth = await validateBridgeRequest(request)
+  if (isBridgeAuthError(auth)) return auth
+
+  const { taskId } = await params
+  const taskResult = await requireTaskAccess<TaskProjectRow>(
+    auth.supabase,
+    auth.userId,
+    taskId,
+    'project_id'
+  )
+
+  if (taskResult.response) {
+    return taskResult.response
+  }
+
+  await deleteTask(auth.supabase, taskId)
+  return NextResponse.json({ deleted: true })
 }

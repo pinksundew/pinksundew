@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
+import { requireProjectMembership } from '@/lib/bridge-access'
 import { getProjectTasks } from '@/domains/task/queries'
 
 export async function GET(
@@ -12,15 +13,9 @@ export async function GET(
   const { projectId } = await params
 
   // Verify user is a member of this project
-  const { data: membership } = await auth.supabase
-    .from('project_members')
-    .select('id')
-    .eq('project_id', projectId)
-    .eq('user_id', auth.userId)
-    .single()
-
-  if (!membership) {
-    return NextResponse.json({ error: 'Not a member of this project' }, { status: 403 })
+  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId)
+  if (membershipError) {
+    return membershipError
   }
 
   // Get project info

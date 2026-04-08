@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
+import { requireProjectMembership } from '@/lib/bridge-access'
 import { createTask } from '@/domains/task/mutations'
+import { isTaskPriority, isTaskStatus } from '@/domains/task/types'
 
 export async function POST(request: NextRequest) {
   const auth = await validateBridgeRequest(request)
@@ -14,15 +16,17 @@ export async function POST(request: NextRequest) {
   }
 
   // Verify user is a member of the project
-  const { data: membership } = await auth.supabase
-    .from('project_members')
-    .select('id')
-    .eq('project_id', project_id)
-    .eq('user_id', auth.userId)
-    .single()
+  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, project_id)
+  if (membershipError) {
+    return membershipError
+  }
 
-  if (!membership) {
-    return NextResponse.json({ error: 'Not a member of this project' }, { status: 403 })
+  if (status !== undefined && !isTaskStatus(status)) {
+    return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
+  }
+
+  if (priority !== undefined && !isTaskPriority(priority)) {
+    return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
   }
 
   const task = await createTask(auth.supabase, {

@@ -1,5 +1,5 @@
 {
-  "name": "agentplanner-mcp",
+  "name": "@saltedroads/agentplanner-mcp",
   "version": "1.0.0",
   "type": "module",
   "description": "Kanban MCP Server for AgentPlanner",
@@ -9,7 +9,7 @@
     "README.md"
   ],
   "bin": {
-    "agentplanner-mcp": "./dist/index.js"
+    "agentplanner-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -36,8 +36,7 @@
     "node": ">=20"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0"

@@ -5,7 +5,7 @@ Model Context Protocol server for AgentPlanner's Kanban bridge API.
 ## Install
 
 ```bash
-npm install -g agentplanner-mcp
+npm install -g @saltedroads/agentplanner-mcp
 ```
 
 ## Required environment variables

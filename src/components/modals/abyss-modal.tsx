@@ -109,37 +109,63 @@ export function AbyssModal({ isOpen, onClose, projectId }: AbyssModalProps) {
               <div className="text-center text-sm text-muted-foreground py-10">Loading the Abyss...</div>
             ) : (
               <>
-                {deletedTasks.length === 0 && archivedTasks.length === 0 ? (
-                  <div className="text-center text-sm text-muted-foreground py-10">The Abyss is empty.</div>
-                ) : null}
+                <div className="rounded-xl border border-rose-200 bg-rose-50/60 p-4">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-2 text-rose-600 uppercase tracking-wider">
+                        <Trash className="w-4 h-4" />
+                        Deleted Tasks
+                      </h3>
+                      <p className="mt-1 text-sm text-rose-700/80">
+                        Tickets moved here manually from the board.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-700 shadow-sm">
+                      {deletedTasks.length}
+                    </span>
+                  </div>
 
-                {deletedTasks.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-rose-600 uppercase tracking-wider">
-                      <Trash className="w-4 h-4" />
-                      Deleted Tasks
-                    </h3>
+                  {deletedTasks.length > 0 ? (
                     <div className="space-y-2">
                       {deletedTasks.map(task => (
                         <TaskRow key={task.id} task={task} onRestore={() => handleRestore(task)} />
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-rose-200 bg-white/80 px-4 py-5 text-sm text-rose-700/80">
+                      No manually deleted tasks right now.
+                    </div>
+                  )}
+                </div>
 
-                {archivedTasks.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
-                      <History className="w-4 h-4" />
-                      Archived (Completed {'>'} 3 days ago)
-                    </h3>
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="mb-3 flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
+                        <History className="w-4 h-4" />
+                        Archived (Completed {'>'} 3 days ago)
+                      </h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Finished tickets that aged out of the main board.
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                      {archivedTasks.length}
+                    </span>
+                  </div>
+
+                  {archivedTasks.length > 0 ? (
                     <div className="space-y-2">
                       {archivedTasks.map(task => (
                         <TaskRow key={task.id} task={task} onRestore={() => handleRestore(task)} />
                       ))}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-muted-foreground">
+                      No archived completed tasks right now.
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>

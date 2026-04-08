@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X } from 'lucide-react'
+import { ArrowRight, Link2, X } from 'lucide-react'
 import { createTask } from '@/domains/task/mutations'
 import { createClient } from '@/lib/supabase/client'
 import { TaskStatus, TaskPriority, TaskWithTags } from '@/domains/task/types'
@@ -12,16 +12,37 @@ type CreateTaskModalProps = {
   onClose: () => void
   projectId: string
   onSuccess: (task: TaskWithTags) => void
+  initialPredecessorTask?: Pick<TaskWithTags, 'id' | 'title'> | null
 }
 
-export function CreateTaskModal({ isOpen, onClose, projectId, onSuccess }: CreateTaskModalProps) {
+export function CreateTaskModal({
+  isOpen,
+  onClose,
+  projectId,
+  onSuccess,
+  initialPredecessorTask = null,
+}: CreateTaskModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<TaskStatus>('todo')
   const [priority, setPriority] = useState<TaskPriority>('medium')
+  const [predecessorId, setPredecessorId] = useState<string | null>(initialPredecessorTask?.id ?? null)
+  const [predecessorTitle, setPredecessorTitle] = useState(initialPredecessorTask?.title ?? '')
   const [loading, setLoading] = useState(false)
 
   const supabase = createClient()
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    setTitle('')
+    setDescription('')
+    setStatus('todo')
+    setPriority('medium')
+    setLoading(false)
+    setPredecessorId(initialPredecessorTask?.id ?? null)
+    setPredecessorTitle(initialPredecessorTask?.title ?? '')
+  }, [initialPredecessorTask, isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,20 +52,16 @@ export function CreateTaskModal({ isOpen, onClose, projectId, onSuccess }: Creat
     try {
       const newTask = await createTask(supabase, {
         project_id: projectId,
-        title,
-        description: description || null,
+        title: title.trim(),
+        description: description.trim() || null,
         status,
         priority,
-        position: 0, // Should realistically query Max(position) + 1000, but 0 is fine for v1
+        position: 0,
         assignee_id: null,
         due_date: null,
-        predecessor_id: null,
+        predecessor_id: predecessorId,
       })
       onSuccess({ ...newTask, tags: [] })
-      setTitle('')
-      setDescription('')
-      setStatus('todo')
-      setPriority('medium')
       onClose()
     } catch (error) {
       console.error('Failed to create task:', error)
@@ -72,7 +89,9 @@ export function CreateTaskModal({ isOpen, onClose, projectId, onSuccess }: Creat
             className="relative w-full max-w-lg bg-white rounded-xl shadow-xl border border-border overflow-hidden"
           >
             <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
-              <h2 className="text-lg font-semibold text-foreground">Create New Task</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                {predecessorId ? 'Create Follow-Up Task' : 'Create New Task'}
+              </h2>
               <button
                 onClick={onClose}
                 className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
@@ -82,6 +101,34 @@ export function CreateTaskModal({ isOpen, onClose, projectId, onSuccess }: Creat
             </div>
 
             <form onSubmit={handleSubmit} className="p-4 space-y-4">
+              {predecessorId ? (
+                <div className="rounded-lg border border-sky-200 bg-sky-50/80 p-3 text-sm text-sky-900">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sky-700">
+                        <Link2 className="h-3.5 w-3.5" />
+                        Ticket Timeline
+                      </div>
+                      <div className="mt-2 flex items-center gap-2 font-medium">
+                        <span>{predecessorTitle || 'Linked predecessor'}</span>
+                        <ArrowRight className="h-4 w-4 text-sky-600" />
+                        <span>New follow-up</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPredecessorId(null)
+                        setPredecessorTitle('')
+                      }}
+                      className="rounded-md px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
+                    >
+                      Remove link
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Title</label>
                 <input

@@ -2,12 +2,20 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Save, Trash2 } from 'lucide-react'
+import { ArrowRight, Save, Trash2, X } from 'lucide-react'
 import { updateTask, deleteTask } from '@/domains/task/mutations'
 import { createClient } from '@/lib/supabase/client'
 import { TaskStatus, TaskPriority, TaskWithTags } from '@/domains/task/types'
 import { TaskPlan } from '@/domains/plan/types'
 import { getTaskPlans } from '@/domains/plan/queries'
+import { isArchivedTask, isDeletedTask } from '@/domains/task/visibility'
+
+type TimelineTask = Pick<
+  TaskWithTags,
+  'id' | 'title' | 'status' | 'priority' | 'predecessor_id' | 'is_deleted' | 'completed_at'
+>
+
+const TIMELINE_TASK_SELECT = 'id, title, status, priority, predecessor_id, is_deleted, completed_at'
 
 type TaskDetailsModalProps = {
   isOpen: boolean
@@ -15,35 +23,85 @@ type TaskDetailsModalProps = {
   task: TaskWithTags | null
   onUpdate: (task: TaskWithTags) => void
   onDelete: (taskId: string) => void
+  onCompleteAndFollowUp: (task: TaskWithTags) => void
 }
 
-export function TaskDetailsModal({ isOpen, onClose, task, onUpdate, onDelete }: TaskDetailsModalProps) {
+export function TaskDetailsModal({
+  isOpen,
+  onClose,
+  task,
+  onUpdate,
+  onDelete,
+  onCompleteAndFollowUp,
+}: TaskDetailsModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<TaskStatus>('todo')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [loading, setLoading] = useState(false)
   const [plans, setPlans] = useState<TaskPlan[]>([])
+  const [predecessor, setPredecessor] = useState<TimelineTask | null>(null)
+  const [successors, setSuccessors] = useState<TimelineTask[]>([])
+  const [isTimelineLoading, setIsTimelineLoading] = useState(false)
 
   const supabase = createClient()
 
   useEffect(() => {
-    if (task) {
-      setTitle(task.title)
-      setDescription(task.description || '')
-      setStatus(task.status)
-      setPriority(task.priority)
-      fetchPlans()
+    if (!task) {
+      setPlans([])
+      setPredecessor(null)
+      setSuccessors([])
+      return
     }
+
+    setTitle(task.title)
+    setDescription(task.description || '')
+    setStatus(task.status)
+    setPriority(task.priority)
+    void fetchPlans(task.id)
+    void fetchTimeline(task)
   }, [task])
 
-  const fetchPlans = async () => {
-    if (!task) return
+  const fetchPlans = async (taskId: string) => {
     try {
-      const p = await getTaskPlans(supabase, task.id)
+      const p = await getTaskPlans(supabase, taskId)
       setPlans(p)
     } catch (e) {
       console.error(e)
+    }
+  }
+
+  const fetchTimeline = async (currentTask: TaskWithTags) => {
+    setIsTimelineLoading(true)
+
+    try {
+      const predecessorQuery = currentTask.predecessor_id
+        ? supabase
+            .from('tasks')
+            .select(TIMELINE_TASK_SELECT)
+            .eq('id', currentTask.predecessor_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null })
+
+      const successorsQuery = supabase
+        .from('tasks')
+        .select(TIMELINE_TASK_SELECT)
+        .eq('predecessor_id', currentTask.id)
+        .order('created_at', { ascending: true })
+
+      const [predecessorResult, successorsResult] = await Promise.all([predecessorQuery, successorsQuery])
+
+      if (predecessorResult.error) throw predecessorResult.error
+      if (successorsResult.error) throw successorsResult.error
+
+      setPredecessor((predecessorResult.data as TimelineTask | null) ?? null)
+      setSuccessors((successorsResult.data as TimelineTask[] | null) ?? [])
+    } catch (error) {
+      console.error('Error loading task timeline:', error)
+      setPredecessor(null)
+      setSuccessors([])
+    } finally {
+      setIsTimelineLoading(false)
     }
   }
 
@@ -55,7 +113,7 @@ export function TaskDetailsModal({ isOpen, onClose, task, onUpdate, onDelete }: 
     try {
       const updated = await updateTask(supabase, task.id, {
         title: title.trim(),
-        description: description.trim(),
+        description: description.trim() || null,
         status,
         priority
       })
@@ -63,6 +121,29 @@ export function TaskDetailsModal({ isOpen, onClose, task, onUpdate, onDelete }: 
       onClose()
     } catch (error) {
       console.error('Error updating task:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCompleteAndFollowUp = async () => {
+    if (!task || !title.trim()) return
+
+    setLoading(true)
+    try {
+      const updated = await updateTask(supabase, task.id, {
+        title: title.trim(),
+        description: description.trim() || null,
+        status: 'done',
+        priority,
+      })
+
+      const nextTask = { ...task, ...updated }
+      onUpdate(nextTask)
+      onClose()
+      onCompleteAndFollowUp(nextTask)
+    } catch (error) {
+      console.error('Error creating follow-up flow:', error)
     } finally {
       setLoading(false)
     }
@@ -158,6 +239,59 @@ export function TaskDetailsModal({ isOpen, onClose, task, onUpdate, onDelete }: 
               </div>
             </div>
 
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="text-md font-semibold text-foreground">Ticket Timeline</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    See what this ticket follows and what it unlocks next.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCompleteAndFollowUp}
+                  disabled={loading || !title.trim()}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ArrowRight className="h-4 w-4" /> Complete and Follow Up
+                </button>
+              </div>
+
+              {isTimelineLoading ? (
+                <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-white px-4 py-6 text-sm text-muted-foreground">
+                  Loading timeline...
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Predecessor
+                    </div>
+                    {predecessor ? (
+                      <TimelineTaskCard task={predecessor} />
+                    ) : (
+                      <TimelineEmptyState message="This ticket starts a new thread." />
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                      Follow Ups
+                    </div>
+                    {successors.length > 0 ? (
+                      <div className="space-y-2">
+                        {successors.map((successor) => (
+                          <TimelineTaskCard key={successor.id} task={successor} />
+                        ))}
+                      </div>
+                    ) : (
+                      <TimelineEmptyState message="No follow-up tickets yet." />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {plans.length > 0 && (
               <div>
                 <h3 className="mb-2 text-md font-semibold mt-4">AI Plans</h3>
@@ -205,5 +339,42 @@ export function TaskDetailsModal({ isOpen, onClose, task, onUpdate, onDelete }: 
         </motion.div>
       </div>
     </AnimatePresence>
+  )
+}
+
+function TimelineTaskCard({ task }: { task: TimelineTask }) {
+  const visibilityLabel = isDeletedTask(task)
+    ? 'In abyss'
+    : isArchivedTask(task)
+      ? 'Archived'
+      : 'On board'
+
+  const visibilityClasses = isDeletedTask(task)
+    ? 'bg-rose-100 text-rose-700'
+    : isArchivedTask(task)
+      ? 'bg-amber-100 text-amber-700'
+      : 'bg-emerald-100 text-emerald-700'
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+      <div className="text-sm font-semibold text-foreground">{task.title}</div>
+      <div className="mt-2 flex flex-wrap gap-2 text-xs">
+        <span className="rounded-full bg-slate-100 px-2 py-1 capitalize text-slate-700">
+          {task.status.replace('-', ' ')}
+        </span>
+        <span className="rounded-full bg-sky-100 px-2 py-1 capitalize text-sky-700">
+          {task.priority}
+        </span>
+        <span className={`rounded-full px-2 py-1 ${visibilityClasses}`}>{visibilityLabel}</span>
+      </div>
+    </div>
+  )
+}
+
+function TimelineEmptyState({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-200 bg-white px-4 py-6 text-sm text-muted-foreground">
+      {message}
+    </div>
   )
 }

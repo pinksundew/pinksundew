@@ -36,7 +36,7 @@ export async function PATCH(
     return NextResponse.json({ error: 'Not a member of this project' }, { status: 403 })
   }
 
-  const { title, description, status, priority, assignee_id, due_date, position } = body
+  const { title, description, status, priority, assignee_id, due_date, position, predecessor_id } = body
   const updates: Record<string, unknown> = {}
   if (title !== undefined) updates.title = title
   if (description !== undefined) updates.description = description
@@ -45,6 +45,7 @@ export async function PATCH(
   if (assignee_id !== undefined) updates.assignee_id = assignee_id
   if (due_date !== undefined) updates.due_date = due_date
   if (position !== undefined) updates.position = position
+  if (predecessor_id !== undefined) updates.predecessor_id = predecessor_id
 
   const updated = await updateTask(auth.supabase, taskId, updates)
   return NextResponse.json(updated)

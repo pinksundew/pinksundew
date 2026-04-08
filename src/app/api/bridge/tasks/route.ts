@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   if (isBridgeAuthError(auth)) return auth
 
   const body = await request.json()
-  const { project_id, title, description, status, priority, assignee_id, due_date, position } = body
+  const { project_id, title, description, status, priority, assignee_id, due_date, position, predecessor_id } = body
 
   if (!project_id || !title) {
     return NextResponse.json({ error: 'project_id and title are required' }, { status: 400 })
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     priority: priority ?? 'medium',
     assignee_id: assignee_id ?? null,
     due_date: due_date ?? null,
-    predecessor_id: null,
+    predecessor_id: predecessor_id ?? null,
     position: position ?? 0,
   })
 

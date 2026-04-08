@@ -26,7 +26,7 @@ import { TagManagerModal } from '@/components/modals/tag-manager-modal'
 import { ExportModal } from '@/components/modals/export-modal'
 import { ConfirmModal } from '@/components/modals/confirm-modal'
 import { AbyssModal } from '@/components/modals/abyss-modal'
-import { CheckSquare, Download, Square } from 'lucide-react'
+import { CheckSquare, Download, Ghost, Square } from 'lucide-react'
 import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility'
 
 type KanbanBoardProps = {
@@ -64,6 +64,7 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [selectedTask, setSelectedTask] = useState<TaskWithTags | null>(null)
+  const [followUpSourceTask, setFollowUpSourceTask] = useState<Pick<TaskWithTags, 'id' | 'title'> | null>(null)
   const [activeTask, setActiveTask] = useState<TaskWithTags | null>(null)
   const [supabase] = useState(() => createClient())
   const tasksRef = useRef<TaskWithTags[]>(normalizeVisibleTasks(initialTasks))
@@ -180,6 +181,11 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
     setIsExportModalOpen(true)
   }
 
+  const openCreateModal = (predecessorTask: Pick<TaskWithTags, 'id' | 'title'> | null = null) => {
+    setFollowUpSourceTask(predecessorTask)
+    setIsCreateModalOpen(true)
+  }
+
   const normalizeTaskPositions = (taskList: TaskWithTags[]) =>
     taskList.map((task, index) => ({ ...task, position: index }))
 
@@ -232,7 +238,13 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
 
     if (overType === 'Column') {
       nextStatus = overId as TaskStatus
-      nextIndex = getColumnDropIndex(taskList, activeId, nextStatus)
+      // If moving to a column, find the last task in that column
+      const tasksInColumn = taskList.filter(t => t.status === nextStatus && t.id !== activeId)
+      if (tasksInColumn.length > 0) {
+        nextIndex = taskList.indexOf(tasksInColumn[tasksInColumn.length - 1])
+      } else {
+        nextIndex = taskList.length - 1
+      }
     } else if (overType === 'Task') {
       nextIndex = taskList.findIndex((task) => task.id === overId)
       if (nextIndex === -1) return null
@@ -371,14 +383,8 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
             >
               <Download className="h-4 w-4" /> Export
             </button>
-            <button
-              onClick={() => setIsAbyssModalOpen(true)}
-              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-            >
-              Abyss
-            </button>
             <button 
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={() => openCreateModal()}
               className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 transition text-sm font-medium"
             >
               Add Task
@@ -388,9 +394,16 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
       
       <CreateTaskModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false)
+          setFollowUpSourceTask(null)
+        }}
         projectId={projectId}
-        onSuccess={(newTask) => setTasks((prev) => normalizeVisibleTasks([...prev, newTask]))}
+        initialPredecessorTask={followUpSourceTask}
+        onSuccess={(newTask) => {
+          setTasks((prev) => normalizeVisibleTasks([...prev, newTask]))
+          setFollowUpSourceTask(null)
+        }}
       />
       
       <DndContext
@@ -419,6 +432,27 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
 
         <AbyssDropZone isVisible={!!activeTask && !isSelectionMode} />
       </DndContext>
+
+      <button
+        type="button"
+        onClick={() => setIsAbyssModalOpen(true)}
+        className="mt-4 flex w-full shrink-0 items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/90 px-5 py-4 text-left transition-colors hover:border-slate-400 hover:bg-slate-100"
+      >
+        <div className="flex items-center gap-4">
+          <span className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm">
+            <Ghost className="h-5 w-5" />
+          </span>
+          <div>
+            <div className="text-sm font-semibold text-foreground">Open The Abyss</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              Deleted tickets and completed tickets archived after three days live here.
+            </div>
+          </div>
+        </div>
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Restore / Review
+        </span>
+      </button>
       <TaskDetailsModal
         isOpen={isDetailsModalOpen}
         onClose={() => { setIsDetailsModalOpen(false); setSelectedTask(null); }}
@@ -435,6 +469,7 @@ export function KanbanBoard({ projectId, projectName, initialTasks }: KanbanBoar
           )
         })}
         onDelete={(taskId) => setTasks((prev) => prev.filter((task) => task.id !== taskId))}
+        onCompleteAndFollowUp={(task) => openCreateModal({ id: task.id, title: task.title })}
       />
       <TagManagerModal
         isOpen={isTagModalOpen}

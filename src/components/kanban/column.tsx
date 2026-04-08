@@ -27,12 +27,16 @@ export function KanbanColumn({
   selectedTaskIds = new Set<string>(),
   onTaskClick,
 }: ColumnProps) {
+  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
+
   const { setNodeRef } = useDroppable({
     id: columnId,
-    data: { type: 'Column', columnId },
+    data: { 
+      type: 'Column', 
+      id: columnId,
+      columnId 
+    },
   })
-
-  const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
 
   return (
     <div

@@ -29,7 +29,11 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
     isDragging,
   } = useSortable({
     id: task.id,
-    data: { type: 'Task', task },
+    data: { 
+      type: 'Task', 
+      id: task.id,
+      task 
+    },
     disabled: isSelectionMode,
   })
 
@@ -57,11 +61,11 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
       onClick={() => onClick?.(task)}
       className={`
         group flex flex-col bg-white border p-4 rounded-xl transition-all shadow-sm
-        ${isSelectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}
+        ${isSelectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing border-border hover:border-primary/40 hover:shadow-md'}
         ${isSelected 
           ? 'border-rose-300 bg-rose-50/50 ring-2 ring-rose-200/50 shadow-md' 
-          : 'border-border hover:border-primary/40 hover:shadow-md'}
-        ${isOverlay ? 'scale-105 shadow-xl z-50 cursor-grabbing bg-white/95' : ''}
+          : ''}
+        ${isOverlay ? 'scale-105 shadow-xl z-50 bg-white/95 cursor-grabbing' : ''}
       `}
     >
       <div className="flex justify-between items-start mb-2">
@@ -78,9 +82,9 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
           </span>
         </div>
         {!isSelectionMode ? (
-          <button className="text-muted-foreground/0 group-hover:text-muted-foreground transition-colors p-1 hover:bg-muted rounded">
+          <div className="text-muted-foreground/50 group-hover:text-muted-foreground transition-colors p-1 hover:bg-muted rounded">
             <GripVertical className="w-4 h-4" />
-          </button>
+          </div>
         ) : null}
       </div>
 

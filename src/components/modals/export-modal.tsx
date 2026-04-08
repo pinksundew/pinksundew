@@ -14,6 +14,23 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { TaskWithTags } from '@/domains/task/types'
 
 type CustomInstruction = {
@@ -84,6 +101,51 @@ function formatTaskBlock(task: TaskWithTags, index: number, options: ExportOptio
   return [prefix, ...detailLines].join('\n')
 }
 
+type SortableTaskItemProps = {
+  task: TaskWithTags
+  index: number
+}
+
+function SortableTaskItem({ task, index }: SortableTaskItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id })
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-2 rounded-lg border border-border bg-white px-2 py-1.5 transition-shadow ${
+        isDragging ? 'shadow-lg ring-2 ring-primary/20 bg-muted/20' : 'hover:border-primary/30'
+      }`}
+    >
+      <div 
+        {...attributes} 
+        {...listeners} 
+        className="cursor-grab p-1 text-muted-foreground hover:text-foreground active:cursor-grabbing"
+      >
+        <GripVertical className="h-4 w-4 shrink-0" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium text-foreground">
+          {index + 1}. {task.title}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function generateExportText(
   tasks: TaskWithTags[],
   selectedInstructions: CustomInstruction[],
@@ -120,6 +182,11 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
   const [exportCopied, setExportCopied] = useState(false)
   const [instructionTitle, setInstructionTitle] = useState('')
   const [instructionContent, setInstructionContent] = useState('')
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -186,18 +253,14 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
     setSelectedInstructionIds(nextSelectedInstructionIds)
   }
 
-  const moveTask = (taskId: string, direction: 'up' | 'down') => {
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
     setOrderedTasks((prev) => {
-      const currentIndex = prev.findIndex((task) => task.id === taskId)
-      if (currentIndex === -1) return prev
-
-      const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
-      if (nextIndex < 0 || nextIndex >= prev.length) return prev
-
-      const nextTasks = [...prev]
-      const [movedTask] = nextTasks.splice(currentIndex, 1)
-      nextTasks.splice(nextIndex, 0, movedTask)
-      return nextTasks
+      const oldIndex = prev.findIndex((t) => t.id === active.id)
+      const newIndex = prev.findIndex((t) => t.id === over.id)
+      return arrayMove(prev, oldIndex, newIndex)
     })
   }
 
@@ -225,9 +288,9 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="relative w-full max-w-5xl overflow-hidden rounded-xl bg-white shadow-xl"
+          className="relative flex flex-col w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-xl"
         >
-          <div className="flex items-center justify-between border-b p-4">
+          <div className="flex items-center justify-between border-b p-4 shrink-0">
             <div>
               <h2 className="text-xl font-semibold">Export Prompt</h2>
               <p className="text-sm text-muted-foreground">
@@ -239,117 +302,96 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
             </button>
           </div>
 
-          <div className="border-b bg-muted/20 px-4 py-3">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-2">
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Format
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {FORMAT_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setFormat(option.value)}
-                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                        format === option.value
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-white text-foreground hover:bg-muted'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-4">
-                <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                  <input
-                    type="checkbox"
-                    checked={includeTags}
-                    onChange={(event) => setIncludeTags(event.target.checked)}
-                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                  />
-                  Include tags
-                </label>
-                <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                  <input
-                    type="checkbox"
-                    checked={includePriority}
-                    onChange={(event) => setIncludePriority(event.target.checked)}
-                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                  />
-                  Include priority
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-0 md:grid-cols-[1.1fr_0.9fr]">
-            <div className="border-b p-4 md:border-b-0 md:border-r">
-              <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="grid flex-1 min-h-0 lg:grid-cols-[minmax(0,1.55fr)_minmax(340px,0.95fr)] overflow-hidden">
+            <div className="flex flex-col border-b p-5 lg:border-b-0 lg:border-r min-h-0">
+              <div className="mb-2 flex items-center justify-between gap-3 shrink-0">
                 <label className="block text-sm font-medium text-foreground">Prompt Preview</label>
                 <span className="text-xs text-muted-foreground">Updates automatically from the controls.</span>
               </div>
               <textarea
                 value={exportText}
-                onChange={(event) => setExportText(event.target.value)}
-                className="min-h-[560px] w-full rounded-lg border border-border px-3 py-3 text-sm leading-6 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                readOnly
+                className="flex-1 w-full rounded-xl border border-border px-4 py-4 text-sm leading-6 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary overflow-y-auto"
               />
             </div>
 
-            <div className="flex min-h-[560px] flex-col">
-              <div className="space-y-4 p-4">
-                <div className="rounded-lg border border-border p-3">
-                  <div className="mb-3">
-                    <h3 className="text-sm font-semibold text-foreground">Task Order</h3>
+            <div className="flex flex-col min-h-0 bg-muted/10 overflow-hidden">
+              <div className="flex-1 space-y-4 overflow-y-auto p-4 scrollbar-thin">
+                <div className="rounded-xl border border-border bg-white p-4">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-foreground">Prompt Options</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Reorder the exported list without changing the board.
+                      Tighten the output format without changing the selected tasks.
                     </p>
                   </div>
 
-                  <div className="space-y-2">
-                    {orderedTasks.map((task, index) => (
-                      <div
-                        key={task.id}
-                        className="flex items-center gap-3 rounded-lg border border-border bg-muted/10 px-3 py-2"
-                      >
-                        <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium text-foreground">
-                            {index + 1}. {task.title}
-                          </div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {task.description?.trim() || 'No description provided.'}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => moveTask(task.id, 'up')}
-                            disabled={index === 0}
-                            className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-white hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                            aria-label={`Move ${task.title} up`}
-                          >
-                            <MoveUp className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveTask(task.id, 'down')}
-                            disabled={index === orderedTasks.length - 1}
-                            className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-white hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-                            aria-label={`Move ${task.title} down`}
-                          >
-                            <MoveDown className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
+                    <label className="text-sm font-medium text-foreground" htmlFor="export-format">
+                      Format
+                    </label>
+                    <select
+                      id="export-format"
+                      value={format}
+                      onChange={(event) => setFormat(event.target.value as ExportFormat)}
+                      className="w-full max-w-[180px] rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {FORMAT_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-3">
+                    <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={includeTags}
+                        onChange={(event) => setIncludeTags(event.target.checked)}
+                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      Include tags
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={includePriority}
+                        onChange={(event) => setIncludePriority(event.target.checked)}
+                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                      />
+                      Include priority
+                    </label>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-border p-3">
+                <div className="rounded-xl border border-border bg-white p-4 shrink-0">
+                  <div className="mb-3">
+                    <h3 className="text-sm font-semibold text-foreground">Task Order</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Reorder the exported list by dragging the handle.
+                    </p>
+                  </div>
+
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={orderedTasks.map((t) => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1 flex flex-col min-h-0">
+                        {orderedTasks.map((task, index) => (
+                          <SortableTaskItem key={task.id} task={task} index={index} />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
+                </div>
+
+                <div className="rounded-xl border border-border bg-white p-4">
                   <div className="mb-3">
                     <h3 className="text-sm font-semibold text-foreground">Saved Instructions</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -398,7 +440,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-border p-3">
+                <div className="rounded-xl border border-border bg-white p-4">
                   <button
                     type="button"
                     onClick={() => setIsAddInstructionOpen((prev) => !prev)}
@@ -454,7 +496,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                 </div>
               </div>
 
-              <div className="mt-auto flex items-center justify-between border-t bg-muted/20 px-4 py-3">
+              <div className="mt-auto flex items-center justify-between border-t bg-white/90 px-4 py-3">
                 <div className="text-sm text-muted-foreground">
                   {orderedTasks.length} task{orderedTasks.length === 1 ? '' : 's'} selected
                 </div>

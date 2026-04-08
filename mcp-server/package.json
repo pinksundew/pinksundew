@@ -1,6 +1,6 @@
 {
   "name": "@saltedroads/agentplanner-mcp",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "type": "module",
   "description": "Kanban MCP Server for AgentPlanner",
   "main": "dist/index.js",

@@ -4,13 +4,40 @@
   "type": "module",
   "description": "Kanban MCP Server for AgentPlanner",
   "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "bin": {
     "agentplanner-mcp": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "agentplanner",
+    "kanban",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qadolphe/AgentPlanner.git",
+    "directory": "mcp-server"
+  },
+  "bugs": {
+    "url": "https://github.com/qadolphe/AgentPlanner/issues"
+  },
+  "homepage": "https://github.com/qadolphe/AgentPlanner/tree/main/mcp-server",
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0"

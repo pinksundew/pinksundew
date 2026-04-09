@@ -482,6 +482,8 @@ export function TaskDetailsModal({
                     className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] ${
                       task.workflow_signal === 'needs_help'
                         ? 'border-rose-200 bg-rose-50 text-rose-700'
+                        : task.workflow_signal === 'agent_working'
+                          ? 'border-amber-200 bg-amber-50 text-amber-700'
                         : task.workflow_signal === 'ready_for_review'
                           ? 'border-pink-200 bg-pink-50 text-pink-700'
                           : 'border-border bg-white text-muted-foreground'
@@ -566,7 +568,7 @@ export function TaskDetailsModal({
                   </div>
                 ) : (
                   <div className="mt-4 rounded-md border border-dashed border-border bg-white px-3 py-4 text-sm text-muted-foreground">
-                    No active ready-for-review or needs-help request.
+                    No active workflow signal.
                   </div>
                 )}
               </div>
@@ -743,6 +745,7 @@ function buildThreadMessages(task: TaskWithTags, messages: TaskStateMessage[]): 
 function formatSignalLabel(signal: TaskStateMessage['signal'] | TaskWithTags['workflow_signal']) {
   if (signal === 'ready_for_review') return 'Needs Review'
   if (signal === 'needs_help') return 'Needs Help'
+  if (signal === 'agent_working') return 'Agent Working'
   return 'Note'
 }
 
@@ -773,6 +776,10 @@ function getThreadBubbleClassName(message: ReviewThreadMessage) {
 
   if (message.signal === 'ready_for_review') {
     return 'border border-pink-200 bg-pink-50'
+  }
+
+  if (message.signal === 'agent_working') {
+    return 'border border-amber-200 bg-amber-50'
   }
 
   return 'border border-border bg-white'

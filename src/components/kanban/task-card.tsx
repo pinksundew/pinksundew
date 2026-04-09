@@ -44,8 +44,11 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
 
   const isReadyForReview = task.workflow_signal === 'ready_for_review'
   const isNeedsHelp = task.workflow_signal === 'needs_help'
+  const isAgentWorking = task.workflow_signal === 'agent_working'
   const signalClassName = isNeedsHelp
     ? 'task-signal-needs-help'
+    : isAgentWorking
+      ? 'task-signal-agent-working'
     : isReadyForReview
       ? 'task-signal-ready-for-review'
       : ''
@@ -99,6 +102,11 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
               Needs Help
             </span>
           ) : null}
+          {isAgentWorking ? (
+            <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border border-amber-200 bg-amber-50 text-amber-700">
+              Agent Working
+            </span>
+          ) : null}
         </div>
         {!isSelectionMode ? (
           <div className="text-muted-foreground/50 group-hover:text-muted-foreground transition-colors p-1 hover:bg-muted rounded">
@@ -126,6 +134,12 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
 
       {isReadyForReview && task.workflow_signal_message ? (
         <div className="mb-3 rounded-md border border-pink-200 bg-pink-50 px-2.5 py-2 text-xs text-pink-800">
+          {task.workflow_signal_message}
+        </div>
+      ) : null}
+
+      {isAgentWorking && task.workflow_signal_message ? (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-800">
           {task.workflow_signal_message}
         </div>
       ) : null}

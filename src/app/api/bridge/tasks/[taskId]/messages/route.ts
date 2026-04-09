@@ -78,7 +78,7 @@ export async function POST(
 
   if (!isTaskStateMessageSignal(signal)) {
     return NextResponse.json(
-      { error: 'signal must be one of ready_for_review, needs_help, or note' },
+      { error: 'signal must be one of ready_for_review, needs_help, agent_working, or note' },
       { status: 400 }
     )
   }

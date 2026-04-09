@@ -117,7 +117,7 @@ export function DashboardSidebar({
   }
 
   const navItemBase =
-    'group/nav-item relative flex items-center gap-3 rounded-xl border border-transparent px-2.5 py-2 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:bg-muted hover:text-foreground'
+    'group/nav-item relative flex items-center justify-center gap-0 rounded-xl border border-transparent px-0 py-2 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:bg-muted hover:text-foreground group-hover/sidebar:justify-start group-hover/sidebar:gap-3 group-hover/sidebar:px-2.5'
 
   const sideLabelClass =
     'max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100'
@@ -147,11 +147,11 @@ export function DashboardSidebar({
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden p-2 pt-3">
-            <div className="mb-2 flex items-center justify-between px-2">
+            <div className="mb-2 flex items-center justify-center px-2 group-hover/sidebar:justify-between">
               <span className="max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100">
                 Projects
               </span>
-              <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              <span className="hidden rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground group-hover/sidebar:inline-flex">
                 {projects.length}
               </span>
             </div>
@@ -170,12 +170,19 @@ export function DashboardSidebar({
                         : 'border-transparent hover:border-border hover:bg-muted/60'
                     }`}
                   >
-                    <Link href={projectHref} className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1.5 py-1">
-                      <FolderKanban
-                        className={`h-4 w-4 shrink-0 transition-transform duration-200 group-hover/project-row:scale-110 ${
-                          isActive ? 'text-primary-foreground' : 'text-muted-foreground'
+                    <Link
+                      href={projectHref}
+                      className="flex min-w-0 flex-1 items-center justify-center gap-0 rounded-lg px-0 py-1 group-hover/sidebar:justify-start group-hover/sidebar:gap-2 group-hover/sidebar:px-1.5"
+                    >
+                      <span
+                        className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 group-hover/project-row:scale-110 ${
+                          isActive
+                            ? 'bg-primary/15 text-primary-foreground'
+                            : 'bg-muted text-muted-foreground'
                         }`}
-                      />
+                      >
+                        <FolderKanban className="h-4 w-4" />
+                      </span>
                       <span className="max-w-0 overflow-hidden truncate whitespace-nowrap text-sm font-medium opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100">
                         {project.name}
                       </span>

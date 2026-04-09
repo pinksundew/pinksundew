@@ -306,6 +306,28 @@ export function KanbanBoard({
     }
   }, [isGuestMode])
 
+  useEffect(() => {
+    if (!activeTask || typeof document === 'undefined') {
+      return
+    }
+
+    const body = document.body
+    const html = document.documentElement
+    const previousBodyOverflow = body.style.overflow
+    const previousBodyTouchAction = body.style.touchAction
+    const previousHtmlOverscrollY = html.style.overscrollBehaviorY
+
+    body.style.overflow = 'hidden'
+    body.style.touchAction = 'none'
+    html.style.overscrollBehaviorY = 'none'
+
+    return () => {
+      body.style.overflow = previousBodyOverflow
+      body.style.touchAction = previousBodyTouchAction
+      html.style.overscrollBehaviorY = previousHtmlOverscrollY
+    }
+  }, [activeTask])
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -703,6 +725,7 @@ export function KanbanBoard({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
+        autoScroll={false}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
@@ -850,7 +873,7 @@ export function KanbanBoard({
             <button
               type="button"
               onClick={openCreateFromPill}
-              className="inline-flex items-center gap-2 rounded-full bg-pink-400 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-pink-500"
+              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <PlusCircle className="h-4 w-4" />
               {guestTaskLimitReached ? `Guest Limit (${GUEST_ACTIVE_TASK_LIMIT})` : 'Add Task'}
@@ -881,7 +904,7 @@ export function KanbanBoard({
               disabled={selectedTaskIds.size === 0}
               className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
                 selectedTaskIds.size > 0
-                  ? 'bg-pink-400 text-white hover:bg-pink-500'
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                   : 'bg-slate-200 text-slate-500'
               }`}
             >

@@ -56,6 +56,20 @@ body {
   }
 }
 
+@keyframes agentWorkingPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.45);
+  }
+
+  70% {
+    box-shadow: 0 0 0 9px rgba(245, 158, 11, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}
+
 .task-signal-ready-for-review {
   border-color: #f9a8d4;
   animation: reviewPulse 2.1s ease-in-out infinite;
@@ -64,4 +78,9 @@ body {
 .task-signal-needs-help {
   border-color: #fb7185;
   animation: needsHelpPulse 1.7s ease-in-out infinite;
+}
+
+.task-signal-agent-working {
+  border-color: #facc15;
+  animation: agentWorkingPulse 1.9s ease-in-out infinite;
 }

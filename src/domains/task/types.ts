@@ -2,7 +2,7 @@ import { Tag } from '../tag/types'
 
 export const TASK_STATUSES = ['todo', 'in-progress', 'done'] as const
 export const TASK_PRIORITIES = ['low', 'medium', 'high'] as const
-export const TASK_SIGNALS = ['ready_for_review', 'needs_help'] as const
+export const TASK_SIGNALS = ['ready_for_review', 'needs_help', 'agent_working'] as const
 export const TASK_STATE_MESSAGE_SIGNALS = [...TASK_SIGNALS, 'note'] as const
 
 export type TaskStatus = (typeof TASK_STATUSES)[number]

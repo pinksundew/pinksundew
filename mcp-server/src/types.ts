@@ -1,6 +1,6 @@
 export type TaskStatus = 'todo' | 'in-progress' | 'done'
 export type TaskPriority = 'low' | 'medium' | 'high'
-export type TaskSignal = 'ready_for_review' | 'needs_help'
+export type TaskSignal = 'ready_for_review' | 'needs_help' | 'agent_working'
 export type TaskStateMessageSignal = TaskSignal | 'note'
 export type ExportFormat = 'numbered' | 'bullets' | 'checkboxes' | 'compact'
 export type InstructionSetScope = 'global' | 'specialized'

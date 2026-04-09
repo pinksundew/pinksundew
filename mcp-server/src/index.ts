@@ -340,14 +340,14 @@ const toolDefinitions: ToolDefinition[] = [
   {
     name: 'set_task_signal',
     description:
-      'Sets or clears workflow overlays on a task (ready_for_review or needs_help), with optional lock metadata for AI ownership windows.',
+      'Sets or clears workflow overlays on a task (ready_for_review, needs_help, or agent_working), with optional lock metadata for AI ownership windows.',
     inputSchema: {
       type: 'object',
       properties: {
         taskId: { type: 'string' },
         signal: {
           anyOf: [
-            { type: 'string', enum: ['ready_for_review', 'needs_help'] },
+            { type: 'string', enum: ['ready_for_review', 'needs_help', 'agent_working'] },
             { type: 'null' },
           ],
         },
@@ -360,7 +360,12 @@ const toolDefinitions: ToolDefinition[] = [
     call: async (args) =>
       setTaskSignal({
         taskId: getString(args, 'taskId'),
-        signal: getOptionalNullableString(args, 'signal') as 'ready_for_review' | 'needs_help' | null | undefined,
+        signal: getOptionalNullableString(args, 'signal') as
+          | 'ready_for_review'
+          | 'needs_help'
+          | 'agent_working'
+          | null
+          | undefined,
         message: getOptionalNullableString(args, 'message'),
         lockMinutes: getOptionalNumber(args, 'lockMinutes'),
         lockReason: getOptionalNullableString(args, 'lockReason'),
@@ -388,7 +393,7 @@ const toolDefinitions: ToolDefinition[] = [
       properties: {
         taskId: { type: 'string' },
         message: { type: 'string' },
-        signal: { type: 'string', enum: ['ready_for_review', 'needs_help', 'note'] },
+        signal: { type: 'string', enum: ['ready_for_review', 'needs_help', 'agent_working', 'note'] },
       },
       required: ['taskId', 'message'],
     },
@@ -396,7 +401,12 @@ const toolDefinitions: ToolDefinition[] = [
       addTaskMessage(
         getString(args, 'taskId'),
         getString(args, 'message'),
-        (getOptionalString(args, 'signal') as 'ready_for_review' | 'needs_help' | 'note' | undefined) ??
+        (getOptionalString(args, 'signal') as
+          | 'ready_for_review'
+          | 'needs_help'
+          | 'agent_working'
+          | 'note'
+          | undefined) ??
           'note'
       ),
   },

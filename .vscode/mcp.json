@@ -6,8 +6,8 @@
     },
     "agentplanner": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@saltedroads/agentplanner-mcp"],
+      "command": "node",
+      "args": ["${workspaceFolder}/mcp-server/dist/index.js"],
       "envFile": "${workspaceFolder}/.vscode/.env.mcp"
     }
   }

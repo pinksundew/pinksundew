@@ -5,6 +5,7 @@ import {
   DndContext, 
   DragOverlay, 
   closestCorners, 
+  useDroppable,
   KeyboardSensor, 
   PointerSensor, 
   useSensor, 
@@ -18,7 +19,6 @@ import { createClient } from '@/lib/supabase/client'
 import { TaskWithTags, TaskStatus } from '@/domains/task/types'
 import { KanbanColumn } from './column'
 import { TaskCard } from './task-card'
-import { AbyssDropZone } from '@/components/abyss/abyss-drop-zone'
 import { CreateTaskModal } from '@/components/modals/create-task-modal'
 import { deleteTask, persistTaskOrderWithKeepalive } from '@/domains/task/mutations'
 import { getProjectTasks } from '@/domains/task/queries'
@@ -30,7 +30,7 @@ import { ExportModal } from '@/components/modals/export-modal'
 import { ConfirmModal } from '@/components/modals/confirm-modal'
 import { AbyssModal } from '@/components/modals/abyss-modal'
 import { ConnectMcpModal } from '@/components/modals/connect-mcp-modal'
-import { Download, FileText, Ghost, PlugZap, X } from 'lucide-react'
+import { Download, FileText, Ghost, PlusCircle, PlugZap, Trash2, X } from 'lucide-react'
 import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility'
 import {
   GUEST_ACTIVE_TASK_LIMIT,
@@ -311,6 +311,11 @@ export function KanbanBoard({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
+  const { isOver: isOverAbyssDrop, setNodeRef: setAbyssDropNodeRef } = useDroppable({
+    id: 'abyss-drop-zone',
+    data: { type: 'AbyssDropZone' },
+  })
+
   const selectedTasks = tasks.filter((task) => selectedTaskIds.has(task.id))
 
   const exitSelectionMode = () => {
@@ -360,6 +365,15 @@ export function KanbanBoard({
   const openCreateModal = (predecessorTask: Pick<TaskWithTags, 'id' | 'title'> | null = null) => {
     setFollowUpSourceTask(predecessorTask)
     setIsCreateModalOpen(true)
+  }
+
+  const openCreateFromPill = () => {
+    if (guestTaskLimitReached) {
+      promptForAuth(`Guest boards are limited to ${GUEST_ACTIVE_TASK_LIMIT} active tasks. Sign in to add more tasks.`)
+      return
+    }
+
+    openCreateModal()
   }
 
   const normalizeTaskPositions = (taskList: TaskWithTags[]) =>
@@ -639,13 +653,6 @@ export function KanbanBoard({
             >
               <FileText className="h-4 w-4" /> Agent Instructions
             </button>
-            <button 
-              onClick={() => openCreateModal()}
-              disabled={guestTaskLimitReached}
-              className="bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 transition text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {guestTaskLimitReached ? `Guest Limit (${GUEST_ACTIVE_TASK_LIMIT})` : 'Add Task'}
-            </button>
          </div>
       </div>
       
@@ -716,8 +723,6 @@ export function KanbanBoard({
         <DragOverlay>
           {activeTask && !isSelectionMode ? <TaskCard task={activeTask} isOverlay /> : null}
         </DragOverlay>
-
-        <AbyssDropZone isVisible={!!activeTask && !isSelectionMode} />
       </DndContext>
 
       <button
@@ -834,6 +839,38 @@ export function KanbanBoard({
           projectName={projectName}
           mode={mode}
         />
+      ) : null}
+      {!isSelectionMode ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[70] flex justify-center px-4">
+          <div
+            className={`pointer-events-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-all duration-200 ${
+              activeTask ? 'min-w-[22rem] justify-between' : ''
+            }`}
+          >
+            <button
+              type="button"
+              onClick={openCreateFromPill}
+              className="inline-flex items-center gap-2 rounded-full bg-pink-400 px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-pink-500"
+            >
+              <PlusCircle className="h-4 w-4" />
+              {guestTaskLimitReached ? `Guest Limit (${GUEST_ACTIVE_TASK_LIMIT})` : 'Add Task'}
+            </button>
+
+            {activeTask ? (
+              <div
+                ref={setAbyssDropNodeRef}
+                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                  isOverAbyssDrop
+                    ? 'scale-105 border-rose-300 bg-rose-50 text-rose-700 shadow-sm'
+                    : 'border-slate-200 bg-slate-50 text-slate-600'
+                }`}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>{isOverAbyssDrop ? 'Release to abyss' : 'Drag to abyss'}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
       ) : null}
       {isSelectionMode ? (
         <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[70] flex justify-center px-4">

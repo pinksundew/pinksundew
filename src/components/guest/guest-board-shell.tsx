@@ -7,11 +7,18 @@ import { KanbanBoard } from '@/components/kanban/board'
 import { clearGuestDraft, loadGuestDraft } from '@/domains/task/guest-draft'
 import type { TaskWithTags } from '@/domains/task/types'
 import { ConfirmModal } from '@/components/modals/confirm-modal'
+import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar'
+import { LayoutDashboard, LogOut, PlusSquare, User } from 'lucide-react'
 
 type ImportResponse = {
   projectId: string
   reused: boolean
 }
+
+type AuthPromptState = {
+  message: string
+  nextPath: string
+} | null
 
 const IMPORT_ID_STORAGE_KEY = 'agentplanner.guest_import.id'
 const EMPTY_TASKS: TaskWithTags[] = []
@@ -42,15 +49,22 @@ function getImportId() {
 export function GuestBoardShell() {
   const [isImporting, setIsImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
-  const [isNewProjectPromptOpen, setIsNewProjectPromptOpen] = useState(false)
+  const [authPrompt, setAuthPrompt] = useState<AuthPromptState>(null)
   const supabase = useMemo(() => createClient(), [])
 
-  const redirectToAuthForProjects = () => {
+  const guestProjects = useMemo(() => [{ id: 'guest-board', name: 'Guest Board' }], [])
+
+  const openAuthPrompt = (message: string, nextPath: string = '/guest') => {
+    setAuthPrompt({ message, nextPath })
+  }
+
+  const redirectToAuth = () => {
     if (typeof window === 'undefined') {
       return
     }
 
-    window.location.href = '/login?next=/create-project'
+    const nextPath = authPrompt?.nextPath ?? '/guest'
+    window.location.href = `/login?next=${encodeURIComponent(nextPath)}`
   }
 
   useEffect(() => {
@@ -121,63 +135,149 @@ export function GuestBoardShell() {
   }, [supabase])
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/20">
-      <header className="sticky top-0 z-30 border-b border-border/80 bg-white/80 shadow-sm backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center justify-between px-4 md:px-8">
-          <div>
-            <h1 className="text-base font-semibold text-foreground">AgentPlanner Guest Mode</h1>
-            <p className="text-xs text-muted-foreground">
-              Work without an account. Sign in to sync and unlock MCP tools.
-            </p>
+    <div className="min-h-screen bg-muted/20">
+      <DashboardSidebar
+        mode="guest"
+        projects={guestProjects}
+        userEmail="Guest Mode"
+        onRequireAuth={openAuthPrompt}
+      />
+
+      <div className="flex min-h-screen flex-col md:pl-16">
+        <header className="sticky top-0 z-40 flex h-24 flex-col border-b border-border/80 bg-white/80 shadow-sm backdrop-blur">
+          <div className="hidden h-12 items-center justify-between border-b border-border/70 px-6 md:flex">
+            <div className="flex items-center gap-2">
+              <LayoutDashboard className="h-5 w-5 text-primary" />
+              <span className="text-lg font-bold text-foreground">AgentPlanner</span>
+              <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-foreground">
+                Guest
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/login?next=/guest"
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/signup?next=/guest"
+                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                Create Account
+              </Link>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          <div className="flex h-12 items-center justify-between border-b border-border/70 px-4 md:hidden">
+            <div className="flex items-center gap-2">
+              <LayoutDashboard className="h-5 w-5 text-primary" />
+              <span className="text-sm font-semibold text-foreground">AgentPlanner</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() =>
+                  openAuthPrompt(
+                    'Creating additional projects requires an account. Sign in to unlock full multi-project support.',
+                    '/create-project'
+                  )
+                }
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <PlusSquare className="h-4 w-4" />
+                <span className="sr-only">Create project</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  openAuthPrompt(
+                    'Profile settings are account features. Sign in to manage your profile and API keys.',
+                    '/profile'
+                  )
+                }
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <User className="h-4 w-4" />
+                <span className="sr-only">Profile</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  openAuthPrompt(
+                    'Sign in first to access account session actions like profile and logout.',
+                    '/profile'
+                  )
+                }
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="sr-only">Log out</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex h-12 items-center justify-between border-b border-border/70 px-4">
+            <div className="flex items-center gap-2 overflow-x-auto">
+              <span className="rounded-lg border border-primary/50 bg-primary/10 px-3 py-1 text-sm font-medium text-primary-foreground">
+                Guest Board
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  openAuthPrompt(
+                    'Creating additional projects requires an account. Sign in to unlock full multi-project support.',
+                    '/create-project'
+                  )
+                }
+                className="rounded-md border border-border bg-muted px-3 py-1 text-sm font-medium text-foreground transition-colors hover:bg-border"
+              >
+                + New Project
+              </button>
+            </div>
             <button
               type="button"
-              onClick={() => setIsNewProjectPromptOpen(true)}
-              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              onClick={() =>
+                openAuthPrompt(
+                  'Sign in to sync your guest board and unlock account-only project management features.',
+                  '/guest'
+                )
+              }
+              className="rounded-md border border-border px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-muted"
             >
-              New Project
+              Sign In to Sync
             </button>
-            <Link
-              href="/login?next=/guest"
-              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/signup?next=/guest"
-              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Create Account
-            </Link>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {isImporting ? (
-        <div className="border-b border-border bg-primary/10 px-4 py-2 text-sm text-primary-foreground">
-          Importing your guest board into your account.
-        </div>
-      ) : null}
+        {isImporting ? (
+          <div className="border-b border-border bg-primary/10 px-4 py-2 text-sm text-primary-foreground">
+            Importing your guest board into your account.
+          </div>
+        ) : null}
 
-      {importError ? (
-        <div className="border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
-          {importError}
-        </div>
-      ) : null}
+        {importError ? (
+          <div className="border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
+            {importError}
+          </div>
+        ) : null}
 
-      <main className="flex-1 p-4 md:p-8">
-        <KanbanBoard mode="guest" projectId="guest-board" projectName="Guest Board" initialTasks={EMPTY_TASKS} />
-      </main>
+        <main className="flex-1 p-4 md:p-8">
+          <KanbanBoard mode="guest" projectId="guest-board" projectName="Guest Board" initialTasks={EMPTY_TASKS} />
+        </main>
+      </div>
 
       <ConfirmModal
-        isOpen={isNewProjectPromptOpen}
+        isOpen={authPrompt !== null}
         title="Sign In Required"
-        message="Guest mode supports one local board. Sign in to create and manage multiple projects across devices."
+        message={
+          authPrompt?.message ??
+          'Guest mode supports one local board. Sign in to create and manage multiple projects across devices.'
+        }
         confirmText="Sign In / Create Account"
         cancelText="Keep Guest Board"
-        onConfirm={redirectToAuthForProjects}
-        onClose={() => setIsNewProjectPromptOpen(false)}
+        onConfirm={redirectToAuth}
+        onClose={() => setAuthPrompt(null)}
       />
     </div>
   )

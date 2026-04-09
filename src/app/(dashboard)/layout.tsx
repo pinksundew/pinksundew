@@ -17,10 +17,10 @@ export default async function DashboardLayout({
   const projects = user ? await getUserProjects(supabase).catch(() => []) : []
 
   return (
-    <div className="flex min-h-screen bg-muted/20">
+    <div className="min-h-screen bg-muted/20">
       {user ? <DashboardSidebar projects={projects} userEmail={user.email} /> : null}
 
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className={`flex min-h-screen flex-col ${user ? 'md:pl-16' : ''}`}>
         {user ? (
           <header className="sticky top-0 z-40 flex h-24 flex-col border-b border-border/80 bg-white/80 shadow-sm backdrop-blur">
             <div className="hidden h-12 items-center justify-between border-b border-border/70 px-6 md:flex">

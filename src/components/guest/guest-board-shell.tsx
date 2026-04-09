@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { KanbanBoard } from '@/components/kanban/board'
 import { clearGuestDraft, loadGuestDraft } from '@/domains/task/guest-draft'
 import type { TaskWithTags } from '@/domains/task/types'
+import { ConfirmModal } from '@/components/modals/confirm-modal'
 
 type ImportResponse = {
   projectId: string
@@ -41,7 +42,16 @@ function getImportId() {
 export function GuestBoardShell() {
   const [isImporting, setIsImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const [isNewProjectPromptOpen, setIsNewProjectPromptOpen] = useState(false)
   const supabase = useMemo(() => createClient(), [])
+
+  const redirectToAuthForProjects = () => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.location.href = '/login?next=/create-project'
+  }
 
   useEffect(() => {
     let isCancelled = false
@@ -121,6 +131,13 @@ export function GuestBoardShell() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsNewProjectPromptOpen(true)}
+              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              New Project
+            </button>
             <Link
               href="/login?next=/guest"
               className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
@@ -152,6 +169,16 @@ export function GuestBoardShell() {
       <main className="flex-1 p-4 md:p-8">
         <KanbanBoard mode="guest" projectId="guest-board" projectName="Guest Board" initialTasks={EMPTY_TASKS} />
       </main>
+
+      <ConfirmModal
+        isOpen={isNewProjectPromptOpen}
+        title="Sign In Required"
+        message="Guest mode supports one local board. Sign in to create and manage multiple projects across devices."
+        confirmText="Sign In / Create Account"
+        cancelText="Keep Guest Board"
+        onConfirm={redirectToAuthForProjects}
+        onClose={() => setIsNewProjectPromptOpen(false)}
+      />
     </div>
   )
 }

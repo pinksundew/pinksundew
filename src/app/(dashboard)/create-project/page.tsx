@@ -1,128 +1,337 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { createProject } from '@/domains/project/mutations'
-import { PlannerBackdrop } from '@/components/auth/planner-backdrop'
+import { GitBranch, Loader2, PlusCircle, Sparkles } from 'lucide-react'
+
+type GitHubRepo = {
+  id: number
+  full_name: string
+  description: string | null
+}
+
+type CreationMode = 'blank' | 'github'
 
 export default function CreateProjectPage() {
   const [name, setName] = useState('')
-  const [desc, setDesc] = useState('')
-  const [repos, setRepos] = useState<{ id: number, full_name: string, description: string | null }[]>([])
+  const [description, setDescription] = useState('')
+  const [repos, setRepos] = useState<GitHubRepo[]>([])
+  const [creationMode, setCreationMode] = useState<CreationMode>('blank')
+  const [isBootstrapping, setIsBootstrapping] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [hasGithubAccess, setHasGithubAccess] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const router = useRouter()
 
   const [supabase] = useState(() => createClient())
 
   useEffect(() => {
-    async function loadRepos() {
-      const { data } = await supabase.auth.getSession()
-      const token = data.session?.provider_token
-      if (token) {
-        try {
-          const res = await fetch('https://api.github.com/user/repos?sort=updated&per_page=10', {
-            headers: { Authorization: `Bearer ${token}` }
-          })
-          if (res.ok) {
-            setRepos(await res.json())
+    let isCancelled = false
+
+    async function bootstrap() {
+      setIsBootstrapping(true)
+
+      try {
+        const [{ data: userData }, { data: sessionData }] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase.auth.getSession(),
+        ])
+
+        const user = userData.user
+        if (!user) {
+          if (!isCancelled) {
+            setIsAuthenticated(false)
           }
-        } catch {}
+          return
+        }
+
+        if (isCancelled) {
+          return
+        }
+
+        setIsAuthenticated(true)
+
+        const providerToken = sessionData.session?.provider_token
+        if (!providerToken) {
+          setHasGithubAccess(false)
+          return
+        }
+
+        setHasGithubAccess(true)
+
+        const response = await fetch('https://api.github.com/user/repos?sort=updated&per_page=12', {
+          headers: { Authorization: `Bearer ${providerToken}` },
+        })
+
+        if (!response.ok) {
+          return
+        }
+
+        const payload = (await response.json()) as unknown
+        if (!Array.isArray(payload)) {
+          return
+        }
+
+        const normalizedRepos = payload.filter((item): item is GitHubRepo => {
+          if (!item || typeof item !== 'object') {
+            return false
+          }
+
+          const record = item as Partial<GitHubRepo>
+          return (
+            typeof record.id === 'number' &&
+            typeof record.full_name === 'string' &&
+            (typeof record.description === 'string' || record.description === null)
+          )
+        })
+
+        if (!isCancelled) {
+          setRepos(normalizedRepos)
+          if (normalizedRepos.length > 0) {
+            setCreationMode('github')
+          }
+        }
+      } catch (error) {
+        console.error('Failed to bootstrap project creation page', error)
+      } finally {
+        if (!isCancelled) {
+          setIsBootstrapping(false)
+        }
       }
     }
-    loadRepos()
+
+    void bootstrap()
+
+    return () => {
+      isCancelled = true
+    }
   }, [supabase])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setErrorMsg('')
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!name.trim()) {
+      setErrorMsg('Project name is required.')
+      return
+    }
+
+    setLoading(true)
+    setErrorMsg(null)
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      setErrorMsg('Please sign in to create additional projects.')
+      setLoading(false)
+      return
+    }
 
     try {
       const project = await createProject(supabase, {
-        name,
-        description: desc,
-        created_by: user.id
+        name: name.trim(),
+        description: description.trim() || undefined,
+        created_by: user.id,
       })
+
       router.push(`/${project.id}`)
       router.refresh()
     } catch (error) {
       console.error(error)
-      setErrorMsg('Failed to create project')
+      setErrorMsg('Failed to create project. Please try again.')
       setLoading(false)
     }
   }
 
-  return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
-      <PlannerBackdrop />
-      <div className="relative z-10 w-full max-w-sm space-y-8 rounded-xl border border-white/60 bg-white/85 p-6 shadow-xl backdrop-blur-sm">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">
-            Create your first project
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Let&apos;s get started by setting up a workspace for your tasks.
+  const selectRepo = (repo: GitHubRepo) => {
+    setCreationMode('github')
+    setName(repo.full_name)
+    setDescription(repo.description || `Task board for ${repo.full_name}`)
+  }
+
+  if (isBootstrapping || isAuthenticated === null) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center p-4">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading project options
+        </div>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="mx-auto flex min-h-[70vh] w-full max-w-2xl items-center justify-center p-4 md:p-8">
+        <div className="w-full rounded-3xl border border-border bg-white/95 p-6 shadow-sm md:p-8">
+          <h1 className="text-2xl font-bold text-foreground">Sign in to create more projects</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Guest mode keeps one local board in this browser. To create and manage multiple projects,
+            sign in with your account.
           </p>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/login?next=/create-project"
+              className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Sign In
+            </Link>
+            <Link
+              href="/signup?next=/create-project"
+              className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+            >
+              Create Account
+            </Link>
+            <Link
+              href="/guest"
+              className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted"
+            >
+              Back to Guest Board
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-5xl p-4 md:p-8">
+      <div className="rounded-3xl border border-border bg-white/90 p-6 shadow-sm md:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Create a new project</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Start blank or bootstrap from a GitHub repository.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-primary-foreground">
+            <Sparkles className="h-3.5 w-3.5" />
+            Workspace Setup
+          </span>
         </div>
 
-        {errorMsg && <div className="text-red-600 text-sm">{errorMsg}</div>}
+        {errorMsg ? (
+          <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {errorMsg}
+          </div>
+        ) : null}
 
-        {repos.length > 0 && (
-          <div className="space-y-2 border-b border-border pb-4">
-            <label className="block text-sm font-medium text-foreground">Import from GitHub Repo</label>
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {repos.slice(0, 5).map(repo => (
-                <button
-                  key={repo.id}
-                  type="button"
-                  onClick={() => {
-                    setName(repo.full_name)
-                    setDesc(repo.description || `Task board for ${repo.full_name}`)
-                  }}
-                  className="whitespace-nowrap px-3 py-1.5 text-xs rounded-md border border-border bg-white text-foreground hover:bg-muted focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  {repo.full_name.split('/')[1] || repo.full_name}
-                </button>
-              ))}
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1.35fr_1fr]">
+          <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-border bg-muted/30 p-5">
+            <div>
+              <label className="block text-sm font-medium text-foreground">Project Name</label>
+              <input
+                type="text"
+                required
+                className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={creationMode === 'github' ? 'owner/repo' : 'e.g. Growth Roadmap'}
+              />
             </div>
-            <p className="text-xs text-muted-foreground">Select a recent repository to pre-fill the form.</p>
-          </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-foreground">Project Name</label>
-            <input
-              type="text"
-              required
-              className="mt-1 block w-full rounded-md border border-border px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="e.g. Acme Marketing"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-foreground">Description (Optional)</label>
-            <textarea
-              className="mt-1 block w-full rounded-md border border-border px-3 py-2 border-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-              rows={3}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center rounded-md border border-transparent bg-primary py-2 px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70"
-          >
-            {loading ? 'Creating...' : 'Create Project'}
-          </button>
-        </form>
+            <div>
+              <label className="block text-sm font-medium text-foreground">Description (Optional)</label>
+              <textarea
+                className="mt-1 block w-full rounded-md border border-border bg-white px-3 py-2 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:text-sm"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={4}
+                placeholder="What will this project track?"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+              {loading ? 'Creating project...' : 'Create Project'}
+            </button>
+          </form>
+
+          <aside className="rounded-2xl border border-border bg-white p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Project Source
+            </h2>
+            <div className="mt-3 grid gap-2">
+              <button
+                type="button"
+                onClick={() => setCreationMode('blank')}
+                className={`rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
+                  creationMode === 'blank'
+                    ? 'border-primary/50 bg-primary/10 text-primary-foreground'
+                    : 'border-border text-foreground hover:bg-muted'
+                }`}
+              >
+                Blank project
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCreationMode('github')}
+                disabled={!hasGithubAccess}
+                className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
+                  creationMode === 'github' && hasGithubAccess
+                    ? 'border-primary/50 bg-primary/10 text-primary-foreground'
+                    : 'border-border text-foreground hover:bg-muted'
+                } ${!hasGithubAccess ? 'cursor-not-allowed opacity-60' : ''}`}
+              >
+                <GitBranch className="h-4 w-4" />
+                Import from GitHub
+              </button>
+            </div>
+
+            {!hasGithubAccess ? (
+              <p className="mt-4 text-xs text-muted-foreground">
+                GitHub import appears here when your current session includes a GitHub provider token.
+              </p>
+            ) : null}
+
+            {hasGithubAccess && creationMode === 'github' ? (
+              <div className="mt-4 space-y-2">
+                {repos.length === 0 ? (
+                  <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    No recent repositories found. You can still type a project name manually.
+                  </p>
+                ) : (
+                  repos.map((repo) => {
+                    const isSelected = repo.full_name === name
+
+                    return (
+                      <button
+                        key={repo.id}
+                        type="button"
+                        onClick={() => selectRepo(repo)}
+                        className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
+                          isSelected
+                            ? 'border-primary/50 bg-primary/10 text-primary-foreground'
+                            : 'border-border text-foreground hover:bg-muted'
+                        }`}
+                      >
+                        <span className="block truncate font-semibold">{repo.full_name}</span>
+                        {repo.description ? (
+                          <span className="mt-1 block truncate text-muted-foreground">{repo.description}</span>
+                        ) : null}
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            ) : (
+              <p className="mt-4 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                Give your project a name and start organizing tasks right away.
+              </p>
+            )}
+          </aside>
+        </div>
       </div>
     </div>
   )

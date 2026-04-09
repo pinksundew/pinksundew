@@ -4,7 +4,7 @@ import { getProfile } from '@/domains/profile/queries'
 import { updateProfile } from '@/domains/profile/mutations'
 import { getUserApiKeys } from '@/domains/api-key/queries'
 import { revalidatePath } from 'next/cache'
-import { User } from 'lucide-react'
+import { Mail, User } from 'lucide-react'
 import ApiKeyManager from '@/components/api-key-manager'
 
 export default async function ProfilePage() {
@@ -15,8 +15,10 @@ export default async function ProfilePage() {
     redirect('/login')
   }
 
-  const profile = await getProfile(supabase, user.id)
-  const apiKeys = await getUserApiKeys(supabase, user.id)
+  const [profile, apiKeys] = await Promise.all([
+    getProfile(supabase, user.id),
+    getUserApiKeys(supabase, user.id),
+  ])
 
   async function updateProfileActions(formData: FormData) {
     'use server'
@@ -31,50 +33,75 @@ export default async function ProfilePage() {
   }
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <div className="flex items-center gap-4 border-b pb-6 mb-6">
-        <div className="h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-          <User size={32} />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold">Your Profile</h1>
-          <p className="text-gray-500">{user.email}</p>
-        </div>
-      </div>
+    <div className="mx-auto w-full max-w-6xl p-4 md:p-8">
+      <section className="rounded-3xl border border-border bg-gradient-to-br from-white via-white to-primary/10 p-6 shadow-sm md:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-primary-foreground">
+              <User size={30} />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Your Profile</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Update your account details and manage API keys for MCP access.
+              </p>
+            </div>
+          </div>
 
-      <form action={updateProfileActions} className="space-y-6">
-        <div>
-          <label className="block text-sm font-medium mb-1">Full Name</label>
-          <input
-            name="fullName"
-            type="text"
-            defaultValue={profile?.full_name || ''}
-            className="w-full rounded-md border p-2 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="John Doe"
-          />
+          <div className="rounded-xl border border-border bg-white/80 px-4 py-3 text-sm">
+            <div className="flex items-center gap-2 font-medium text-foreground">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              {user.email}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Email updates are currently handled by support.
+            </p>
+          </div>
         </div>
+      </section>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Email Address</label>
-          <input
-            type="email"
-            disabled
-            value={user.email || ''}
-            className="w-full rounded-md border bg-gray-50 p-2 text-gray-500"
-          />
-          <p className="text-xs text-gray-500 mt-1">To change your email, please contact support.</p>
-        </div>
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1.25fr]">
+        <section className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+          <h2 className="text-base font-semibold text-foreground">Personal Details</h2>
+          <p className="mt-1 text-sm text-muted-foreground">This name appears across your workspace.</p>
 
-        <button
-          type="submit"
-          className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
-        >
-          Save Changes
-        </button>
-      </form>
+          <form action={updateProfileActions} className="mt-5 space-y-5">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">Full Name</label>
+              <input
+                name="fullName"
+                type="text"
+                defaultValue={profile?.full_name || ''}
+                className="w-full rounded-md border border-border bg-white px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="John Doe"
+              />
+            </div>
 
-      <div className="border-t pt-6 mt-6">
-        <ApiKeyManager initialKeys={apiKeys} />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">Email Address</label>
+              <input
+                type="email"
+                disabled
+                value={user.email || ''}
+                className="w-full rounded-md border border-border bg-muted px-3 py-2.5 text-sm text-muted-foreground"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                To change your email, please contact support.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              className="inline-flex items-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Save Changes
+            </button>
+          </form>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-white p-6 shadow-sm">
+          <ApiKeyManager initialKeys={apiKeys} />
+        </section>
       </div>
     </div>
   )

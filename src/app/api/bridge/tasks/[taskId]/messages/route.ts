@@ -3,6 +3,7 @@ import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
 import {
   createTaskStateMessage,
   listTaskStateMessages,
+  updateTask,
 } from '@/domains/task/mutations'
 import { isTaskStateMessageSignal } from '@/domains/task/types'
 import { requireTaskAccess } from '@/lib/bridge-access'
@@ -86,11 +87,23 @@ export async function POST(
     return NextResponse.json({ error: 'message is required' }, { status: 400 })
   }
 
+  const trimmedMessage = rawMessage.trim()
+
+  if (signal !== 'note') {
+    const now = new Date().toISOString()
+    await updateTask(auth.supabase, taskId, {
+      workflow_signal: signal,
+      workflow_signal_message: trimmedMessage,
+      workflow_signal_updated_at: now,
+      workflow_signal_updated_by: null,
+    })
+  }
+
   const message = await createTaskStateMessage(auth.supabase, {
     taskId,
     signal,
-    message: rawMessage.trim(),
-    createdBy: auth.userId,
+    message: trimmedMessage,
+    createdBy: null,
   })
 
   return NextResponse.json(message, { status: 201 })

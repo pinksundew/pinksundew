@@ -494,7 +494,7 @@ export function TaskDetailsModal({
                 {threadMessages.length > 0 ? (
                   <div className="mt-4 space-y-3">
                     {threadMessages.map((message) => {
-                      const isAgentMessage = message.signal !== 'note'
+                      const isAgentMessage = message.signal !== 'note' || message.created_by === null
                       return (
                         <div
                           key={message.id}
@@ -502,7 +502,7 @@ export function TaskDetailsModal({
                         >
                           <div
                             className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${getThreadBubbleClassName(
-                              message.signal
+                              message
                             )}`}
                           >
                             <div
@@ -513,7 +513,7 @@ export function TaskDetailsModal({
                               }`}
                             >
                               <span className="font-semibold uppercase tracking-[0.14em]">
-                                {formatThreadAuthorLabel(message.signal)}
+                                {formatThreadAuthorLabel(message)}
                               </span>
                               <span>{new Date(message.created_at).toLocaleString()}</span>
                             </div>
@@ -659,7 +659,7 @@ export function TaskDetailsModal({
                             className="fixed inset-0 z-10 cursor-default"
                             aria-label="Close complete actions menu"
                           />
-                          <div className="absolute right-0 top-full z-20 mt-2 min-w-[220px] overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+                          <div className="absolute bottom-full right-0 z-20 mb-2 min-w-[220px] overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
                             <button
                               type="button"
                               onClick={() => {
@@ -750,20 +750,28 @@ function formatActiveSignalLabel(signal: TaskWithTags['workflow_signal']) {
   return signal ? formatSignalLabel(signal) : 'No Active Review'
 }
 
-function formatThreadAuthorLabel(signal: TaskStateMessage['signal']) {
-  return signal === 'note' ? 'You' : `Agent · ${formatSignalLabel(signal)}`
+function formatThreadAuthorLabel(message: ReviewThreadMessage) {
+  if (message.signal === 'note') {
+    return message.created_by === null ? 'Agent' : 'You'
+  }
+
+  return `Agent · ${formatSignalLabel(message.signal)}`
 }
 
-function getThreadBubbleClassName(signal: TaskStateMessage['signal']) {
-  if (signal === 'note') {
+function getThreadBubbleClassName(message: ReviewThreadMessage) {
+  if (message.signal === 'note') {
+    if (message.created_by === null) {
+      return 'border border-border bg-white'
+    }
+
     return 'bg-primary text-primary-foreground'
   }
 
-  if (signal === 'needs_help') {
+  if (message.signal === 'needs_help') {
     return 'border border-rose-200 bg-rose-50'
   }
 
-  if (signal === 'ready_for_review') {
+  if (message.signal === 'ready_for_review') {
     return 'border border-pink-200 bg-pink-50'
   }
 

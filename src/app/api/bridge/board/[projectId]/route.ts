@@ -36,7 +36,7 @@ export async function GET(
     .select('*')
     .eq('project_id', projectId)
 
-  const [instructions, agentControls] = await Promise.all([
+  const [instructionSetMetadata, agentControls] = await Promise.all([
     getProjectInstructionSetMetadata(auth.supabase, projectId),
     getProjectAgentControls(auth.supabase, projectId),
   ])
@@ -45,8 +45,8 @@ export async function GET(
     project,
     tasks,
     tags,
-    instructions,
-    instruction_sets: instructions,
+    instructions: instructionSetMetadata,
+    instruction_sets: instructionSetMetadata,
     agent_controls: agentControls,
   })
 }

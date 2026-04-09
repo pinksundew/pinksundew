@@ -1,7 +1,16 @@
 import { generateExportText } from './formatters.js'
-import { getAbyssState, getBoardState, getProjects, getTaskDetails } from './resources.js'
+import {
+  getAbyssState,
+  getBoardState,
+  getInstructionFilesForProject,
+  getProjects,
+  getTaskDetails,
+} from './resources.js'
 import { bridgeFetch } from './supabase.js'
 import {
+  AgentInstructionFile,
+  AgentInstructionSet,
+  BoardState,
   ExportFormat,
   ExportInstruction,
   ExportTasksResult,
@@ -44,6 +53,19 @@ type SetTaskSignalInput = {
   lockReason?: string | null
 }
 
+type CachedInstructionFile = Pick<
+  AgentInstructionFile,
+  'id' | 'set_id' | 'file_name' | 'content_hash' | 'updated_at'
+> & {
+  content: string
+}
+
+const instructionFileCache = new Map<string, CachedInstructionFile>()
+
+function isMarkdownInstructionFile(file: Pick<AgentInstructionFile, 'file_name'>) {
+  return file.file_name.toLowerCase().endsWith('.md')
+}
+
 function ensureTaskFound(tasks: Task[], taskId: string) {
   const task = tasks.find((candidate) => candidate.id === taskId)
   if (!task) {
@@ -56,8 +78,94 @@ export async function listProjects() {
   return getProjects()
 }
 
+function applyCachedInstructionContent(sets: AgentInstructionSet[]) {
+  return sets.map((instructionSet) => ({
+    ...instructionSet,
+    files: instructionSet.files.map((file) => {
+      const cachedFile = instructionFileCache.get(file.id)
+      if (!cachedFile || cachedFile.content_hash !== file.content_hash) {
+        return file
+      }
+
+      return {
+        ...file,
+        content: cachedFile.content,
+      }
+    }),
+  }))
+}
+
+async function hydrateBoardInstructions(board: BoardState) {
+  const projectId = board.project?.id
+  if (!projectId || !board.instructions || board.instructions.length === 0) {
+    return board
+  }
+
+  const fileIdsToFetch = new Set<string>()
+
+  for (const instructionSet of board.instructions) {
+    for (const file of instructionSet.files) {
+      if (!isMarkdownInstructionFile(file)) {
+        continue
+      }
+
+      const cachedFile = instructionFileCache.get(file.id)
+      if (!cachedFile || cachedFile.content_hash !== file.content_hash) {
+        fileIdsToFetch.add(file.id)
+      }
+    }
+  }
+
+  if (fileIdsToFetch.size > 0) {
+    try {
+      const files = await getInstructionFilesForProject(projectId, Array.from(fileIdsToFetch))
+      for (const file of files) {
+        if (typeof file.content !== 'string') {
+          continue
+        }
+
+        instructionFileCache.set(file.id, {
+          id: file.id,
+          set_id: file.set_id,
+          file_name: file.file_name,
+          content_hash: file.content_hash,
+          updated_at: file.updated_at,
+          content: file.content,
+        })
+      }
+    } catch (error) {
+      console.warn('Unable to hydrate instruction file content from metadata:', error)
+    }
+  }
+
+  const unresolvedFileIds = board.instructions
+    .flatMap((instructionSet) => instructionSet.files)
+    .filter((file) => {
+      if (!isMarkdownInstructionFile(file)) {
+        return false
+      }
+
+      const cachedFile = instructionFileCache.get(file.id)
+      return !cachedFile || cachedFile.content_hash !== file.content_hash
+    })
+    .map((file) => file.id)
+
+  if (unresolvedFileIds.length > 0) {
+    throw new Error(
+      `Instruction content hydration incomplete for project ${projectId}. ` +
+      `Missing file ids: ${unresolvedFileIds.join(', ')}`
+    )
+  }
+
+  return {
+    ...board,
+    instructions: applyCachedInstructionContent(board.instructions),
+  }
+}
+
 export async function getProjectBoard(projectId: string) {
-  return getBoardState(projectId)
+  const board = await getBoardState(projectId)
+  return hydrateBoardInstructions(board)
 }
 
 export async function getTask(taskId: string) {

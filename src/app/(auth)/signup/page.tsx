@@ -1,16 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { PlannerBackdrop } from '@/components/auth/planner-backdrop'
 
-export default function SignupPage() {
+function SignupPageInner() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState({ type: '', text: '' })
-  const router = useRouter()
+  const searchParams = useSearchParams()
+  const rawNextPath = searchParams.get('next') || '/'
+  const nextPath = rawNextPath.startsWith('/') ? rawNextPath : '/'
 
   const supabase = createClient()
 
@@ -36,26 +39,35 @@ export default function SignupPage() {
   }
 
   const handleOAuth = async (provider: 'google' | 'github') => {
+    const callbackUrl = new URL('/callback', window.location.origin)
+    callbackUrl.searchParams.set('next', nextPath)
+
     supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/callback`,
+        redirectTo: callbackUrl.toString(),
         scopes: provider === 'github' ? 'repo' : undefined,
       }
     })
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-xl shadow-sm border border-border">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-4 py-12 sm:px-6 lg:px-8">
+      <PlannerBackdrop />
+      <div className="relative z-10 w-full max-w-md space-y-8 rounded-xl border border-white/60 bg-white/85 p-8 shadow-xl backdrop-blur-sm">
         <div>
           <h2 className="mt-2 text-center text-3xl font-bold tracking-tight text-foreground">
             Create an account
           </h2>
           <p className="mt-2 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Link href="/login" className="font-medium text-primary hover:text-primary/90">
+            <Link href={`/login?next=${encodeURIComponent(nextPath)}`} className="font-medium text-primary hover:text-primary/90">
               Sign in
+            </Link>
+          </p>
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            <Link href="/guest" className="font-medium text-foreground hover:text-primary">
+              Continue in guest mode
             </Link>
           </p>
         </div>
@@ -115,7 +127,7 @@ export default function SignupPage() {
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="bg-white px-2 text-muted-foreground">Or continue with</span>
+              <span className="bg-white/85 px-2 text-muted-foreground">Or continue with</span>
             </div>
           </div>
 
@@ -130,5 +142,22 @@ export default function SignupPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-4 py-12 sm:px-6 lg:px-8">
+          <PlannerBackdrop />
+          <div className="relative z-10 rounded-lg border border-white/60 bg-white/85 px-4 py-2 text-sm text-muted-foreground backdrop-blur-sm">
+            Loading sign up...
+          </div>
+        </div>
+      }
+    >
+      <SignupPageInner />
+    </Suspense>
   )
 }

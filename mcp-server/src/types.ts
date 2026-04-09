@@ -52,10 +52,13 @@ export type Tag = {
 }
 
 export type AgentInstructionFile = {
+  id: string
+  set_id: string
   file_name: string
+  content_hash: string
+  updated_at: string
+  created_at?: string
   content?: string
-  content_hash?: string
-  updated_at?: string
 }
 
 export type AgentInstructionSet = {

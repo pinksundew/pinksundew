@@ -7,7 +7,7 @@ export default async function IndexRedirect() {
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    redirect('/login')
+    redirect('/guest')
   }
 
   try {

@@ -90,7 +90,7 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
             {task.priority}
           </span>
           {isReadyForReview ? (
-            <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border border-violet-200 bg-violet-50 text-violet-700">
+            <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full border border-pink-200 bg-pink-50 text-pink-700">
               Needs Review
             </span>
           ) : null}
@@ -125,7 +125,7 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
       ) : null}
 
       {isReadyForReview && task.workflow_signal_message ? (
-        <div className="mb-3 rounded-md border border-violet-200 bg-violet-50 px-2.5 py-2 text-xs text-violet-800">
+        <div className="mb-3 rounded-md border border-pink-200 bg-pink-50 px-2.5 py-2 text-xs text-pink-800">
           {task.workflow_signal_message}
         </div>
       ) : null}

@@ -1,5 +1,13 @@
 import { bridgeFetch } from './supabase.js'
-import { AbyssState, AgentControls, BoardState, Project, Tag, Task } from './types.js'
+import {
+  AbyssState,
+  AgentControls,
+  AgentInstructionFile,
+  BoardState,
+  Project,
+  Tag,
+  Task,
+} from './types.js'
 
 export async function getProjects() {
   return bridgeFetch<Project[]>('/projects')
@@ -27,4 +35,15 @@ export async function getProjectTags(projectId: string) {
 
 export async function getTagDetails(tagId: string) {
   return bridgeFetch<Tag>(`/tags/${tagId}`)
+}
+
+export async function getInstructionFilesForProject(projectId: string, fileIds: string[]) {
+  if (fileIds.length === 0) {
+    return [] as AgentInstructionFile[]
+  }
+
+  return bridgeFetch<AgentInstructionFile[]>('/instructions/files', {
+    method: 'POST',
+    body: JSON.stringify({ projectId, fileIds }),
+  })
 }

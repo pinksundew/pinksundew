@@ -7,12 +7,25 @@ import { createTask } from '@/domains/task/mutations'
 import { createClient } from '@/lib/supabase/client'
 import { TaskStatus, TaskPriority, TaskWithTags } from '@/domains/task/types'
 
+type CreateTaskRequest = {
+  project_id: string
+  title: string
+  description: string | null
+  status: TaskStatus
+  priority: TaskPriority
+  position: number
+  assignee_id: string | null
+  due_date: string | null
+  predecessor_id: string | null
+}
+
 type CreateTaskModalProps = {
   isOpen: boolean
   onClose: () => void
   projectId: string
   onSuccess: (task: TaskWithTags) => void
   initialPredecessorTask?: Pick<TaskWithTags, 'id' | 'title'> | null
+  onCreateTask?: (task: CreateTaskRequest) => Promise<TaskWithTags>
 }
 
 export function CreateTaskModal({
@@ -21,6 +34,7 @@ export function CreateTaskModal({
   projectId,
   onSuccess,
   initialPredecessorTask = null,
+  onCreateTask,
 }: CreateTaskModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -50,7 +64,7 @@ export function CreateTaskModal({
 
     setLoading(true)
     try {
-      const newTask = await createTask(supabase, {
+      const taskInput: CreateTaskRequest = {
         project_id: projectId,
         title: title.trim(),
         description: description.trim() || null,
@@ -60,12 +74,20 @@ export function CreateTaskModal({
         assignee_id: null,
         due_date: null,
         predecessor_id: predecessorId,
-      })
-      onSuccess({ ...newTask, tags: [] })
+      }
+
+      if (onCreateTask) {
+        const localTask = await onCreateTask(taskInput)
+        onSuccess(localTask)
+      } else {
+        const newTask = await createTask(supabase, taskInput)
+        onSuccess({ ...newTask, tags: [] })
+      }
+
       onClose()
     } catch (error) {
       console.error('Failed to create task:', error)
-      alert("Error creating task")
+      alert(error instanceof Error ? error.message : 'Error creating task')
     } finally {
       setLoading(false)
     }

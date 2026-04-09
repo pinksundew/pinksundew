@@ -92,6 +92,54 @@ export async function getProjectInstructionSetMetadata(
   return sortInstructionSets(mapped)
 }
 
+export async function getProjectInstructionFilesByIds(
+  client: SupabaseClient,
+  projectId: string,
+  fileIds: string[]
+): Promise<AgentInstructionFile[]> {
+  const uniqueFileIds = Array.from(
+    new Set(fileIds.map((fileId) => fileId.trim()).filter((fileId) => fileId.length > 0))
+  )
+
+  if (uniqueFileIds.length === 0) {
+    return []
+  }
+
+  const { data: files, error: filesError } = await client
+    .from('agent_instruction_set_files')
+    .select('*')
+    .in('id', uniqueFileIds)
+
+  if (filesError) throw filesError
+
+  const typedFiles = (files ?? []) as AgentInstructionFile[]
+  if (typedFiles.length === 0) {
+    return []
+  }
+
+  const setIds = Array.from(new Set(typedFiles.map((file) => file.set_id)))
+
+  const { data: sets, error: setsError } = await client
+    .from('agent_instruction_sets')
+    .select('id')
+    .eq('project_id', projectId)
+    .in('id', setIds)
+
+  if (setsError) throw setsError
+
+  const allowedSetIds = new Set((sets ?? []).map((set) => set.id as string))
+
+  const filesById = new Map(
+    typedFiles
+      .filter((file) => allowedSetIds.has(file.set_id))
+      .map((file) => [file.id, file] as const)
+  )
+
+  return uniqueFileIds
+    .map((fileId) => filesById.get(fileId))
+    .filter((file): file is AgentInstructionFile => Boolean(file))
+}
+
 export async function getTaskLinkedInstructionSetIds(
   client: SupabaseClient,
   taskId: string

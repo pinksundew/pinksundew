@@ -91,8 +91,10 @@ export function AgentInstructionsModal({
 
   const [newSetName, setNewSetName] = useState('')
   const [newSetScope, setNewSetScope] = useState<InstructionSetScope>('specialized')
+  const [isCreateSetOpen, setIsCreateSetOpen] = useState(false)
 
   const [newFileName, setNewFileName] = useState('')
+  const [isCreateFileOpen, setIsCreateFileOpen] = useState(false)
   const [draftFileName, setDraftFileName] = useState('')
   const [draftContent, setDraftContent] = useState('')
   const [isDeleteSetConfirmOpen, setIsDeleteSetConfirmOpen] = useState(false)
@@ -123,6 +125,8 @@ export function AgentInstructionsModal({
       setInstructionErrorMessage(null)
       setControlsErrorMessage(null)
       setActiveTab('instructions')
+      setIsCreateSetOpen(false)
+      setIsCreateFileOpen(false)
       return
     }
 
@@ -279,6 +283,7 @@ export function AgentInstructionsModal({
 
       setNewSetName('')
       setNewSetScope('specialized')
+      setIsCreateSetOpen(false)
       await fetchInstructionSets({ selectedSetId: createdSet.id })
     } catch (error) {
       console.error('Error creating instruction set:', error)
@@ -329,6 +334,7 @@ export function AgentInstructionsModal({
       })
 
       setNewFileName('')
+      setIsCreateFileOpen(false)
       await fetchInstructionSets({
         selectedSetId: selectedSet.id,
         selectedFileId: createdFile.id,
@@ -411,7 +417,7 @@ export function AgentInstructionsModal({
           exit={{ scale: 0.95, opacity: 0 }}
           className="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
         >
-          <div className="flex items-center justify-between border-b p-4 shrink-0">
+          <div className="flex items-center justify-between p-4 shrink-0">
             <div>
               <h2 className="text-xl font-semibold">Agent Instructions</h2>
               <p className="text-sm text-muted-foreground">
@@ -448,96 +454,125 @@ export function AgentInstructionsModal({
           </div>
 
           {activeTab === 'instructions' ? (
-            <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_300px_minmax(0,1fr)]">
-              <div className="border-b p-4 lg:border-b-0 lg:border-r">
-                <form onSubmit={handleCreateSet} className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Set Name
-                    </label>
-                    <input
-                      value={newSetName}
-                      onChange={(event) => setNewSetName(event.target.value)}
-                      placeholder="Default Workspace Rules"
-                      className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Scope
-                    </label>
-                    <select
-                      value={newSetScope}
-                      onChange={(event) => setNewSetScope(event.target.value as InstructionSetScope)}
-                      className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      {INSTRUCTION_SET_SCOPES.map((scope) => (
-                        <option key={scope} value={scope}>
-                          {scope === 'global' ? 'Global (always applied)' : 'Specialized (link to tasks)'}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isInstructionLoading || newSetName.trim().length === 0}
-                    className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" /> Create Set
-                  </button>
-                </form>
-
-                <div className="mt-5">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Instruction Sets
-                  </div>
-                  <div className="max-h-[46vh] space-y-2 overflow-y-auto pr-1">
-                    {instructionSets.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-                        No instruction sets yet.
-                      </div>
-                    ) : (
-                      instructionSets.map((instructionSet) => {
-                        const isSelected = instructionSet.id === selectedSetId
-                        return (
-                          <button
-                            key={instructionSet.id}
-                            type="button"
-                            onClick={() => setSelectedSetId(instructionSet.id)}
-                            className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
-                              isSelected
-                                ? 'border-primary bg-primary/5'
-                                : 'border-border hover:border-primary/30 hover:bg-muted/30'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0">
-                                <div className="truncate text-sm font-medium text-foreground">
-                                  {instructionSet.name}
-                                </div>
+            <div className="m-4 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 lg:grid-cols-[320px_300px_minmax(0,1fr)]">
+              <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 lg:border-b-0 lg:border-r">
+                <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Instruction Sets
+                </div>
+                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+                  {instructionSets.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-muted-foreground">
+                      No instruction sets yet.
+                    </div>
+                  ) : (
+                    instructionSets.map((instructionSet) => {
+                      const isSelected = instructionSet.id === selectedSetId
+                      return (
+                        <button
+                          key={instructionSet.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSetId(instructionSet.id)
+                            setIsCreateFileOpen(false)
+                          }}
+                          className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
+                            isSelected
+                              ? 'border-primary bg-primary/5'
+                              : 'border-slate-200 hover:border-primary/30 hover:bg-muted/30'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium text-foreground">
+                                {instructionSet.name}
                               </div>
-                              <span
-                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                                  instructionSet.scope === 'global'
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : 'bg-sky-100 text-sky-700'
-                                }`}
-                              >
-                                {instructionSet.scope}
-                              </span>
                             </div>
-                            <div className="mt-2 text-xs text-muted-foreground">
-                              {instructionSet.files.length} file{instructionSet.files.length === 1 ? '' : 's'}
-                            </div>
-                          </button>
-                        )
-                      })
-                    )}
-                  </div>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                instructionSet.scope === 'global'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-sky-100 text-sky-700'
+                              }`}
+                            >
+                              {instructionSet.scope}
+                            </span>
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {instructionSet.files.length} file{instructionSet.files.length === 1 ? '' : 's'}
+                          </div>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+
+                <div className="mt-4 border-t border-slate-200 pt-3">
+                  {isCreateSetOpen ? (
+                    <form onSubmit={handleCreateSet} className="space-y-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Set Name
+                        </label>
+                        <input
+                          value={newSetName}
+                          onChange={(event) => setNewSetName(event.target.value)}
+                          placeholder="Default Workspace Rules"
+                          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Scope
+                        </label>
+                        <select
+                          value={newSetScope}
+                          onChange={(event) => setNewSetScope(event.target.value as InstructionSetScope)}
+                          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          {INSTRUCTION_SET_SCOPES.map((scope) => (
+                            <option key={scope} value={scope}>
+                              {scope === 'global' ? 'Global (always applied)' : 'Specialized (link to tasks)'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCreateSetOpen(false)
+                            setNewSetName('')
+                            setNewSetScope('specialized')
+                          }}
+                          className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-foreground hover:bg-slate-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={isInstructionLoading || newSetName.trim().length === 0}
+                          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          <Plus className="h-4 w-4" /> Create Set
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCreateSetOpen(true)
+                        setInstructionErrorMessage(null)
+                      }}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                    >
+                      <Plus className="h-4 w-4" /> Create Set
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <div className="border-b p-4 lg:border-b-0 lg:border-r">
+              <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 lg:border-b-0 lg:border-r">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-foreground">Set Files</h3>
                   <button
@@ -552,25 +587,9 @@ export function AgentInstructionsModal({
 
                 {selectedSet ? (
                   <>
-                    <form onSubmit={handleCreateFile} className="space-y-2">
-                      <input
-                        value={newFileName}
-                        onChange={(event) => setNewFileName(event.target.value)}
-                        placeholder="review-checklist.md"
-                        className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <button
-                        type="submit"
-                        disabled={isInstructionLoading || ensureMarkdownFileName(newFileName).length === 0}
-                        className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Add File
-                      </button>
-                    </form>
-
-                    <div className="mt-4 max-h-[54vh] space-y-2 overflow-y-auto pr-1">
+                    <div className="flex-1 space-y-2 overflow-y-auto pr-1">
                       {selectedSet.files.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+                        <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-muted-foreground">
                           No files in this set.
                         </div>
                       ) : (
@@ -584,7 +603,7 @@ export function AgentInstructionsModal({
                               className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors ${
                                 isSelected
                                   ? 'border-primary bg-primary/5'
-                                  : 'border-border hover:border-primary/30 hover:bg-muted/30'
+                                  : 'border-slate-200 hover:border-primary/30 hover:bg-muted/30'
                               }`}
                             >
                               <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -594,15 +613,58 @@ export function AgentInstructionsModal({
                         })
                       )}
                     </div>
+
+                    <div className="mt-4 border-t border-slate-200 pt-3">
+                      {isCreateFileOpen ? (
+                        <form onSubmit={handleCreateFile} className="space-y-2">
+                          <input
+                            value={newFileName}
+                            onChange={(event) => setNewFileName(event.target.value)}
+                            placeholder="review-checklist.md"
+                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsCreateFileOpen(false)
+                                setNewFileName('')
+                              }}
+                              className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-foreground hover:bg-slate-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isInstructionLoading || ensureMarkdownFileName(newFileName).length === 0}
+                              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Add File
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsCreateFileOpen(true)
+                            setInstructionErrorMessage(null)
+                          }}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                        >
+                          <Plus className="h-4 w-4" /> Add File
+                        </button>
+                      )}
+                    </div>
                   </>
                 ) : (
-                  <div className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-muted-foreground">
                     Select a set to manage its files.
                   </div>
                 )}
               </div>
 
-              <div className="flex min-h-0 flex-col p-4">
+              <div className="flex min-h-0 flex-col overflow-hidden bg-white p-4">
                 {selectedFile ? (
                   <>
                     <div>
@@ -612,11 +674,11 @@ export function AgentInstructionsModal({
                       <input
                         value={draftFileName}
                         onChange={(event) => setDraftFileName(event.target.value)}
-                        className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
 
-                    <div className="mt-3 flex min-h-0 flex-1 flex-col">
+                    <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
                       <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Markdown Content
                       </label>
@@ -624,7 +686,7 @@ export function AgentInstructionsModal({
                         value={draftContent}
                         onChange={(event) => setDraftContent(event.target.value)}
                         placeholder="## Agent Notes\n\n- Read linked review thread first\n- Prefer smallest safe code change"
-                        className="min-h-[45vh] w-full flex-1 rounded-md border border-border px-3 py-3 font-mono text-sm leading-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="h-full min-h-0 w-full flex-1 resize-none rounded-md border border-slate-200 px-3 py-3 font-mono text-sm leading-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                       />
                     </div>
 
@@ -648,7 +710,7 @@ export function AgentInstructionsModal({
                     </div>
                   </>
                 ) : (
-                  <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-6 text-center text-sm text-muted-foreground">
+                  <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-muted/20 px-6 text-center text-sm text-muted-foreground">
                     Select or create a markdown file to edit.
                   </div>
                 )}
@@ -661,41 +723,17 @@ export function AgentInstructionsModal({
               </div>
             </div>
           ) : (
-            <div className="grid min-h-0 flex-1 lg:grid-cols-[340px_minmax(0,1fr)]">
-              <div className="border-b border-border bg-muted/10 p-5 lg:border-b-0 lg:border-r">
-                <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
-                  <div className="flex items-center gap-2 text-foreground">
-                    <Shield className="h-5 w-5 text-primary" />
+            <div className="m-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex items-start gap-2 text-foreground">
+                  <Shield className="mt-0.5 h-5 w-5 text-primary" />
+                  <div>
                     <h3 className="text-sm font-semibold uppercase tracking-[0.08em]">
-                      Core MCP Controls
+                      Agent Controls
                     </h3>
-                  </div>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Toggle core tools to control what the MCP agent can do on this board.
-                  </p>
-                </div>
-
-                <div className="mt-4 rounded-xl border border-border bg-white p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h4 className="text-sm font-semibold text-foreground">Allow Task Completion</h4>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        If enabled, agents can move tickets to Done. Completed tickets are flagged for review.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleToggleTaskCompletion}
-                      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                        allowTaskCompletion ? 'bg-primary' : 'bg-slate-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                          allowTaskCompletion ? 'translate-x-5' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Toggle what the MCP agent can do on this board.
+                    </p>
                   </div>
                 </div>
 
@@ -703,28 +741,42 @@ export function AgentInstructionsModal({
                   type="button"
                   onClick={handleSaveControls}
                   disabled={!controlsDirty || isControlsSaving}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" /> {isControlsSaving ? 'Saving...' : 'Save Controls'}
                 </button>
-
-                {controlsErrorMessage ? (
-                  <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                    {controlsErrorMessage}
-                  </div>
-                ) : null}
               </div>
 
-              <div className="min-h-0 overflow-y-auto p-5">
-                <h3 className="text-sm font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-                  Core Tools
-                </h3>
+              <div className="min-h-0 overflow-y-auto p-4">
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="text-sm font-semibold text-foreground">Allow Task Completion</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          If enabled, agents can move tickets to Done. Completed tickets are flagged for review.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleToggleTaskCompletion}
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                          allowTaskCompletion ? 'bg-primary' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                            allowTaskCompletion ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  </div>
 
-                <div className="mt-3 space-y-3">
                   {CORE_MCP_TOOL_CATALOG.map((tool) => (
                     <div
                       key={tool.id}
-                      className="rounded-xl border border-border bg-white px-4 py-3 shadow-sm"
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -749,6 +801,12 @@ export function AgentInstructionsModal({
                       </div>
                     </div>
                   ))}
+
+                  {controlsErrorMessage ? (
+                    <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                      {controlsErrorMessage}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>

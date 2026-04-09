@@ -8,8 +8,6 @@ import {
   ChevronUp,
   Clipboard,
   GripVertical,
-  MoveDown,
-  MoveUp,
   Plus,
   Trash2,
   X,
@@ -44,6 +42,7 @@ type ExportModalProps = {
   onClose: () => void
   tasks: TaskWithTags[]
   projectName: string
+  mode?: 'authenticated' | 'guest'
 }
 
 type ExportFormat = 'numbered' | 'bullets' | 'checkboxes' | 'compact'
@@ -168,7 +167,14 @@ function generateExportText(
   return content
 }
 
-export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModalProps) {
+export function ExportModal({
+  isOpen,
+  onClose,
+  tasks,
+  projectName,
+  mode = 'authenticated',
+}: ExportModalProps) {
+  const isGuestMode = mode === 'guest'
   const [customInstructions, setCustomInstructions] = useState<CustomInstruction[]>(loadCustomInstructions)
   const [orderedTasks, setOrderedTasks] = useState<TaskWithTags[]>(tasks)
   const [selectedInstructionIds, setSelectedInstructionIds] = useState<Set<string>>(new Set())
@@ -177,11 +183,10 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
     [customInstructions, selectedInstructionIds]
   )
   const [format, setFormat] = useState<ExportFormat>('numbered')
-  const [includeTags, setIncludeTags] = useState(true)
+  const [includeTags, setIncludeTags] = useState(!isGuestMode)
   const [includePriority, setIncludePriority] = useState(true)
-  const [includeTicketNumber, setIncludeTicketNumber] = useState(true)
+  const [includeTicketNumber, setIncludeTicketNumber] = useState(!isGuestMode)
   const [isAddInstructionOpen, setIsAddInstructionOpen] = useState(false)
-  const [exportText, setExportText] = useState('')
   const [exportCopied, setExportCopied] = useState(false)
   const [instructionTitle, setInstructionTitle] = useState('')
   const [instructionContent, setInstructionContent] = useState('')
@@ -196,23 +201,24 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
     window.localStorage.setItem(CUSTOM_INSTRUCTIONS_STORAGE_KEY, JSON.stringify(customInstructions))
   }, [customInstructions])
 
-  useEffect(() => {
-    if (!isOpen) return
-
-    setOrderedTasks(tasks)
-    setExportCopied(false)
-  }, [isOpen, tasks])
-
-  useEffect(() => {
-    setExportText(
+  const exportText = useMemo(
+    () =>
       generateExportText(orderedTasks, selectedInstructions, {
         format,
-        includeTags,
+        includeTags: isGuestMode ? false : includeTags,
         includePriority,
-        includeTicketNumber,
-      })
-    )
-  }, [orderedTasks, selectedInstructions, format, includeTags, includePriority, includeTicketNumber])
+        includeTicketNumber: isGuestMode ? false : includeTicketNumber,
+      }),
+    [
+    orderedTasks,
+    selectedInstructions,
+    format,
+    includeTags,
+    includePriority,
+    includeTicketNumber,
+    isGuestMode,
+    ]
+  )
 
   const handleAddInstruction = () => {
     const nextTitle = instructionTitle.trim()
@@ -294,7 +300,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
           exit={{ scale: 0.95, opacity: 0 }}
           className="relative flex flex-col w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-xl"
         >
-          <div className="flex items-center justify-between border-b p-4 shrink-0">
+          <div className="flex items-center justify-between p-4 shrink-0">
             <div>
               <h2 className="text-xl font-semibold">Export Prompt</h2>
               <p className="text-sm text-muted-foreground">
@@ -306,8 +312,8 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
             </button>
           </div>
 
-          <div className="grid flex-1 min-h-0 overflow-hidden md:grid-cols-[minmax(0,1.85fr)_minmax(270px,0.75fr)]">
-            <div className="flex flex-col border-b p-5 md:border-b-0 md:border-r min-h-0">
+          <div className="m-4 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 md:grid-cols-[minmax(0,1.85fr)_minmax(270px,0.75fr)]">
+            <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-5 md:border-b-0 md:border-r">
               <div className="mb-2 flex items-center justify-between gap-3 shrink-0">
                 <label className="block text-sm font-medium text-foreground">Prompt Preview</label>
                 <span className="text-xs text-muted-foreground">Updates automatically from the controls.</span>
@@ -315,18 +321,23 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
               <textarea
                 value={exportText}
                 readOnly
-                className="flex-1 w-full rounded-xl border border-border px-4 py-4 text-sm leading-6 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary overflow-y-auto"
+                className="flex-1 w-full rounded-xl border border-slate-200 px-4 py-4 text-sm leading-6 text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary overflow-y-auto"
               />
             </div>
 
-            <div className="flex flex-col min-h-0 bg-muted/10 overflow-hidden">
+            <div className="flex min-h-0 flex-col overflow-hidden bg-slate-50/60">
               <div className="flex-1 space-y-4 overflow-y-auto p-4 scrollbar-thin">
-                <div className="rounded-xl border border-border bg-white p-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-foreground">Prompt Options</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
                       Tighten the output format without changing the selected tasks.
                     </p>
+                    {isGuestMode ? (
+                      <p className="mt-2 rounded-md border border-rose-100 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
+                        Guest exports always omit ticket numbers and tags.
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
@@ -337,7 +348,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                       id="export-format"
                       value={format}
                       onChange={(event) => setFormat(event.target.value as ExportFormat)}
-                      className="w-full max-w-[180px] rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full max-w-[180px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     >
                       {FORMAT_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -348,24 +359,28 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                   </div>
 
                   <div className="mt-4 flex flex-col gap-3">
-                    <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                      <input
-                        type="checkbox"
-                        checked={includeTicketNumber}
-                        onChange={(event) => setIncludeTicketNumber(event.target.checked)}
-                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                      />
-                      Include ticket number
-                    </label>
-                    <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                      <input
-                        type="checkbox"
-                        checked={includeTags}
-                        onChange={(event) => setIncludeTags(event.target.checked)}
-                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                      />
-                      Include tags
-                    </label>
+                    {!isGuestMode ? (
+                      <>
+                        <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                          <input
+                            type="checkbox"
+                            checked={includeTicketNumber}
+                            onChange={(event) => setIncludeTicketNumber(event.target.checked)}
+                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          Include ticket number
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                          <input
+                            type="checkbox"
+                            checked={includeTags}
+                            onChange={(event) => setIncludeTags(event.target.checked)}
+                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                          />
+                          Include tags
+                        </label>
+                      </>
+                    ) : null}
                     <label className="inline-flex items-center gap-2 text-sm text-foreground">
                       <input
                         type="checkbox"
@@ -378,7 +393,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border bg-white p-4 shrink-0">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shrink-0">
                   <div className="mb-3">
                     <h3 className="text-sm font-semibold text-foreground">Task Order</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -404,7 +419,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                   </DndContext>
                 </div>
 
-                <div className="rounded-xl border border-border bg-white p-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="mb-3">
                     <h3 className="text-sm font-semibold text-foreground">Saved Instructions</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -414,14 +429,14 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
 
                   <div className="space-y-2">
                     {customInstructions.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
                         No saved instructions yet.
                       </div>
                     ) : (
                       customInstructions.map((instruction) => (
                         <div
                           key={instruction.id}
-                          className="rounded-lg border border-border p-3 transition-colors hover:border-primary/40"
+                          className="rounded-lg border border-slate-200 p-3 transition-colors hover:border-primary/40"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <label className="flex flex-1 cursor-pointer items-start gap-3">
@@ -453,7 +468,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-border bg-white p-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <button
                     type="button"
                     onClick={() => setIsAddInstructionOpen((prev) => !prev)}
@@ -473,7 +488,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                   </button>
 
                   {isAddInstructionOpen ? (
-                    <div className="mt-4 space-y-3 rounded-lg border border-border bg-muted/20 p-3">
+                    <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-muted/20 p-3">
                       <div>
                         <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
                           Title
@@ -482,7 +497,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                           value={instructionTitle}
                           onChange={(event) => setInstructionTitle(event.target.value)}
                           placeholder="Use Tailwind CSS"
-                          className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </div>
                       <div>
@@ -494,7 +509,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                           onChange={(event) => setInstructionContent(event.target.value)}
                           placeholder="Prefer utility classes, keep components small, and preserve the existing design tokens."
                           rows={4}
-                          className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </div>
                       <button
@@ -509,7 +524,7 @@ export function ExportModal({ isOpen, onClose, tasks, projectName }: ExportModal
                 </div>
               </div>
 
-              <div className="mt-auto flex items-center justify-between border-t bg-white/90 px-4 py-3">
+              <div className="mt-auto flex items-center justify-between border-t border-slate-200 bg-white/90 px-4 py-3">
                 <div className="text-sm text-muted-foreground">
                   {orderedTasks.length} task{orderedTasks.length === 1 ? '' : 's'} selected
                 </div>

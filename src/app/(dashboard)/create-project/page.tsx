@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { createProject } from '@/domains/project/mutations'
+import { PlannerBackdrop } from '@/components/auth/planner-backdrop'
 
 export default function CreateProjectPage() {
   const [name, setName] = useState('')
@@ -13,7 +14,7 @@ export default function CreateProjectPage() {
   const [errorMsg, setErrorMsg] = useState('')
   const router = useRouter()
 
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   useEffect(() => {
     async function loadRepos() {
@@ -27,11 +28,11 @@ export default function CreateProjectPage() {
           if (res.ok) {
             setRepos(await res.json())
           }
-        } catch(e) {}
+        } catch {}
       }
     }
     loadRepos()
-  }, [])
+  }, [supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,22 +50,23 @@ export default function CreateProjectPage() {
       })
       router.push(`/${project.id}`)
       router.refresh()
-    } catch (err: any) {
-      console.error(err)
+    } catch (error) {
+      console.error(error)
       setErrorMsg('Failed to create project')
       setLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm space-y-8 bg-white p-6 rounded-xl border border-border">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      <PlannerBackdrop />
+      <div className="relative z-10 w-full max-w-sm space-y-8 rounded-xl border border-white/60 bg-white/85 p-6 shadow-xl backdrop-blur-sm">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-foreground">
             Create your first project
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Let's get started by setting up a workspace for your tasks.
+            Let&apos;s get started by setting up a workspace for your tasks.
           </p>
         </div>
 

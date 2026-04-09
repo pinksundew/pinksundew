@@ -6,7 +6,8 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   // if "next" is in param, use it as the redirect URL
-  const next = searchParams.get('next') ?? '/'
+  const rawNext = searchParams.get('next') ?? '/'
+  const next = rawNext.startsWith('/') ? rawNext : '/'
 
   if (code) {
     const cookieStore = await cookies()
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
               cookiesToSet.forEach(({ name, value, options }) => {
                 cookieStore.set(name, value, options)
               })
-            } catch (error) {
+            } catch {
               // Ignore if called from Server Component
             }
           },

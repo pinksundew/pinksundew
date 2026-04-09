@@ -17,7 +17,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen flex-col bg-muted/20">
-      <header className="sticky top-0 z-40 bg-white border-b border-border shadow-sm flex flex-col h-24">
+      <header className="sticky top-0 z-40 flex h-24 flex-col border-b border-border/80 bg-white/80 shadow-sm backdrop-blur">
         {/* Top Nav */}
         <div className="flex h-12 items-center justify-between px-4 shrink-0 gap-4">
           <div className="flex items-center gap-2">

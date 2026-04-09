@@ -30,15 +30,15 @@ body {
 
 @keyframes reviewPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.35);
+    box-shadow: 0 0 0 0 rgba(249, 168, 212, 0.45);
   }
 
   70% {
-    box-shadow: 0 0 0 8px rgba(139, 92, 246, 0);
+    box-shadow: 0 0 0 8px rgba(249, 168, 212, 0);
   }
 
   100% {
-    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+    box-shadow: 0 0 0 0 rgba(249, 168, 212, 0);
   }
 }
 
@@ -57,7 +57,7 @@ body {
 }
 
 .task-signal-ready-for-review {
-  border-color: #8b5cf6;
+  border-color: #f9a8d4;
   animation: reviewPulse 2.1s ease-in-out infinite;
 }
 

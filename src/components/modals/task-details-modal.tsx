@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Save, Trash2, X } from 'lucide-react'
+import { ChevronDown, Save, Trash2, X } from 'lucide-react'
 import {
   createTaskStateMessage,
   deleteTask,
@@ -56,6 +56,7 @@ export function TaskDetailsModal({
   const [instructionSets, setInstructionSets] = useState<AgentInstructionSetWithFileMeta[]>([])
   const [linkedInstructionSetIds, setLinkedInstructionSetIds] = useState<Set<string>>(new Set())
   const [initialLinkedInstructionSetIds, setInitialLinkedInstructionSetIds] = useState<Set<string>>(new Set())
+  const [isInProgressActionMenuOpen, setIsInProgressActionMenuOpen] = useState(false)
 
   const [supabase] = useState(() => createClient())
 
@@ -67,6 +68,7 @@ export function TaskDetailsModal({
       setLinkedInstructionSetIds(new Set())
       setInitialLinkedInstructionSetIds(new Set())
       setReplyMessage('')
+      setIsInProgressActionMenuOpen(false)
       return
     }
 
@@ -75,6 +77,7 @@ export function TaskDetailsModal({
     setStatus(task.status)
     setPriority(task.priority)
     setReplyMessage('')
+    setIsInProgressActionMenuOpen(false)
     void fetchPlans(task.id)
     void fetchSignalMessages(task.id)
     void fetchInstructionContext(task.project_id, task.id)
@@ -218,7 +221,9 @@ export function TaskDetailsModal({
     }
   }
 
-  const handleQuickAction = async () => {
+  const handleQuickAction = async (
+    mode: 'default' | 'complete-and-follow-up' = 'default'
+  ) => {
     if (!task || !title.trim()) return
 
     setLoading(true)
@@ -241,6 +246,9 @@ export function TaskDetailsModal({
         if (nextTask) {
           await syncInstructionLinks(nextTask.id, user?.id ?? null)
           onClose()
+          if (mode === 'complete-and-follow-up') {
+            onCompleteAndFollowUp(nextTask)
+          }
         }
         return
       }
@@ -475,7 +483,7 @@ export function TaskDetailsModal({
                       task.workflow_signal === 'needs_help'
                         ? 'border-rose-200 bg-rose-50 text-rose-700'
                         : task.workflow_signal === 'ready_for_review'
-                          ? 'border-violet-200 bg-violet-50 text-violet-700'
+                          ? 'border-pink-200 bg-pink-50 text-pink-700'
                           : 'border-border bg-white text-muted-foreground'
                     }`}
                   >
@@ -608,21 +616,77 @@ export function TaskDetailsModal({
                     type="button"
                     onClick={handleReviewComplete}
                     disabled={loading}
-                    className="inline-flex items-center justify-center rounded-md border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center rounded-md border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700 transition-colors hover:bg-pink-100 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Review Complete
                   </button>
                 ) : null}
 
                 {quickAction ? (
-                  <button
-                    type="button"
-                    onClick={handleQuickAction}
-                    disabled={loading || !title.trim()}
-                    className="inline-flex items-center justify-center rounded-md border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {quickAction}
-                  </button>
+                  status === 'in-progress' ? (
+                    <div className="relative inline-flex">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsInProgressActionMenuOpen(false)
+                          void handleQuickAction()
+                        }}
+                        disabled={loading || !title.trim()}
+                        className="inline-flex items-center justify-center rounded-l-md border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {quickAction}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsInProgressActionMenuOpen((previous) => !previous)}
+                        disabled={loading || !title.trim()}
+                        className="inline-flex items-center justify-center rounded-r-md border border-l-0 border-border bg-white px-2 text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Toggle complete actions"
+                        aria-expanded={isInProgressActionMenuOpen}
+                      >
+                        <ChevronDown
+                          className={`h-4 w-4 transition-transform ${
+                            isInProgressActionMenuOpen ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {isInProgressActionMenuOpen ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setIsInProgressActionMenuOpen(false)}
+                            className="fixed inset-0 z-10 cursor-default"
+                            aria-label="Close complete actions menu"
+                          />
+                          <div className="absolute right-0 top-full z-20 mt-2 min-w-[220px] overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsInProgressActionMenuOpen(false)
+                                void handleQuickAction('complete-and-follow-up')
+                              }}
+                              disabled={loading || !title.trim()}
+                              className="flex w-full items-center justify-start px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Complete and Follow Up
+                            </button>
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void handleQuickAction()
+                      }}
+                      disabled={loading || !title.trim()}
+                      className="inline-flex items-center justify-center rounded-md border border-border bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {quickAction}
+                    </button>
+                  )
                 ) : null}
               </div>
             </div>
@@ -700,7 +764,7 @@ function getThreadBubbleClassName(signal: TaskStateMessage['signal']) {
   }
 
   if (signal === 'ready_for_review') {
-    return 'border border-violet-200 bg-violet-50'
+    return 'border border-pink-200 bg-pink-50'
   }
 
   return 'border border-border bg-white'
@@ -708,7 +772,7 @@ function getThreadBubbleClassName(signal: TaskStateMessage['signal']) {
 
 function getQuickAction(status: TaskStatus) {
   if (status === 'todo') return 'Move To In Progress'
-  if (status === 'in-progress') return 'Complete Task'
+  if (status === 'in-progress') return 'Complete'
   if (status === 'done') return 'Create Follow-Up'
   return null
 }

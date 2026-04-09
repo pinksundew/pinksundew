@@ -605,7 +605,7 @@ export function KanbanBoard({
                className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.08em] text-primary-foreground uppercase transition-colors hover:bg-primary/20"
              >
                <PlugZap className="h-3.5 w-3.5" />
-               Connect
+               Connect to MCP
              </button>
            </div>
            <p className="text-sm text-muted-foreground">

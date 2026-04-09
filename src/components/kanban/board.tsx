@@ -318,6 +318,10 @@ export function KanbanBoard({
     setSelectedTaskIds(new Set())
   }
 
+  const hideSelectionMode = () => {
+    setIsSelectionMode(false)
+  }
+
   const startSelectionMode = () => {
     setIsSelectionMode(true)
     setSelectedTaskIds(new Set())
@@ -349,6 +353,7 @@ export function KanbanBoard({
 
   const openExportModal = () => {
     if (selectedTasks.length === 0) return
+    hideSelectionMode()
     setIsExportModalOpen(true)
   }
 
@@ -839,7 +844,7 @@ export function KanbanBoard({
               disabled={selectedTaskIds.size === 0}
               className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
                 selectedTaskIds.size > 0
-                  ? 'bg-rose-400 text-white hover:bg-rose-500'
+                  ? 'bg-pink-400 text-white hover:bg-pink-500'
                   : 'bg-slate-200 text-slate-500'
               }`}
             >

@@ -21,6 +21,7 @@ import { TaskCard } from './task-card'
 import { AbyssDropZone } from '@/components/abyss/abyss-drop-zone'
 import { CreateTaskModal } from '@/components/modals/create-task-modal'
 import { deleteTask, persistTaskOrderWithKeepalive } from '@/domains/task/mutations'
+import { getProjectTasks } from '@/domains/task/queries'
 import { AgentInstructionsModal } from '@/components/modals/agent-instructions-modal'
 import { TaskDetailsModal } from '@/components/modals/task-details-modal'
 import { GuestTaskDetailsModal } from '@/components/modals/guest-task-details-modal'
@@ -52,6 +53,29 @@ type PersistedTaskOrder = Pick<TaskWithTags, 'id' | 'status' | 'position'>
 
 function normalizeVisibleTasks(taskList: TaskWithTags[]) {
   return sortTasksByPosition(taskList.filter((task) => isVisibleOnBoard(task)))
+}
+
+function buildTaskSyncSignature(taskList: TaskWithTags[]) {
+  return normalizeVisibleTasks(taskList)
+    .map((task) => {
+      const tagSignature = [...task.tags]
+        .map((tag) => tag.id)
+        .sort()
+        .join(',')
+
+      return [
+        task.id,
+        task.updated_at,
+        task.status,
+        String(task.position),
+        task.workflow_signal ?? '',
+        task.workflow_signal_message ?? '',
+        task.agent_lock_until ?? '',
+        task.agent_lock_reason ?? '',
+        tagSignature,
+      ].join('|')
+    })
+    .join('||')
 }
 
 function mergeRealtimeTask(task: Partial<TaskWithTags>, existing?: TaskWithTags | null) {
@@ -114,6 +138,7 @@ export function KanbanBoard({
   } | null>(null)
   const isPersistLoopRunningRef = useRef(false)
   const hasGuestDraftRef = useRef(false)
+  const isAutoRefreshRunningRef = useRef(false)
 
   const persistGuestTasks = (taskList: TaskWithTags[]) => {
     saveGuestDraft(projectName, taskList)
@@ -200,6 +225,62 @@ export function KanbanBoard({
       supabase.removeChannel(channel)
     }
   }, [projectId, supabase, isGuestMode])
+
+  useEffect(() => {
+    if (isGuestMode) {
+      return
+    }
+
+    const refreshBoardTasks = async () => {
+      if (isAutoRefreshRunningRef.current) {
+        return
+      }
+
+      if (isPersistingOrderRef.current || dragStartTasksRef.current || activeTask) {
+        return
+      }
+
+      if (typeof document !== 'undefined' && document.hidden) {
+        return
+      }
+
+      isAutoRefreshRunningRef.current = true
+
+      try {
+        const latestTasks = normalizeVisibleTasks(await getProjectTasks(supabase, projectId))
+        const currentSignature = buildTaskSyncSignature(tasksRef.current)
+        const latestSignature = buildTaskSyncSignature(latestTasks)
+
+        if (latestSignature === currentSignature) {
+          return
+        }
+
+        tasksRef.current = latestTasks
+        lastPersistedTasksRef.current = latestTasks
+        setTasks(latestTasks)
+
+        setSelectedTask((previous) => {
+          if (!previous) {
+            return previous
+          }
+
+          return latestTasks.find((task) => task.id === previous.id) ?? null
+        })
+      } catch (error) {
+        console.error('Error auto-refreshing board tasks:', error)
+      } finally {
+        isAutoRefreshRunningRef.current = false
+      }
+    }
+
+    const refreshInterval = window.setInterval(() => {
+      void refreshBoardTasks()
+    }, 5000)
+
+    return () => {
+      window.clearInterval(refreshInterval)
+    }
+  }, [activeTask, isGuestMode, projectId, supabase])
 
   useEffect(() => {
     tasksRef.current = tasks

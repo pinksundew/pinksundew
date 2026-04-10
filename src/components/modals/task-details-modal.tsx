@@ -37,6 +37,28 @@ type ReviewThreadMessage = Pick<
   'id' | 'signal' | 'message' | 'created_at' | 'created_by'
 >
 
+function toDateInputValue(value: string | null) {
+  if (!value) return ''
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return date.toISOString().slice(0, 10)
+}
+
+function fromDateInputValue(value: string) {
+  if (!value) return null
+
+  const date = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date.toISOString()
+}
+
 export function TaskDetailsModal({
   isOpen,
   onClose,
@@ -49,6 +71,7 @@ export function TaskDetailsModal({
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<TaskStatus>('todo')
   const [priority, setPriority] = useState<TaskPriority>('medium')
+  const [dueDate, setDueDate] = useState('')
   const [replyMessage, setReplyMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [plans, setPlans] = useState<TaskPlan[]>([])
@@ -67,6 +90,7 @@ export function TaskDetailsModal({
       setInstructionSets([])
       setLinkedInstructionSetIds(new Set())
       setInitialLinkedInstructionSetIds(new Set())
+      setDueDate('')
       setReplyMessage('')
       setIsInProgressActionMenuOpen(false)
       return
@@ -76,6 +100,7 @@ export function TaskDetailsModal({
     setDescription(task.description || '')
     setStatus(task.status)
     setPriority(task.priority)
+    setDueDate(toDateInputValue(task.due_date))
     setReplyMessage('')
     setIsInProgressActionMenuOpen(false)
     void fetchPlans(task.id)
@@ -157,6 +182,7 @@ export function TaskDetailsModal({
       description: description.trim() || null,
       status: nextStatus,
       priority,
+      due_date: fromDateInputValue(dueDate),
       ...(shouldClearSignal
         ? {
             workflow_signal: null,
@@ -404,7 +430,7 @@ export function TaskDetailsModal({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="mb-1 block text-sm font-medium text-foreground">Status</label>
                   <select
@@ -429,6 +455,16 @@ export function TaskDetailsModal({
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-foreground">Due Date</label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(event) => setDueDate(event.target.value)}
+                    className="w-full rounded-md border border-border bg-white p-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
                 </div>
               </div>
 

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { createProject } from '@/domains/project/mutations'
@@ -19,15 +19,159 @@ export default function CreateProjectPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [repos, setRepos] = useState<GitHubRepo[]>([])
+  const [selectedRepoId, setSelectedRepoId] = useState('')
   const [creationMode, setCreationMode] = useState<CreationMode>('blank')
   const [isBootstrapping, setIsBootstrapping] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
   const [hasGithubAccess, setHasGithubAccess] = useState(false)
+  const [isConnectingGithub, setIsConnectingGithub] = useState(false)
+  const [isLoadingGithubRepos, setIsLoadingGithubRepos] = useState(false)
+  const [githubNotice, setGithubNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const router = useRouter()
 
   const [supabase] = useState(() => createClient())
+
+  const handleConnectGithub = useCallback(async () => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    setIsConnectingGithub(true)
+    setGithubNotice(null)
+
+    const callbackUrl = new URL('/callback', window.location.origin)
+    callbackUrl.searchParams.set('next', '/create-project')
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: callbackUrl.toString(),
+        scopes: 'repo',
+      },
+    })
+
+    if (error) {
+      setIsConnectingGithub(false)
+      setGithubNotice('Unable to start GitHub authorization. Please try again.')
+    }
+  }, [supabase])
+
+  const loadGithubRepos = useCallback(async (providerToken: string) => {
+    setIsLoadingGithubRepos(true)
+
+    try {
+      const response = await fetch('https://api.github.com/user/repos?sort=updated&per_page=12', {
+        headers: { Authorization: `Bearer ${providerToken}` },
+      })
+
+      if (!response.ok) {
+        setHasGithubAccess(false)
+        setRepos([])
+        setSelectedRepoId('')
+        setCreationMode('blank')
+        setGithubNotice(
+          response.status === 401 || response.status === 403
+            ? 'Your GitHub access token expired. Click Import from GitHub to reconnect.'
+            : 'Unable to load repositories from GitHub right now. Try again.'
+        )
+        return false
+      }
+
+      const payload = (await response.json()) as unknown
+      if (!Array.isArray(payload)) {
+        setRepos([])
+        setSelectedRepoId('')
+        setCreationMode('github')
+        setGithubNotice('GitHub connected, but no repositories were returned for this account.')
+        return true
+      }
+
+      const normalizedRepos = payload.filter((item): item is GitHubRepo => {
+        if (!item || typeof item !== 'object') {
+          return false
+        }
+
+        const record = item as Partial<GitHubRepo>
+        return (
+          typeof record.id === 'number' &&
+          typeof record.full_name === 'string' &&
+          (typeof record.description === 'string' || record.description === null)
+        )
+      })
+
+      setHasGithubAccess(true)
+      setRepos(normalizedRepos)
+      setSelectedRepoId('')
+      setGithubNotice(
+        normalizedRepos.length > 0
+          ? null
+          : 'GitHub connected, but no recent repositories were found. You can still type a custom project name.'
+      )
+      setCreationMode('github')
+      return true
+    } catch (error) {
+      console.error('Failed to load GitHub repositories', error)
+      setHasGithubAccess(false)
+      setRepos([])
+      setSelectedRepoId('')
+      setCreationMode('blank')
+      setGithubNotice('Unable to reach GitHub right now. Click Import from GitHub to retry.')
+      return false
+    } finally {
+      setIsLoadingGithubRepos(false)
+    }
+  }, [])
+
+  const syncGithubImportState = useCallback(async (options?: { autoConnectIfMissingToken?: boolean }) => {
+    const autoConnectIfMissingToken = options?.autoConnectIfMissingToken ?? false
+
+    const [{ data: userData }, { data: sessionData }] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.auth.getSession(),
+    ])
+
+    const user = userData.user
+    if (!user) {
+      setIsAuthenticated(false)
+      setHasGithubAccess(false)
+      setRepos([])
+      setSelectedRepoId('')
+      setCreationMode('blank')
+      return false
+    }
+
+    setIsAuthenticated(true)
+
+    const hasGithubIdentity = (user.identities ?? []).some((identity) => identity.provider === 'github')
+    let providerToken = sessionData.session?.provider_token ?? null
+
+    if (!providerToken && hasGithubIdentity) {
+      const { data: refreshedSessionData } = await supabase.auth.refreshSession()
+      providerToken = refreshedSessionData.session?.provider_token ?? null
+    }
+
+    if (!providerToken) {
+      setHasGithubAccess(false)
+      setRepos([])
+      setSelectedRepoId('')
+      setCreationMode('blank')
+      setGithubNotice(
+        hasGithubIdentity
+          ? 'GitHub is linked but needs a fresh authorization. Click Import from GitHub.'
+          : 'Connect GitHub to import repositories into your project setup.'
+      )
+
+      if (autoConnectIfMissingToken) {
+        await handleConnectGithub()
+      }
+
+      return false
+    }
+
+    return loadGithubRepos(providerToken)
+  }, [handleConnectGithub, loadGithubRepos, supabase])
 
   useEffect(() => {
     let isCancelled = false
@@ -36,67 +180,20 @@ export default function CreateProjectPage() {
       setIsBootstrapping(true)
 
       try {
-        const [{ data: userData }, { data: sessionData }] = await Promise.all([
-          supabase.auth.getUser(),
-          supabase.auth.getSession(),
-        ])
-
-        const user = userData.user
-        if (!user) {
-          if (!isCancelled) {
-            setIsAuthenticated(false)
-          }
-          return
-        }
-
         if (isCancelled) {
           return
         }
 
-        setIsAuthenticated(true)
-
-        const providerToken = sessionData.session?.provider_token
-        if (!providerToken) {
-          setHasGithubAccess(false)
-          return
-        }
-
-        setHasGithubAccess(true)
-
-        const response = await fetch('https://api.github.com/user/repos?sort=updated&per_page=12', {
-          headers: { Authorization: `Bearer ${providerToken}` },
-        })
-
-        if (!response.ok) {
-          return
-        }
-
-        const payload = (await response.json()) as unknown
-        if (!Array.isArray(payload)) {
-          return
-        }
-
-        const normalizedRepos = payload.filter((item): item is GitHubRepo => {
-          if (!item || typeof item !== 'object') {
-            return false
-          }
-
-          const record = item as Partial<GitHubRepo>
-          return (
-            typeof record.id === 'number' &&
-            typeof record.full_name === 'string' &&
-            (typeof record.description === 'string' || record.description === null)
-          )
-        })
-
-        if (!isCancelled) {
-          setRepos(normalizedRepos)
-          if (normalizedRepos.length > 0) {
-            setCreationMode('github')
-          }
-        }
+        await syncGithubImportState()
       } catch (error) {
         console.error('Failed to bootstrap project creation page', error)
+        if (!isCancelled) {
+          setHasGithubAccess(false)
+          setRepos([])
+          setSelectedRepoId('')
+          setCreationMode('blank')
+          setGithubNotice('Unable to reach GitHub right now. Reconnect GitHub and try again.')
+        }
       } finally {
         if (!isCancelled) {
           setIsBootstrapping(false)
@@ -109,7 +206,20 @@ export default function CreateProjectPage() {
     return () => {
       isCancelled = true
     }
-  }, [supabase])
+  }, [syncGithubImportState])
+
+  const handleGithubImportClick = async () => {
+    if (isConnectingGithub || isLoadingGithubRepos) {
+      return
+    }
+
+    if (hasGithubAccess) {
+      await syncGithubImportState()
+      return
+    }
+
+    await syncGithubImportState({ autoConnectIfMissingToken: true })
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -150,6 +260,7 @@ export default function CreateProjectPage() {
 
   const selectRepo = (repo: GitHubRepo) => {
     setCreationMode('github')
+    setSelectedRepoId(String(repo.id))
     setName(repo.full_name)
     setDescription(repo.description || `Task board for ${repo.full_name}`)
   }
@@ -276,53 +387,71 @@ export default function CreateProjectPage() {
 
               <button
                 type="button"
-                onClick={() => setCreationMode('github')}
-                disabled={!hasGithubAccess}
+                onClick={() => {
+                  void handleGithubImportClick()
+                }}
+                disabled={isConnectingGithub || isLoadingGithubRepos}
                 className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
                   creationMode === 'github' && hasGithubAccess
                     ? 'border-primary/50 bg-primary/10 text-primary-foreground'
                     : 'border-border text-foreground hover:bg-muted'
-                } ${!hasGithubAccess ? 'cursor-not-allowed opacity-60' : ''}`}
+                } ${(isConnectingGithub || isLoadingGithubRepos) ? 'cursor-wait opacity-70' : ''}`}
               >
-                <GitBranch className="h-4 w-4" />
-                Import from GitHub
+                {(isConnectingGithub || isLoadingGithubRepos) ? <Loader2 className="h-4 w-4 animate-spin" /> : <GitBranch className="h-4 w-4" />}
+                {isConnectingGithub
+                  ? 'Connecting GitHub...'
+                  : isLoadingGithubRepos
+                    ? 'Loading Repositories...'
+                  : hasGithubAccess
+                    ? 'Import from GitHub'
+                    : 'Import from GitHub (Connect)'}
               </button>
             </div>
 
             {!hasGithubAccess ? (
-              <p className="mt-4 text-xs text-muted-foreground">
-                GitHub import appears here when your current session includes a GitHub provider token.
-              </p>
+              <div className="mt-4 rounded-lg border border-border bg-muted/40 px-3 py-3">
+                <p className="text-xs text-muted-foreground">
+                  {githubNotice ??
+                    'GitHub import appears here when your current session includes a GitHub provider token.'}
+                </p>
+              </div>
             ) : null}
 
             {hasGithubAccess && creationMode === 'github' ? (
-              <div className="mt-4 space-y-2">
+              <div className="mt-4 space-y-3">
                 {repos.length === 0 ? (
                   <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                     No recent repositories found. You can still type a project name manually.
                   </p>
                 ) : (
-                  repos.map((repo) => {
-                    const isSelected = repo.full_name === name
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Repository
+                    </label>
+                    <select
+                      value={selectedRepoId}
+                      onChange={(event) => {
+                        const nextRepoId = event.target.value
+                        setSelectedRepoId(nextRepoId)
 
-                    return (
-                      <button
-                        key={repo.id}
-                        type="button"
-                        onClick={() => selectRepo(repo)}
-                        className={`w-full rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                          isSelected
-                            ? 'border-primary/50 bg-primary/10 text-primary-foreground'
-                            : 'border-border text-foreground hover:bg-muted'
-                        }`}
-                      >
-                        <span className="block truncate font-semibold">{repo.full_name}</span>
-                        {repo.description ? (
-                          <span className="mt-1 block truncate text-muted-foreground">{repo.description}</span>
-                        ) : null}
-                      </button>
-                    )
-                  })
+                        const repo = repos.find((candidate) => String(candidate.id) === nextRepoId)
+                        if (repo) {
+                          selectRepo(repo)
+                        }
+                      }}
+                      className="block w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="">Select a repository to prefill project details</option>
+                      {repos.map((repo) => (
+                        <option key={repo.id} value={String(repo.id)}>
+                          {repo.full_name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Pick a repository from the dropdown, or leave it blank and type a custom project name.
+                    </p>
+                  </div>
                 )}
               </div>
             ) : (

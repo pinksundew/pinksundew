@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useMemo, useState, type MouseEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { FolderKanban, LayoutDashboard, LogOut, PlusSquare, Trash2, User } from 'lucide-react'
+import { FolderKanban, LogOut, PlusSquare, Trash2, User } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteProject } from '@/domains/project/mutations'
 import type { Project } from '@/domains/project/types'
@@ -17,6 +17,8 @@ type DashboardSidebarProps = {
   mode?: 'authenticated' | 'guest'
   onRequireAuth?: (message: string, nextPath?: string) => void
 }
+
+const PROJECT_TAB_OPEN_EVENT = 'agentplanner:open-project-tab'
 
 function getProjectIdFromPath(pathname: string) {
   const [firstSegment] = pathname.split('/').filter(Boolean)
@@ -87,6 +89,18 @@ export function DashboardSidebar({
     }
   }
 
+  const handleProjectClick = (projectId: string) => {
+    if (typeof window === 'undefined' || isGuestMode) {
+      return
+    }
+
+    window.dispatchEvent(
+      new CustomEvent(PROJECT_TAB_OPEN_EVENT, {
+        detail: { projectId },
+      })
+    )
+  }
+
   const handleDeleteProject = async () => {
     if (!projectToDelete || isGuestMode) {
       return
@@ -152,6 +166,7 @@ export function DashboardSidebar({
                   >
                     <Link
                       href={projectHref}
+                      onClick={() => handleProjectClick(project.id)}
                       className="flex h-full min-w-0 flex-1 items-center justify-center gap-0 rounded-lg px-0 group-hover/sidebar:justify-start group-hover/sidebar:gap-2 group-hover/sidebar:px-1.5"
                     >
                       <span

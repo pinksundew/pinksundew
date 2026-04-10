@@ -7,6 +7,17 @@ import { createTask } from '@/domains/task/mutations'
 import { createClient } from '@/lib/supabase/client'
 import { TaskStatus, TaskPriority, TaskWithTags } from '@/domains/task/types'
 
+function fromDateInputValue(value: string) {
+  if (!value) return null
+
+  const date = new Date(`${value}T00:00:00.000Z`)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date.toISOString()
+}
+
 type CreateTaskRequest = {
   project_id: string
   title: string
@@ -40,6 +51,7 @@ export function CreateTaskModal({
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<TaskStatus>('todo')
   const [priority, setPriority] = useState<TaskPriority>('medium')
+  const [dueDate, setDueDate] = useState('')
   const [predecessorId, setPredecessorId] = useState<string | null>(initialPredecessorTask?.id ?? null)
   const [predecessorTitle, setPredecessorTitle] = useState(initialPredecessorTask?.title ?? '')
   const [loading, setLoading] = useState(false)
@@ -53,6 +65,7 @@ export function CreateTaskModal({
     setDescription('')
     setStatus('todo')
     setPriority('medium')
+    setDueDate('')
     setLoading(false)
     setPredecessorId(initialPredecessorTask?.id ?? null)
     setPredecessorTitle(initialPredecessorTask?.title ?? '')
@@ -72,7 +85,7 @@ export function CreateTaskModal({
         priority,
         position: 0,
         assignee_id: null,
-        due_date: null,
+        due_date: fromDateInputValue(dueDate),
         predecessor_id: predecessorId,
       }
 
@@ -174,8 +187,8 @@ export function CreateTaskModal({
                 />
               </div>
 
-              <div className="flex gap-4">
-                <div className="flex-1">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Status</label>
                   <select
                     className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
@@ -187,7 +200,7 @@ export function CreateTaskModal({
                     <option value="done">Done</option>
                   </select>
                 </div>
-                <div className="flex-1">
+                <div>
                   <label className="block text-sm font-medium text-foreground mb-1">Priority</label>
                   <select
                     className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
@@ -198,6 +211,16 @@ export function CreateTaskModal({
                     <option value="medium">Medium</option>
                     <option value="high">High</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                    value={dueDate}
+                    onChange={(event) => setDueDate(event.target.value)}
+                  />
                 </div>
               </div>
 

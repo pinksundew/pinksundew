@@ -20,6 +20,19 @@ const PRIORITY_COLORS = {
   high: 'bg-rose-50 text-rose-700 border-rose-200'
 }
 
+function formatDateLabel(value: string | null) {
+  if (!value) {
+    return null
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date.toLocaleDateString()
+}
+
 export function TaskCard({
   task,
   isOverlay,
@@ -53,6 +66,10 @@ export function TaskCard({
   const isReadyForReview = task.workflow_signal === 'ready_for_review'
   const isNeedsHelp = task.workflow_signal === 'needs_help'
   const isAgentWorking = task.workflow_signal === 'agent_working'
+  const dueDateLabel = formatDateLabel(task.due_date)
+  const createdDateLabel = formatDateLabel(task.created_at)
+  const datePrefix = dueDateLabel ? 'Due' : createdDateLabel ? 'Created' : null
+  const visibleDateLabel = dueDateLabel ?? createdDateLabel ?? 'No date'
   const signalClassName = isNeedsHelp
     ? 'task-signal-needs-help'
     : isAgentWorking
@@ -169,7 +186,7 @@ export function TaskCard({
       <div className="mt-auto flex items-center justify-between border-t border-border pt-3">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Calendar className="w-3.5 h-3.5" />
-          <span>{task.due_date ? new Date(task.due_date).toLocaleDateString() : 'No date'}</span>
+          <span>{datePrefix ? `${datePrefix} ${visibleDateLabel}` : visibleDateLabel}</span>
         </div>
         
         {task.assignee_id ? (

@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as {
     projectId?: unknown
     fileIds?: unknown
+    envName?: unknown
   } | null
 
   if (!body || typeof body !== 'object') {
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
 
   const projectId = typeof body.projectId === 'string' ? body.projectId.trim() : ''
   const rawFileIds = Array.isArray(body.fileIds) ? body.fileIds : null
+  const envName = typeof body.envName === 'string' ? body.envName.trim() : null
 
   if (!projectId || !rawFileIds) {
     return NextResponse.json({ error: 'projectId and fileIds are required' }, { status: 400 })

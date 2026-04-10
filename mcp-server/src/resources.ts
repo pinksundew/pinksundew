@@ -47,13 +47,18 @@ export async function getTagDetails(tagId: string) {
   return tag
 }
 
-export async function getInstructionFilesForProject(projectId: string, fileIds: string[]) {
+export async function getInstructionFilesForProject(projectId: string, fileIds: string[], envName?: string) {
   if (fileIds.length === 0) {
     return [] as AgentInstructionFile[]
   }
 
+  const body: Record<string, unknown> = { projectId, fileIds }
+  if (envName) {
+    body.envName = envName
+  }
+
   return bridgeFetch<AgentInstructionFile[]>('/instructions/files', {
     method: 'POST',
-    body: JSON.stringify({ projectId, fileIds }),
+    body: JSON.stringify(body),
   })
 }

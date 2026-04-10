@@ -12,7 +12,7 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { assertProjectAllowed, isProjectScopingEnabled, getAllowedProjectIds } from './project-scope.js'
+import { assertProjectAllowed, isProjectScopingEnabled, getProjectId, getClientEnv } from './project-scope.js'
 import { syncGlobalInstructions } from './sync.js'
 import {
   getAbyssState,
@@ -49,9 +49,13 @@ const allowedTaskStatuses: TaskStatus[] = ['todo', 'in-progress', 'done']
 
 // Log project scoping status at startup
 if (isProjectScopingEnabled()) {
-  console.error(`[${SERVER_NAME}] Project scoping enabled. Allowed IDs: ${getAllowedProjectIds().join(', ')}`)
+  const clientEnv = getClientEnv()
+  console.error(`[${SERVER_NAME}] Project scoping enabled. Project ID: ${getProjectId()}`)
+  if (clientEnv) {
+    console.error(`[${SERVER_NAME}] Client environment: ${clientEnv}`)
+  }
 } else {
-  console.error(`[${SERVER_NAME}] Warning: No AGENTPLANNER_PROJECT_IDS configured. All projects accessible.`)
+  console.error(`[${SERVER_NAME}] Warning: No AGENTPLANNER_PROJECT_ID configured. All projects accessible.`)
 }
 
 const projectScopedToolNames = new Set<CoreMcpToolName>([
@@ -547,10 +551,11 @@ const toolDefinitions: ToolDefinition[] = [
       if (result.success) {
         return {
           success: true,
-          message: `Global instructions synced to workspace successfully. ${result.instructionCount} instruction file(s) written to: ${result.filesWritten.join(', ')}. Your IDE will use these updated rules on your next message.`,
+          message: `Global instructions synced to workspace successfully. ${result.instructionCount} instruction file(s) written to: ${result.fileWritten}. Your IDE will use these updated rules on your next message.`,
           projectId: result.projectId,
           projectName: result.projectName,
-          filesWritten: result.filesWritten,
+          clientEnv: result.clientEnv,
+          fileWritten: result.fileWritten,
           instructionCount: result.instructionCount,
         }
       } else {
@@ -721,7 +726,7 @@ if (isProjectScopingEnabled()) {
     .then((result) => {
       if (result.success) {
         console.error(
-          `[${SERVER_NAME}] Startup sync: ${result.instructionCount} instruction(s) written to ${result.filesWritten.join(', ')}`
+          `[${SERVER_NAME}] Startup sync: ${result.instructionCount} instruction(s) written to ${result.fileWritten}`
         )
       } else {
         console.error(`[${SERVER_NAME}] Startup sync failed: ${result.error}`)

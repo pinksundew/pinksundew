@@ -2,87 +2,98 @@
  * Pink Sundew MCP Server - Project Scoping
  *
  * Strict project filtering to prevent context drift.
- * The agent only sees projects explicitly allowed via AGENTPLANNER_PROJECT_IDS.
+ * STRICT MODE: Only one project ID is allowed per workspace.
+ * This enforces a 1:1 mapping between workspace and project.
  */
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
 
-function parseProjectIds(): string[] {
-  // Support both singular and plural env var names
-  const rawIds = process.env.AGENTPLANNER_PROJECT_IDS ?? process.env.AGENTPLANNER_PROJECT_ID ?? ''
+/**
+ * Parses and validates the single project ID from environment.
+ * Throws a fatal error if multiple IDs are detected (comma-separated).
+ */
+function parseProjectId(): string | null {
+  const rawId = process.env.AGENTPLANNER_PROJECT_ID ?? ''
 
-  if (!rawIds.trim()) {
-    return []
+  if (!rawId.trim()) {
+    return null
   }
 
-  const ids = rawIds
-    .split(',')
-    .map((id) => id.trim())
-    .filter((id) => id.length > 0)
-
-  // Validate each ID looks like a UUID
-  const validIds: string[] = []
-  for (const id of ids) {
-    if (!UUID_REGEX.test(id)) {
-      console.warn(`Invalid project ID format (expected UUID): ${id}`)
-      continue
-    }
-    validIds.push(id)
+  // Strict mode: reject comma-separated values
+  if (rawId.includes(',')) {
+    throw new Error(
+      'Strict Mode: Only one AGENTPLANNER_PROJECT_ID is allowed per workspace to prevent context drift. ' +
+      'Remove extra project IDs from your configuration.'
+    )
   }
 
-  return validIds
+  const projectId = rawId.trim()
+
+  if (!UUID_REGEX.test(projectId)) {
+    throw new Error(`Invalid AGENTPLANNER_PROJECT_ID format (expected UUID): ${projectId}`)
+  }
+
+  return projectId
 }
 
-// Parse once at module load
-const allowedProjectIds = parseProjectIds()
+// Parse once at module load - will throw if invalid
+const projectId = parseProjectId()
 
 /**
- * Returns the list of allowed project IDs parsed from environment variables.
- * If no IDs are configured, returns an empty array (zero access).
+ * Returns the configured project ID.
+ * Returns null if no project is configured.
+ */
+export function getProjectId(): string | null {
+  return projectId
+}
+
+/**
+ * Returns the list of allowed project IDs for backwards compatibility.
+ * @deprecated Use getProjectId() instead
  */
 export function getAllowedProjectIds(): string[] {
-  return allowedProjectIds
+  return projectId ? [projectId] : []
 }
 
 /**
- * Returns true if project scoping is enabled (at least one project ID is configured).
+ * Returns true if project scoping is enabled (a project ID is configured).
  */
 export function isProjectScopingEnabled(): boolean {
-  return allowedProjectIds.length > 0
+  return projectId !== null
 }
 
 /**
- * Checks if a project ID is allowed by the current scope configuration.
+ * Checks if a project ID matches the configured project scope.
  * Returns true if:
- * - Project scoping is disabled (no IDs configured - legacy mode, allow all)
- * - The project ID is in the allowed list
+ * - Project scoping is disabled (no ID configured - legacy mode, allow all)
+ * - The project ID matches the configured ID
  */
-export function isProjectAllowed(projectId: string): boolean {
+export function isProjectAllowed(projectIdToCheck: string): boolean {
   // If no scoping is configured, allow all (backwards compatibility)
   if (!isProjectScopingEnabled()) {
     return true
   }
 
-  return allowedProjectIds.includes(projectId)
+  return projectIdToCheck === projectId
 }
 
 /**
- * Asserts that a project ID is allowed by the current scope configuration.
+ * Asserts that a project ID matches the configured project scope.
  * Throws an error if the project is not allowed.
  */
-export function assertProjectAllowed(projectId: string, context?: string): void {
-  if (!isProjectAllowed(projectId)) {
+export function assertProjectAllowed(projectIdToCheck: string, context?: string): void {
+  if (!isProjectAllowed(projectIdToCheck)) {
     const contextSuffix = context ? ` (${context})` : ''
     throw new Error(
-      `Project ${projectId} is not in the allowed scope${contextSuffix}. ` +
-        `Allowed project IDs: ${allowedProjectIds.join(', ') || 'none'}`
+      `Project ${projectIdToCheck} is not in scope${contextSuffix}. ` +
+        `Configured project ID: ${projectId ?? 'none'}`
     )
   }
 }
 
 /**
  * Filters an array of items by their project_id property.
- * Only returns items whose project_id is in the allowed scope.
+ * Only returns items whose project_id matches the configured scope.
  */
 export function filterByProjectScope<T extends { project_id?: string; id?: string }>(
   items: T[],
@@ -93,7 +104,15 @@ export function filterByProjectScope<T extends { project_id?: string; id?: strin
   }
 
   return items.filter((item) => {
-    const projectId = projectIdGetter(item)
-    return projectId ? isProjectAllowed(projectId) : false
+    const itemProjectId = projectIdGetter(item)
+    return itemProjectId ? isProjectAllowed(itemProjectId) : false
   })
+}
+
+/**
+ * Returns the configured client environment.
+ * Used for targeting IDE-specific instruction files.
+ */
+export function getClientEnv(): string | null {
+  return process.env.AGENTPLANNER_CLIENT_ENV?.trim() || null
 }

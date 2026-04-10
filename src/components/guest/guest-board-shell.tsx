@@ -144,8 +144,8 @@ export function GuestBoardShell() {
       />
 
       <div className="flex min-h-screen flex-col md:pl-16">
-        <header className="sticky top-0 z-40 flex h-24 flex-col border-b border-border/80 bg-white/80 shadow-sm backdrop-blur">
-          <div className="hidden h-12 items-center justify-between border-b border-border/70 px-6 md:flex">
+        <header className="sticky top-0 z-40 flex h-24 flex-col border-b border-border/80 bg-white shadow-sm backdrop-blur">
+          <div className="hidden h-12 items-center justify-between border-b border-border/70 px-1 md:flex">
             <div className="flex items-center gap-2">
               <LayoutDashboard className="h-5 w-5 text-primary" />
               <span className="text-lg font-bold text-foreground">AgentPlanner</span>

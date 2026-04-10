@@ -124,30 +124,10 @@ export function DashboardSidebar({
 
   return (
     <>
-      <aside className="group/sidebar fixed inset-y-0 left-0 z-50 hidden h-screen w-16 shrink-0 border-r border-border/80 bg-white/95 shadow-sm transition-all duration-200 hover:w-72 md:flex">
+      <aside className="group/sidebar fixed inset-y-0 left-0 z-50 hidden h-screen w-16 shrink-0 border-r border-border/80 bg-white shadow-sm transition-all duration-200 hover:w-72 md:flex">
         <div className="flex h-full w-full flex-col">
-          <div className="border-b border-border/80 p-2">
-            <Link href={isGuestMode ? '/guest' : '/'} className={`${navItemBase} border-border/60 bg-muted/60 text-foreground`}>
-              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary-foreground transition-transform duration-200 group-hover/nav-item:scale-110">
-                <LayoutDashboard className="h-4 w-4" />
-              </span>
-              <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100">
-                AgentPlanner
-              </span>
-            </Link>
-
-            <div className="mt-2 space-y-1">
-              <Link href="/create-project" onClick={handleCreateProjectClick} className={navItemBase}>
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-700 transition-transform duration-200 group-hover/nav-item:scale-110">
-                  <PlusSquare className="h-4 w-4" />
-                </span>
-                <span className={sideLabelClass}>Create Project</span>
-              </Link>
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-hidden p-2 pt-3">
-            <div className="mb-2 flex items-center justify-center px-2 group-hover/sidebar:justify-between">
+          <div className="min-h-0 flex-1 overflow-hidden p-2 pt-7 group-hover/sidebar:pt-5">
+            <div className="mb-1 flex items-center justify-center px-2 group-hover/sidebar:justify-between">
               <span className="max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100">
                 Projects
               </span>
@@ -156,7 +136,7 @@ export function DashboardSidebar({
               </span>
             </div>
 
-            <div className="h-full space-y-1 overflow-y-auto pb-3 pr-1">
+            <div className="h-full space-y-1.5 overflow-y-auto pb-3 pr-1 pt-0.5">
               {projects.map((project) => {
                 const isActive = project.id === activeProjectId
                 const projectHref = isGuestMode ? '/guest' : `/${project.id}`
@@ -164,7 +144,7 @@ export function DashboardSidebar({
                 return (
                   <div
                     key={project.id}
-                    className={`group/project-row flex items-center gap-1 rounded-xl border px-1 py-1 transition-colors ${
+                    className={`group/project-row flex h-11 items-center gap-1 rounded-xl border p-0.5 transition-colors ${
                       isActive
                         ? 'border-primary/50 bg-primary/10'
                         : 'border-transparent hover:border-border hover:bg-muted/60'
@@ -172,7 +152,7 @@ export function DashboardSidebar({
                   >
                     <Link
                       href={projectHref}
-                      className="flex min-w-0 flex-1 items-center justify-center gap-0 rounded-lg px-0 py-1 group-hover/sidebar:justify-start group-hover/sidebar:gap-2 group-hover/sidebar:px-1.5"
+                      className="flex h-full min-w-0 flex-1 items-center justify-center gap-0 rounded-lg px-0 group-hover/sidebar:justify-start group-hover/sidebar:gap-2 group-hover/sidebar:px-1.5"
                     >
                       <span
                         className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 group-hover/project-row:scale-110 ${
@@ -192,7 +172,7 @@ export function DashboardSidebar({
                       <button
                         type="button"
                         onClick={() => setProjectToDelete(project)}
-                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors hover:bg-rose-100 hover:text-rose-700 group-hover/sidebar:opacity-100"
+                        className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-rose-100 hover:text-rose-700 group-hover/sidebar:inline-flex"
                         aria-label={`Delete ${project.name}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -201,6 +181,19 @@ export function DashboardSidebar({
                   </div>
                 )
               })}
+
+              <Link
+                href="/create-project"
+                onClick={handleCreateProjectClick}
+                className="group/project-row mt-2 flex h-11 items-center justify-center gap-0 rounded-xl border border-dashed border-primary/35 p-0.5 text-primary transition-colors hover:border-primary/55 hover:bg-primary/10 group-hover/sidebar:justify-start group-hover/sidebar:gap-2 group-hover/sidebar:px-1.5"
+              >
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary transition-transform duration-200 group-hover/project-row:scale-110">
+                  <PlusSquare className="h-4 w-4" />
+                </span>
+                <span className="max-w-0 overflow-hidden truncate whitespace-nowrap text-sm font-semibold opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100">
+                  Create Project
+                </span>
+              </Link>
             </div>
           </div>
 

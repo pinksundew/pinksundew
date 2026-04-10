@@ -9,6 +9,7 @@ type TaskCardProps = {
   task: TaskWithTags
   isOverlay?: boolean
   isSelected?: boolean
+  isDeleting?: boolean
   isSelectionMode?: boolean
   onClick?: (task: TaskWithTags) => void
 }
@@ -19,7 +20,14 @@ const PRIORITY_COLORS = {
   high: 'bg-rose-50 text-rose-700 border-rose-200'
 }
 
-export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode = false, onClick }: TaskCardProps) {
+export function TaskCard({
+  task,
+  isOverlay,
+  isSelected = false,
+  isDeleting = false,
+  isSelectionMode = false,
+  onClick,
+}: TaskCardProps) {
   const {
     setNodeRef,
     attributes,
@@ -74,12 +82,14 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
         group flex flex-col bg-white border p-4 rounded-xl transition-all shadow-sm
         ${signalClassName}
         ${isSelectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing border-border hover:border-primary/40 hover:shadow-md'}
+        ${isDeleting ? 'pointer-events-none' : ''}
         ${isSelected 
           ? 'border-rose-300 bg-rose-50/50 ring-2 ring-rose-200/50 shadow-md' 
           : ''}
         ${isOverlay ? 'scale-105 shadow-xl z-50 bg-white/95 cursor-grabbing' : ''}
       `}
     >
+      <div className={isDeleting ? 'task-delete-exit' : ''}>
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center gap-2">
           {isSelectionMode ? (
@@ -171,6 +181,7 @@ export function TaskCard({ task, isOverlay, isSelected = false, isSelectionMode 
               <User className="w-3.5 h-3.5 text-muted-foreground/50" />
            </div>
         )}
+      </div>
       </div>
     </div>
   )

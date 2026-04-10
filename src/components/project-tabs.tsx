@@ -164,7 +164,7 @@ export function ProjectTabs({ projects }: { projects: Project[] }) {
   }
 
   return (
-    <div className="flex h-12 w-full items-center overflow-x-auto border-b border-border bg-white px-4">
+    <div className="flex h-12 w-full items-center overflow-x-auto bg-white px-2">
       {openProjects.length === 0 ? (
         <p className="text-sm text-muted-foreground">Open a project from the sidebar to pin it here.</p>
       ) : (

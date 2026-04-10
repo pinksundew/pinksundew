@@ -84,3 +84,21 @@ body {
   border-color: #facc15;
   animation: agentWorkingPulse 1.9s ease-in-out infinite;
 }
+
+@keyframes taskDeleteExit {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(1px);
+  }
+}
+
+.task-delete-exit {
+  animation: taskDeleteExit 180ms ease forwards;
+}

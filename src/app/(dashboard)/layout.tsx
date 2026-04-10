@@ -22,15 +22,14 @@ export default async function DashboardLayout({
 
       <div className={`flex min-h-screen flex-col ${user ? 'md:pl-16' : ''}`}>
         {user ? (
-          <header className="sticky top-0 z-40 flex h-24 flex-col border-b border-border/80 bg-white/80 shadow-sm backdrop-blur">
-            <div className="hidden h-12 items-center justify-between border-b border-border/70 px-6 md:flex">
+          <header className="sticky top-0 z-40 flex h-24 flex-col bg-white shadow-sm backdrop-blur">
+            <div className="hidden h-12 items-center justify-between border-b border-border/70 px-4 md:flex">
               <div className="flex items-center gap-2">
                 <LayoutDashboard className="h-5 w-5 text-primary" />
                 <Link href="/" className="text-lg font-bold text-foreground">
                   AgentPlanner
                 </Link>
               </div>
-              <span className="text-xs text-muted-foreground">{user.email}</span>
             </div>
 
             <div className="flex h-12 items-center justify-between border-b border-border/70 px-4 md:hidden">

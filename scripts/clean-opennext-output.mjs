@@ -1,8 +1,9 @@
 import { rm } from 'node:fs/promises'
 
 const targets = [
-  '.next/build',
-  '.next/standalone',
+  '.open-next/image-optimization-function',
+  '.open-next/server-function',
+  '.open-next',
 ]
 
 for (const target of targets) {

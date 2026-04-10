@@ -1,4 +1,4 @@
-/// <reference path="./.sst/platform/config.d.ts" />
+import type {} from "./.sst/platform/config";
 
 export default $config({
   app(input) {
@@ -18,6 +18,7 @@ export default $config({
 
     // Next.js app deployed via OpenNext → CloudFront + Lambda
     new sst.aws.Nextjs("AgentPlanner", {
+      buildCommand: "node scripts/clean-opennext-output.mjs && npx --yes @opennextjs/aws@3.9.14 build",
       link: [supabaseUrl, supabasePublishableKey, supabaseSecretKey, resendApiKey],
       environment: {
         NEXT_PUBLIC_SUPABASE_URL: supabaseUrl.value,

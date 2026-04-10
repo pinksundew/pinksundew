@@ -11,6 +11,7 @@ type ColumnProps = {
   tasks: TaskWithTags[]
   isSelectionMode?: boolean
   selectedTaskIds?: Set<string>
+  deletingTaskIds?: Set<string>
   onTaskClick?: (task: TaskWithTags) => void
 }
 
@@ -25,6 +26,7 @@ export function KanbanColumn({
   tasks,
   isSelectionMode = false,
   selectedTaskIds = new Set<string>(),
+  deletingTaskIds = new Set<string>(),
   onTaskClick,
 }: ColumnProps) {
   const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
@@ -40,6 +42,7 @@ export function KanbanColumn({
 
   return (
     <div
+      data-board-column={columnId}
       className="flex flex-col bg-muted/30 border border-border rounded-lg w-80 h-full overflow-hidden shrink-0 transition-colors"
       ref={setNodeRef}
     >
@@ -59,6 +62,7 @@ export function KanbanColumn({
               key={task.id}
               task={task}
               isSelected={selectedTaskIds.has(task.id)}
+              isDeleting={deletingTaskIds.has(task.id)}
               isSelectionMode={isSelectionMode}
               onClick={onTaskClick}
             />

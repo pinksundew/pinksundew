@@ -1,11 +1,15 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { 
   DndContext, 
   DragOverlay, 
   closestCorners, 
+  pointerWithin,
+  rectIntersection,
   useDroppable,
+  type Collision,
+  type CollisionDetection,
   KeyboardSensor, 
   PointerSensor, 
   useSensor, 
@@ -48,6 +52,63 @@ type KanbanBoardProps = {
 }
 
 const COLUMNS: TaskStatus[] = ['todo', 'in-progress', 'done']
+const ABYSS_DROP_ZONE_ID = 'abyss-drop-zone'
+const ABYSS_PROXIMITY_PADDING = 84
+const BASE_FLOATING_PILL_BOTTOM = 20
+const FLOATING_PILL_GAP = 12
+const ACTION_PILL_HEIGHT = 48
+const SELECTION_PILL_HEIGHT = 56
+
+const collisionDetectionStrategy: CollisionDetection = (args) => {
+  const abyssContainer = args.droppableContainers.find(
+    (container) => container.id === ABYSS_DROP_ZONE_ID
+  )
+
+  const abyssRect = abyssContainer
+    ? args.droppableRects.get(ABYSS_DROP_ZONE_ID)
+    : null
+
+  if (args.pointerCoordinates && abyssContainer && abyssRect) {
+    const { x, y } = args.pointerCoordinates
+    const isPointerNearAbyss =
+      x >= abyssRect.left - ABYSS_PROXIMITY_PADDING &&
+      x <= abyssRect.right + ABYSS_PROXIMITY_PADDING &&
+      y >= abyssRect.top - ABYSS_PROXIMITY_PADDING &&
+      y <= abyssRect.bottom + ABYSS_PROXIMITY_PADDING
+
+    if (isPointerNearAbyss) {
+      const proximityCollision: Collision = {
+        id: ABYSS_DROP_ZONE_ID,
+        data: {
+          droppableContainer: abyssContainer,
+          value: Number.POSITIVE_INFINITY,
+        },
+      }
+
+      return [proximityCollision]
+    }
+  }
+
+  const pointerCollisions = pointerWithin(args)
+  const abyssCollision = pointerCollisions.find(
+    (collision) => collision.id === ABYSS_DROP_ZONE_ID
+  )
+
+  if (abyssCollision) {
+    return [abyssCollision]
+  }
+
+  const rectCollisions = rectIntersection(args)
+  const abyssRectCollision = rectCollisions.find(
+    (collision) => collision.id === ABYSS_DROP_ZONE_ID
+  )
+
+  if (abyssRectCollision) {
+    return [abyssRectCollision]
+  }
+
+  return closestCorners(args)
+}
 
 type PersistedTaskOrder = Pick<TaskWithTags, 'id' | 'status' | 'position'>
 
@@ -121,15 +182,21 @@ export function KanbanBoard({
   const [isAbyssModalOpen, setIsAbyssModalOpen] = useState(false)
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
+  const [deletingTaskIds, setDeletingTaskIds] = useState<Set<string>>(new Set())
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [selectedTask, setSelectedTask] = useState<TaskWithTags | null>(null)
   const [followUpSourceTask, setFollowUpSourceTask] = useState<Pick<TaskWithTags, 'id' | 'title'> | null>(null)
   const [activeTask, setActiveTask] = useState<TaskWithTags | null>(null)
   const [authPromptMessage, setAuthPromptMessage] = useState<string | null>(null)
+  const [pillAnchorX, setPillAnchorX] = useState<number | null>(null)
+  const [floatingPillBottom, setFloatingPillBottom] = useState(BASE_FLOATING_PILL_BOTTOM)
   const [supabase] = useState(() => createClient())
   const tasksRef = useRef<TaskWithTags[]>(normalizeVisibleTasks(initialTasks))
   const dragStartTasksRef = useRef<TaskWithTags[] | null>(null)
+  const boardScrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const abyssDropElementRef = useRef<HTMLDivElement | null>(null)
+  const abyssCtaButtonRef = useRef<HTMLButtonElement | null>(null)
   const isPersistingOrderRef = useRef(false)
   const lastPersistedTasksRef = useRef<TaskWithTags[]>(normalizeVisibleTasks(initialTasks))
   const pendingPersistRef = useRef<{
@@ -139,6 +206,7 @@ export function KanbanBoard({
   const isPersistLoopRunningRef = useRef(false)
   const hasGuestDraftRef = useRef(false)
   const isAutoRefreshRunningRef = useRef(false)
+  const isDragOverProcessingRef = useRef(false)
 
   const persistGuestTasks = (taskList: TaskWithTags[]) => {
     saveGuestDraft(projectName, taskList)
@@ -334,9 +402,114 @@ export function KanbanBoard({
   )
 
   const { isOver: isOverAbyssDrop, setNodeRef: setAbyssDropNodeRef } = useDroppable({
-    id: 'abyss-drop-zone',
+    id: ABYSS_DROP_ZONE_ID,
     data: { type: 'AbyssDropZone' },
   })
+
+  const setAbyssDropRefs = useCallback(
+    (node: HTMLDivElement | null) => {
+      abyssDropElementRef.current = node
+      setAbyssDropNodeRef(node)
+    },
+    [setAbyssDropNodeRef]
+  )
+
+  const isPointNearAbyss = useCallback((x: number, y: number) => {
+    const abyssRect = abyssDropElementRef.current?.getBoundingClientRect()
+    if (!abyssRect) return false
+
+    return (
+      x >= abyssRect.left - ABYSS_PROXIMITY_PADDING &&
+      x <= abyssRect.right + ABYSS_PROXIMITY_PADDING &&
+      y >= abyssRect.top - ABYSS_PROXIMITY_PADDING &&
+      y <= abyssRect.bottom + ABYSS_PROXIMITY_PADDING
+    )
+  }, [])
+
+  const updatePillAnchor = useCallback(() => {
+    if (typeof window === 'undefined') return
+
+    const scrollContainer = boardScrollContainerRef.current
+    if (!scrollContainer) {
+      setPillAnchorX(null)
+      return
+    }
+
+    const inProgressColumn = scrollContainer.querySelector<HTMLElement>(
+      '[data-board-column="in-progress"]'
+    )
+
+    if (!inProgressColumn) {
+      setPillAnchorX(null)
+      return
+    }
+
+    const columnRect = inProgressColumn.getBoundingClientRect()
+    const targetCenterX = columnRect.left + columnRect.width / 2
+    const clampedCenterX = Math.min(window.innerWidth - 24, Math.max(24, targetCenterX))
+
+    setPillAnchorX((previous) => {
+      if (previous !== null && Math.abs(previous - clampedCenterX) < 0.5) {
+        return previous
+      }
+
+      return clampedCenterX
+    })
+  }, [])
+
+  const updateFloatingPillBottom = useCallback(() => {
+    if (typeof window === 'undefined') return
+
+    const abyssRect = abyssCtaButtonRef.current?.getBoundingClientRect()
+    const baseBottom = BASE_FLOATING_PILL_BOTTOM
+
+    if (!abyssRect || abyssRect.bottom <= 0 || abyssRect.top >= window.innerHeight) {
+      setFloatingPillBottom(baseBottom)
+      return
+    }
+
+    const pillHeight = isSelectionMode ? SELECTION_PILL_HEIGHT : ACTION_PILL_HEIGHT
+    const pillTopAtBase = window.innerHeight - baseBottom - pillHeight
+    const pillBottomAtBase = window.innerHeight - baseBottom
+
+    const hasOverlapAtBase =
+      pillTopAtBase < abyssRect.bottom + FLOATING_PILL_GAP &&
+      pillBottomAtBase > abyssRect.top - FLOATING_PILL_GAP
+
+    if (!hasOverlapAtBase) {
+      setFloatingPillBottom(baseBottom)
+      return
+    }
+
+    const requiredBottom = window.innerHeight - abyssRect.top + FLOATING_PILL_GAP
+    setFloatingPillBottom(Math.max(baseBottom, Math.ceil(requiredBottom)))
+  }, [isSelectionMode])
+
+  useEffect(() => {
+    updatePillAnchor()
+
+    const handlePillAnchorUpdate = () => {
+      updatePillAnchor()
+      updateFloatingPillBottom()
+    }
+
+    window.addEventListener('resize', handlePillAnchorUpdate)
+    window.addEventListener('scroll', handlePillAnchorUpdate, { passive: true })
+
+    const scrollContainer = boardScrollContainerRef.current
+    scrollContainer?.addEventListener('scroll', handlePillAnchorUpdate, { passive: true })
+
+    return () => {
+      window.removeEventListener('resize', handlePillAnchorUpdate)
+      window.removeEventListener('scroll', handlePillAnchorUpdate)
+      scrollContainer?.removeEventListener('scroll', handlePillAnchorUpdate)
+    }
+  }, [updateFloatingPillBottom, updatePillAnchor])
+
+  useEffect(() => {
+    updatePillAnchor()
+    updateFloatingPillBottom()
+  }, [activeTask, isSelectionMode, tasks, updateFloatingPillBottom, updatePillAnchor])
 
   const selectedTasks = tasks.filter((task) => selectedTaskIds.has(task.id))
 
@@ -512,32 +685,38 @@ export function KanbanBoard({
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event
     const activeId = String(active.id)
+
     dragStartTasksRef.current = [...tasksRef.current]
     setActiveTask(tasksRef.current.find((task) => task.id === activeId) || null)
   }
 
   const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event
-    if (!over) return
+    if (isDragOverProcessingRef.current) return
+    isDragOverProcessingRef.current = true
 
-    const activeId = String(active.id)
-    const overId = String(over.id)
+    try {
+      const { active, over } = event
+      if (!over) return
 
-    if (activeId === overId) return
-    if (overId === 'abyss-drop-zone') return
+      const activeId = String(active.id)
+      const overId = String(over.id)
 
-    // If active task status hasn't changed AND it's a Column, skip
-    // Sorting within column is handled by SortableContext automatic logic 
-    // but building the preview for cross-column needs to be careful
-    const activeTaskInList = tasksRef.current.find(t => t.id === activeId)
-    if (over.data.current?.type === 'Column' && activeTaskInList?.status === overId) {
-      return
-    }
+      if (activeId === overId) return
+      if (overId === ABYSS_DROP_ZONE_ID || over.data.current?.type === 'AbyssDropZone') return
 
-    const preview = buildReorderedTasks(tasksRef.current, activeId, overId, over.data.current?.type)
-    if (preview && hasOrderChanged(tasksRef.current, preview)) {
-      tasksRef.current = preview
-      setTasks(preview)
+      // If active task status hasn't changed AND it's a Column, skip
+      const activeTaskInList = tasksRef.current.find(t => t.id === activeId)
+      if (over.data.current?.type === 'Column' && activeTaskInList?.status === overId) {
+        return
+      }
+
+      const preview = buildReorderedTasks(tasksRef.current, activeId, overId, over.data.current?.type)
+      if (preview && hasOrderChanged(tasksRef.current, preview)) {
+        tasksRef.current = preview
+        setTasks(preview)
+      }
+    } finally {
+      isDragOverProcessingRef.current = false
     }
   }
 
@@ -546,11 +725,23 @@ export function KanbanBoard({
     const activeId = String(active.id)
     const overId = over ? String(over.id) : null
     const overType = over?.data.current?.type
+    const translatedRect = active.rect.current.translated
+    const droppedNearAbyss = translatedRect
+      ? isPointNearAbyss(
+          translatedRect.left + translatedRect.width / 2,
+          translatedRect.top + translatedRect.height / 2
+        )
+      : false
 
     setActiveTask(null)
     const dragStartTasks = dragStartTasksRef.current ?? tasksRef.current
     const currentPreviewTasks = tasksRef.current
     dragStartTasksRef.current = null
+
+    if (droppedNearAbyss) {
+      void deleteTaskById(activeId)
+      return
+    }
 
     if (!over) {
       // DragOver may have already moved the task visually; persist if changed
@@ -563,8 +754,8 @@ export function KanbanBoard({
       return
     }
 
-    if (over.id === 'abyss-drop-zone') {
-      setTaskToDelete(activeId)
+    if (overId === ABYSS_DROP_ZONE_ID || overType === 'AbyssDropZone') {
+      void deleteTaskById(activeId)
       return
     }
 
@@ -588,19 +779,34 @@ export function KanbanBoard({
     }
   }
 
-  const handleConfirmDelete = async () => {
-    if (!taskToDelete) return
-
-    const id = taskToDelete
+  const deleteTaskById = async (id: string) => {
     const previousTasks = tasksRef.current
-    const remainingTasks = normalizeTaskPositions(previousTasks.filter((task) => task.id !== id))
+    if (!previousTasks.some((task) => task.id === id)) {
+      return
+    }
+
+    setDeletingTaskIds((prev) => {
+      const next = new Set(prev)
+      next.add(id)
+      return next
+    })
+
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 180)
+    })
+
+    const remainingTasks = normalizeTaskPositions(tasksRef.current.filter((task) => task.id !== id))
 
     tasksRef.current = remainingTasks
     setTasks(remainingTasks)
 
     if (isGuestMode) {
       persistGuestTasks(remainingTasks)
-      setTaskToDelete(null)
+      setDeletingTaskIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
       return
     }
 
@@ -615,6 +821,21 @@ export function KanbanBoard({
       tasksRef.current = previousTasks
       setTasks(previousTasks)
     } finally {
+      setDeletingTaskIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!taskToDelete) return
+
+    const id = taskToDelete
+    try {
+      await deleteTaskById(id)
+    } finally {
       setTaskToDelete(null)
     }
   }
@@ -622,12 +843,33 @@ export function KanbanBoard({
   const guestTaskLimitReached =
     isGuestMode && countActiveGuestTasks(tasks) >= GUEST_ACTIVE_TASK_LIMIT
 
+  const isAnyModalOpen =
+    isCreateModalOpen ||
+    isDetailsModalOpen ||
+    isTagModalOpen ||
+    isAgentInstructionsOpen ||
+    isExportModalOpen ||
+    isAbyssModalOpen ||
+    isConnectModalOpen ||
+    taskToDelete !== null ||
+    authPromptMessage !== null
+
+  const shouldShowActionPill = !isSelectionMode && !isAnyModalOpen
+  const shouldShowSelectionPill = isSelectionMode && !isAnyModalOpen
+
   return (
     <div className="h-full flex flex-col items-start w-full relative">
-      <div className="w-full flex justify-between items-center mb-6 shrink-0 font-sans sticky top-24 z-30 bg-[var(--color-muted)]/20 backdrop-blur-sm py-2 -mt-2">
-         <div>
-           <div className="flex items-center gap-3">
-             <h1 className="text-2xl font-bold text-foreground">{projectName}</h1>
+      <div className="sticky top-24 z-30 mb-6 -mt-2 w-full shrink-0 bg-[var(--color-muted)]/20 py-2 backdrop-blur-sm">
+         <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+             <h1 className="max-w-full truncate text-2xl font-bold text-foreground sm:text-[2rem] lg:max-w-[34rem]">
+               {projectName}
+             </h1>
+             <span className="hidden text-sm text-muted-foreground md:inline">
+             {isGuestMode
+               ? 'Guest mode'
+               : 'Project Board'}
+             </span>
              <button
                type="button"
                onClick={() => {
@@ -638,29 +880,26 @@ export function KanbanBoard({
 
                  setIsConnectModalOpen(true)
                }}
-               className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.08em] text-primary-foreground uppercase transition-colors hover:bg-primary/20"
+               className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/20 sm:text-sm"
              >
                <PlugZap className="h-3.5 w-3.5" />
-               Connect to MCP
+               <span className="hidden sm:inline">Connect to MCP</span>
+               <span className="sm:hidden">Connect MCP</span>
              </button>
            </div>
-           <p className="text-sm text-muted-foreground">
-             {isGuestMode
-               ? 'Guest mode: saved in this browser only. Sign in before leaving this device.'
-               : 'Project Board'}
-           </p>
-         </div>
-         <div className="flex gap-2">
+         <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={startSelectionMode}
               disabled={isSelectionMode}
-              className={`inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+              className={`inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-xl border px-4 text-sm font-medium transition-colors ${
                 isSelectionMode
                   ? 'border-rose-200 bg-rose-50 text-rose-700 opacity-70'
                   : 'border-border text-foreground hover:bg-muted'
               }`}
             >
-              <Download className="h-4 w-4" /> Export to AI Agent
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Export to AI Agent</span>
+              <span className="sm:hidden">Export</span>
             </button>
             <button
               onClick={() => {
@@ -671,10 +910,13 @@ export function KanbanBoard({
 
                 setIsAgentInstructionsOpen(true)
               }}
-              className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-xl border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
             >
-              <FileText className="h-4 w-4" /> Agent Instructions
+              <FileText className="h-4 w-4" />
+              <span className="hidden sm:inline">Agent Instructions</span>
+              <span className="sm:hidden">Instructions</span>
             </button>
+           </div>
          </div>
       </div>
       
@@ -724,13 +966,16 @@ export function KanbanBoard({
       
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={collisionDetectionStrategy}
         autoScroll={false}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex justify-start xl:justify-center gap-6 w-full h-full pb-10 overflow-x-auto min-viewport-p">
+        <div
+          ref={boardScrollContainerRef}
+          className="flex justify-start xl:justify-center gap-6 w-full h-full pb-10 overflow-x-auto min-viewport-p"
+        >
           {COLUMNS.map((columnId) => (
             <KanbanColumn
               key={columnId}
@@ -738,6 +983,7 @@ export function KanbanBoard({
               tasks={tasks.filter((t) => t.status === columnId)}
               isSelectionMode={isSelectionMode}
               selectedTaskIds={selectedTaskIds}
+              deletingTaskIds={deletingTaskIds}
               onTaskClick={handleTaskClick}
             />
           ))}
@@ -746,9 +992,85 @@ export function KanbanBoard({
         <DragOverlay>
           {activeTask && !isSelectionMode ? <TaskCard task={activeTask} isOverlay /> : null}
         </DragOverlay>
+
+        {shouldShowActionPill ? (
+          <div
+            className="pointer-events-none fixed z-[70] -translate-x-1/2 transition-[bottom] duration-200 ease-out"
+            style={{
+              left: pillAnchorX !== null ? `${pillAnchorX}px` : '50%',
+              bottom: `${floatingPillBottom}px`,
+            }}
+          >
+            <div className="relative h-12 w-[20rem] max-w-[calc(100vw-2rem)]">
+              <div
+                className={`pointer-events-auto absolute inset-0 flex items-center rounded-full border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur transition-all duration-200 ease-out ${
+                  activeTask ? 'translate-y-1 scale-95 opacity-0' : 'translate-y-0 scale-100 opacity-100'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={openCreateFromPill}
+                  className="inline-flex h-full w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  {guestTaskLimitReached ? `Guest Limit (${GUEST_ACTIVE_TASK_LIMIT})` : 'Add Task'}
+                </button>
+              </div>
+
+              {/* Keep this droppable mounted full-time so dnd-kit can always measure it. */}
+              <div
+                ref={setAbyssDropRefs}
+                className={`absolute inset-0 flex items-center justify-center gap-2 rounded-full border px-5 text-sm font-semibold transition-all duration-200 ease-out ${
+                  activeTask
+                    ? isOverAbyssDrop
+                      ? 'pointer-events-auto scale-100 opacity-100 border-rose-300 bg-rose-50 text-rose-700 shadow-lg'
+                      : 'pointer-events-auto scale-100 opacity-100 border-slate-200 bg-white/95 text-slate-600 shadow-lg backdrop-blur'
+                    : 'pointer-events-none translate-y-1 scale-95 opacity-0 border-transparent bg-transparent text-transparent'
+                }`}
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>{isOverAbyssDrop ? 'Release to delete' : 'Drop here to delete'}</span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {shouldShowSelectionPill ? (
+          <div
+            className="pointer-events-none fixed z-[70] -translate-x-1/2 transition-[bottom] duration-200 ease-out"
+            style={{
+              left: pillAnchorX !== null ? `${pillAnchorX}px` : '50%',
+              bottom: `${floatingPillBottom}px`,
+            }}
+          >
+            <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur">
+              <button
+                type="button"
+                onClick={openExportModal}
+                disabled={selectedTaskIds.size === 0}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
+                  selectedTaskIds.size > 0
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    : 'bg-slate-200 text-slate-500'
+                }`}
+              >
+                {selectedTaskIds.size > 0 ? `Export (${selectedTaskIds.size})` : 'Export'}
+              </button>
+              <button
+                type="button"
+                onClick={exitSelectionMode}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Exit selection mode"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ) : null}
       </DndContext>
 
       <button
+        ref={abyssCtaButtonRef}
         type="button"
         onClick={() => {
           if (isGuestMode) {
@@ -862,64 +1184,6 @@ export function KanbanBoard({
           projectName={projectName}
           mode={mode}
         />
-      ) : null}
-      {!isSelectionMode ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[70] flex justify-center px-4">
-          <div
-            className={`pointer-events-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur transition-all duration-200 ${
-              activeTask ? 'min-w-[22rem] justify-between' : ''
-            }`}
-          >
-            <button
-              type="button"
-              onClick={openCreateFromPill}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              <PlusCircle className="h-4 w-4" />
-              {guestTaskLimitReached ? `Guest Limit (${GUEST_ACTIVE_TASK_LIMIT})` : 'Add Task'}
-            </button>
-
-            {activeTask ? (
-              <div
-                ref={setAbyssDropNodeRef}
-                className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all duration-200 ${
-                  isOverAbyssDrop
-                    ? 'scale-105 border-rose-300 bg-rose-50 text-rose-700 shadow-sm'
-                    : 'border-slate-200 bg-slate-50 text-slate-600'
-                }`}
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>{isOverAbyssDrop ? 'Release to abyss' : 'Drag to abyss'}</span>
-              </div>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-      {isSelectionMode ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[70] flex justify-center px-4">
-          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur">
-            <button
-              type="button"
-              onClick={openExportModal}
-              disabled={selectedTaskIds.size === 0}
-              className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
-                selectedTaskIds.size > 0
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                  : 'bg-slate-200 text-slate-500'
-              }`}
-            >
-              {selectedTaskIds.size > 0 ? `Export (${selectedTaskIds.size})` : 'Export'}
-            </button>
-            <button
-              type="button"
-              onClick={exitSelectionMode}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-              aria-label="Exit selection mode"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
       ) : null}
       <ConfirmModal
         isOpen={taskToDelete !== null}

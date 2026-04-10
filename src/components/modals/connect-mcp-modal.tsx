@@ -27,7 +27,6 @@ type Guide = {
 }
 
 type SnippetConfig = {
-  serverName: string
   apiKey: string
   projectId: string
 }
@@ -94,7 +93,7 @@ function createGuides(): Record<GuideId, Guide> {
       description:
         'Add the Pink Sundew MCP server to your workspace settings. One copy-paste and reload.',
       steps: [
-        'Generate an API key below (or use an existing one).',
+        'Generate an API key (or use an existing one).',
         'Copy the mcp.json snippet and paste it into .vscode/mcp.json in your project.',
         'Add .vscode/mcp.json to your .gitignore to keep your API key private.',
         'Reload VS Code window, then open Copilot Chat and confirm MCP tools appear.',
@@ -107,7 +106,7 @@ function createGuides(): Record<GuideId, Guide> {
           code: JSON.stringify(
             {
               servers: {
-                [config.serverName]: {
+                pinksundew: {
                   type: 'stdio',
                   command: 'npx',
                   args: ['-y', '@pinksundew/mcp'],
@@ -131,7 +130,7 @@ function createGuides(): Record<GuideId, Guide> {
       description:
         'Add via CLI or paste the JSON into your project .mcp.json config file.',
       steps: [
-        'Generate an API key below.',
+        'Generate an API key.',
         'Run the CLI command from your project root, OR paste the JSON into .mcp.json.',
         'In Claude Code, run /mcp to verify the server is connected.',
       ],
@@ -144,7 +143,7 @@ function createGuides(): Record<GuideId, Guide> {
             'claude mcp add --transport stdio --scope project \\',
             `  --env AGENTPLANNER_API_KEY=${config.apiKey} \\`,
             `  --env AGENTPLANNER_PROJECT_IDS=${config.projectId} \\`,
-            `  ${config.serverName} -- npx -y @pinksundew/mcp`,
+            '  pinksundew -- npx -y @pinksundew/mcp',
           ].join('\n'),
         },
         {
@@ -154,7 +153,7 @@ function createGuides(): Record<GuideId, Guide> {
           code: JSON.stringify(
             {
               mcpServers: {
-                [config.serverName]: {
+                pinksundew: {
                   type: 'stdio',
                   command: 'npx',
                   args: ['-y', '@pinksundew/mcp'],
@@ -178,7 +177,7 @@ function createGuides(): Record<GuideId, Guide> {
       description:
         'Codex supports MCP through codex mcp commands or config.toml.',
       steps: [
-        'Generate an API key below.',
+        'Generate an API key.',
         'Add the server with codex mcp add (fastest) or paste the TOML block into ~/.codex/config.toml.',
         'Run /mcp in Codex or codex mcp list in terminal to verify.',
       ],
@@ -188,7 +187,7 @@ function createGuides(): Record<GuideId, Guide> {
           label: 'CLI command',
           language: 'bash',
           code: [
-            `codex mcp add ${config.serverName} \\`,
+            'codex mcp add pinksundew \\',
             `  --env AGENTPLANNER_API_KEY=${config.apiKey} \\`,
             `  --env AGENTPLANNER_PROJECT_IDS=${config.projectId} \\`,
             '  -- npx -y @pinksundew/mcp',
@@ -199,11 +198,11 @@ function createGuides(): Record<GuideId, Guide> {
           label: '~/.codex/config.toml',
           language: 'toml',
           code: [
-            `[mcp_servers.${config.serverName}]`,
+            '[mcp_servers.pinksundew]',
             'command = "npx"',
             'args = ["-y", "@pinksundew/mcp"]',
             '',
-            `[mcp_servers.${config.serverName}.env]`,
+            '[mcp_servers.pinksundew.env]',
             `AGENTPLANNER_API_KEY = "${config.apiKey}"`,
             `AGENTPLANNER_PROJECT_IDS = "${config.projectId}"`,
           ].join('\n'),
@@ -217,7 +216,7 @@ function createGuides(): Record<GuideId, Guide> {
       description:
         'Add a local stdio MCP server with the configuration below.',
       steps: [
-        'Generate an API key below.',
+        'Generate an API key.',
         'Open Antigravity MCP settings and add a new local/stdio server.',
         'Paste the JSON config below, then reconnect the workspace.',
       ],
@@ -228,7 +227,7 @@ function createGuides(): Record<GuideId, Guide> {
           language: 'json',
           code: JSON.stringify(
             {
-              name: config.serverName,
+              name: 'pinksundew',
               type: 'stdio',
               command: 'npx',
               args: ['-y', '@pinksundew/mcp'],
@@ -246,10 +245,17 @@ function createGuides(): Record<GuideId, Guide> {
   }
 }
 
+function generateUniqueKeyName(): string {
+  const now = new Date()
+  const month = now.toLocaleString('en-US', { month: 'short' })
+  const day = now.getDate()
+  const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return `MCP ${month} ${day} ${time}`
+}
+
 export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalProps) {
   const [activeGuideId, setActiveGuideId] = useState<GuideId>('vscode')
   const [copiedSnippetId, setCopiedSnippetId] = useState<string | null>(null)
-  const [serverName, setServerName] = useState('pinksundew')
   const [apiKey, setApiKey] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [keyGenerated, setKeyGenerated] = useState(false)
@@ -260,12 +266,10 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
     if (!isOpen) {
       setCopiedSnippetId(null)
       setActiveGuideId('vscode')
-      // Don't reset apiKey/serverName so user doesn't lose their key if they close and reopen
     }
   }, [isOpen])
 
   const snippetConfig: SnippetConfig = {
-    serverName: serverName || 'pinksundew',
     apiKey: apiKey || 'YOUR_API_KEY',
     projectId,
   }
@@ -279,7 +283,7 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
       const res = await fetch('/api/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: `MCP: ${serverName || 'pinksundew'}` }),
+        body: JSON.stringify({ name: generateUniqueKeyName() }),
       })
       if (!res.ok) throw new Error('Failed to create key')
       const data = await res.json()
@@ -323,7 +327,7 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
           initial={{ scale: 0.96, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.96, opacity: 0 }}
-          className="relative flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
+          className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
@@ -332,9 +336,6 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
                 <PlugZap className="h-3.5 w-3.5" /> Connect
               </div>
               <h2 className="mt-2 text-xl font-semibold text-foreground">Connect MCP Server</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                One-shot setup for Pink Sundew MCP integration.
-              </p>
             </div>
             <button
               type="button"
@@ -345,162 +346,167 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
             </button>
           </div>
 
-          {/* Configuration Section */}
-          <div className="border-b border-border bg-muted/10 px-5 py-4">
-            <div className="space-y-4">
-              {/* Server Name */}
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Server Name
-                </label>
-                <input
-                  type="text"
-                  value={serverName}
-                  onChange={(e) => setServerName(e.target.value.replace(/[^a-z0-9-_]/gi, '').toLowerCase())}
-                  placeholder="pinksundew"
-                  className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
+          {/* Two-column layout */}
+          <div className="flex min-h-0 flex-1">
+            {/* Left sidebar - API Key */}
+            <div className="w-64 shrink-0 border-r border-border bg-muted/10 p-4">
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Key className="h-4 w-4" />
+                    API Key
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Required to authenticate the MCP server.
+                  </p>
+                </div>
 
-              {/* API Key */}
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  API Key
-                </label>
                 {hasApiKey ? (
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
-                      <Check className="h-4 w-4 text-green-600" />
-                      <code className="flex-1 truncate font-mono text-sm text-green-800">
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-2">
+                      <div className="flex items-center gap-1.5">
+                        <Check className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                        <span className="text-xs font-medium text-green-700">Key Generated</span>
+                      </div>
+                      <code className="mt-1.5 block truncate font-mono text-[10px] text-green-800">
                         {apiKey}
                       </code>
                       <button
                         type="button"
                         onClick={() => copySnippet('api-key', apiKey)}
-                        className="rounded-md p-1 text-green-700 hover:bg-green-100"
+                        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-green-200 bg-white px-2 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-50"
                       >
                         {copiedSnippetId === 'api-key' ? (
-                          <Check className="h-4 w-4" />
+                          <>
+                            <Check className="h-3 w-3" /> Copied
+                          </>
                         ) : (
-                          <Copy className="h-4 w-4" />
+                          <>
+                            <Copy className="h-3 w-3" /> Copy Key
+                          </>
                         )}
                       </button>
                     </div>
                     {keyGenerated && (
-                      <p className="text-xs text-amber-700">
-                        Save this key now — it won&apos;t be shown again after you close this modal.
+                      <p className="text-[10px] leading-tight text-amber-700">
+                        Save this key — it won&apos;t be shown again after closing.
                       </p>
                     )}
                   </div>
                 ) : (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="ap_your_api_key or generate one →"
-                      className="flex-1 rounded-lg border border-border bg-white px-3 py-2 font-mono text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
+                  <div className="space-y-2">
                     <button
                       type="button"
                       onClick={generateApiKey}
                       disabled={isGenerating}
-                      className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                     >
                       {isGenerating ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      Generate
+                      Generate Key
                     </button>
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-border" />
+                      </div>
+                      <div className="relative flex justify-center text-[10px] uppercase">
+                        <span className="bg-muted/10 px-2 text-muted-foreground">or paste</span>
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="ap_..."
+                      className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 font-mono text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
                   </div>
                 )}
-              </div>
 
-              {/* Project ID (read-only) */}
-              <div>
-                <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                  Project ID <span className="text-muted-foreground/60">(this project)</span>
-                </label>
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
-                  <code className="flex-1 truncate font-mono text-sm text-muted-foreground">
-                    {projectId}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => copySnippet('project-id', projectId)}
-                    className="rounded-md p-1 text-muted-foreground hover:bg-muted"
-                  >
-                    {copiedSnippetId === 'project-id' ? (
-                      <Check className="h-4 w-4" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </button>
+                <div className="border-t border-border pt-4">
+                  <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Project ID
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-border bg-white px-2 py-1.5">
+                    <code className="flex-1 truncate font-mono text-[10px] text-muted-foreground">
+                      {projectId}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => copySnippet('project-id', projectId)}
+                      className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted"
+                    >
+                      {copiedSnippetId === 'project-id' ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <Copy className="h-3 w-3" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* IDE Tabs */}
-          <div className="border-b border-border bg-background px-5 pt-4">
-            <div className="flex flex-wrap gap-2 pb-4">
-              {(Object.values(guides) as Guide[]).map((guide) => (
-                <button
-                  key={guide.id}
-                  type="button"
-                  onClick={() => setActiveGuideId(guide.id)}
-                  className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                    activeGuideId === guide.id
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-white text-foreground hover:bg-muted'
-                  }`}
-                >
-                  {guide.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Guide Content */}
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-foreground">{activeGuide.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{activeGuide.description}</p>
-            </div>
-
-            <div className="mb-5 rounded-xl border border-border bg-muted/20 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Setup Steps
+            {/* Right content - Config */}
+            <div className="flex min-w-0 flex-1 flex-col">
+              {/* IDE Tabs */}
+              <div className="border-b border-border bg-background px-4 pt-3">
+                <div className="flex flex-wrap gap-1.5 pb-3">
+                  {(Object.values(guides) as Guide[]).map((guide) => (
+                    <button
+                      key={guide.id}
+                      type="button"
+                      onClick={() => setActiveGuideId(guide.id)}
+                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                        activeGuideId === guide.id
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-white text-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {guide.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-foreground">
-                {activeGuide.steps.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ol>
-            </div>
 
-            <div className="space-y-4">
-              {snippets.map((snippet) => (
-                <CodeSnippetCard
-                  key={snippet.id}
-                  id={snippet.id}
-                  label={snippet.label}
-                  language={snippet.language}
-                  code={snippet.code}
-                  copiedSnippetId={copiedSnippetId}
-                  onCopy={copySnippet}
-                />
-              ))}
-            </div>
+              {/* Guide Content */}
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                <div className="mb-3">
+                  <h3 className="text-base font-semibold text-foreground">{activeGuide.title}</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{activeGuide.description}</p>
+                </div>
 
-            {!hasApiKey && (
-              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                <Key className="mr-1.5 inline-block h-4 w-4" />
-                Generate or enter an API key above to populate the config snippets.
+                <ol className="mb-4 list-decimal space-y-1 pl-4 text-xs text-foreground">
+                  {activeGuide.steps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+
+                <div className="space-y-3">
+                  {snippets.map((snippet) => (
+                    <CodeSnippetCard
+                      key={snippet.id}
+                      id={snippet.id}
+                      label={snippet.label}
+                      language={snippet.language}
+                      code={snippet.code}
+                      copiedSnippetId={copiedSnippetId}
+                      onCopy={copySnippet}
+                    />
+                  ))}
+                </div>
+
+                {!hasApiKey && (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
+                    <Key className="mr-1 inline-block h-3.5 w-3.5" />
+                    Generate an API key to populate the config snippets.
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </motion.div>
       </div>

@@ -939,7 +939,7 @@ export function KanbanBoard({
               }`}
             >
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export to AI Agent</span>
+              <span className="hidden sm:inline">Manual Export to AI Agent</span>
               <span className="sm:hidden">Export</span>
             </button>
             <button

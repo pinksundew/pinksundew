@@ -1,4 +1,5 @@
-export const INSTRUCTION_SET_SCOPES = ['global', 'specialized'] as const
+// Only global scope remains - specialized scope has been removed
+export const INSTRUCTION_SET_SCOPES = ['global'] as const
 
 export type InstructionSetScope = (typeof INSTRUCTION_SET_SCOPES)[number]
 
@@ -42,18 +43,13 @@ export type AgentInstructionSetWithFileMeta = AgentInstructionSet & {
   files: AgentInstructionFileMeta[]
 }
 
-export type TaskInstructionSetLink = {
-  task_id: string
-  set_id: string
-  created_at: string
-  created_by: string | null
-}
+// Task linking types removed - no longer needed with global-only scope
 
 export type ResolvedInstructionSet = {
   id: string
   name: string
   code: string
   scope: InstructionSetScope
-  source: 'global' | 'linked'
+  source: 'global'
   files: Pick<AgentInstructionFile, 'file_name' | 'content' | 'content_hash' | 'updated_at'>[]
 }

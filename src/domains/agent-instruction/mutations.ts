@@ -136,36 +136,21 @@ export async function deleteInstructionFile(
   if (error) throw error
 }
 
-export async function linkInstructionSetToTask(
-  client: SupabaseClient,
-  input: LinkTaskInstructionSetInput
-): Promise<void> {
-  const { error } = await client
-    .from('task_instruction_set_links')
-    .upsert(
-      {
-        task_id: input.task_id,
-        set_id: input.set_id,
-        created_by: input.created_by ?? null,
-      },
-      {
-        onConflict: 'task_id,set_id',
-      }
-    )
+// Task instruction linking is deprecated - only global instruction sets are used
+// Keeping exports for API compatibility with existing code
+// These are now no-ops
 
-  if (error) throw error
+export async function linkInstructionSetToTask(
+  _client: SupabaseClient,
+  _input: LinkTaskInstructionSetInput
+): Promise<void> {
+  // No-op: task linking is deprecated
 }
 
 export async function unlinkInstructionSetFromTask(
-  client: SupabaseClient,
-  taskId: string,
-  setId: string
+  _client: SupabaseClient,
+  _taskId: string,
+  _setId: string
 ): Promise<void> {
-  const { error } = await client
-    .from('task_instruction_set_links')
-    .delete()
-    .eq('task_id', taskId)
-    .eq('set_id', setId)
-
-  if (error) throw error
+  // No-op: task linking is deprecated
 }

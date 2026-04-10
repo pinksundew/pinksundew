@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
 import { requireTaskAccess } from '@/lib/bridge-access'
-import {
-  getResolvedTaskInstructionSets,
-  getTaskLinkedInstructionSetIds,
-} from '@/domains/agent-instruction/queries'
+import { getResolvedTaskInstructionSets } from '@/domains/agent-instruction/queries'
 import { getTaskPlans } from '@/domains/plan/queries'
 import { mapTaskWithTags, TaskWithTaskTagsRow } from '@/domains/task/normalization'
 import { listTaskStateMessages } from '@/domains/task/mutations'
@@ -58,19 +55,12 @@ export async function GET(
     successorsQuery,
   ])
 
-  const [linkedInstructionSetIds, resolvedInstructionSets] = await Promise.all([
-    getTaskLinkedInstructionSetIds(auth.supabase, taskId),
-    getResolvedTaskInstructionSets(auth.supabase, taskData.project_id, taskId),
-  ])
-
-  const linkedInstructionSets = resolvedInstructionSets
-    .filter((set) => linkedInstructionSetIds.includes(set.id))
-    .map((set) => ({
-      id: set.id,
-      name: set.name,
-      code: set.code,
-      scope: set.scope,
-    }))
+  // Only global instruction sets are returned now (task linking is deprecated)
+  const resolvedInstructionSets = await getResolvedTaskInstructionSets(
+    auth.supabase,
+    taskData.project_id,
+    taskId
+  )
 
   const signalMessages = await listTaskStateMessages(auth.supabase, taskId, 25)
 
@@ -86,8 +76,9 @@ export async function GET(
     ...taskData,
     plans,
     signal_messages: signalMessages,
-    linked_instruction_set_ids: linkedInstructionSetIds,
-    linked_instruction_sets: linkedInstructionSets,
+    // Task linking is deprecated - these fields are kept for API compatibility
+    linked_instruction_set_ids: [],
+    linked_instruction_sets: [],
     resolved_instructions: resolvedInstructionSets,
     timeline: {
       predecessor: predecessorResult.data ?? null,

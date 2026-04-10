@@ -1,15 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Check,
   ChevronDown,
-  ChevronUp,
   Clipboard,
   GripVertical,
-  Plus,
-  Trash2,
   X,
 } from 'lucide-react'
 import {
@@ -31,12 +28,6 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { TaskWithTags } from '@/domains/task/types'
 
-type CustomInstruction = {
-  id: string
-  title: string
-  content: string
-}
-
 type ExportModalProps = {
   isOpen: boolean
   onClose: () => void
@@ -54,29 +45,12 @@ type ExportOptions = {
   includeTicketNumber: boolean
 }
 
-const CUSTOM_INSTRUCTIONS_STORAGE_KEY = 'planner_custom_instructions'
-
 const FORMAT_OPTIONS: Array<{ value: ExportFormat; label: string }> = [
   { value: 'numbered', label: 'Numbered' },
   { value: 'bullets', label: 'Bullets' },
   { value: 'checkboxes', label: 'Checkboxes' },
   { value: 'compact', label: 'Compact' },
 ]
-
-function loadCustomInstructions() {
-  if (typeof window === 'undefined') return [] as CustomInstruction[]
-
-  const rawValue = window.localStorage.getItem(CUSTOM_INSTRUCTIONS_STORAGE_KEY)
-  if (!rawValue) return [] as CustomInstruction[]
-
-  try {
-    const parsed = JSON.parse(rawValue) as CustomInstruction[]
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    window.localStorage.removeItem(CUSTOM_INSTRUCTIONS_STORAGE_KEY)
-    return [] as CustomInstruction[]
-  }
-}
 
 function formatTaskBlock(task: TaskWithTags, index: number, options: ExportOptions) {
   const description = task.description?.trim() || 'No description provided.'
@@ -147,24 +121,9 @@ function SortableTaskItem({ task, index }: SortableTaskItemProps) {
   )
 }
 
-function generateExportText(
-  tasks: TaskWithTags[],
-  selectedInstructions: CustomInstruction[],
-  options: ExportOptions
-) {
+function generateExportText(tasks: TaskWithTags[], options: ExportOptions) {
   const taskSections = tasks.map((task, index) => formatTaskBlock(task, index, options))
-
-  let content = `Implement these tasks:\n\n${taskSections.join('\n\n')}`
-
-  if (selectedInstructions.length > 0) {
-    const instructionSections = selectedInstructions.map(
-      (instruction) => `[${instruction.title}]\n${instruction.content}`
-    )
-
-    content += `\n\n--- CUSTOM INSTRUCTIONS ---\n\n${instructionSections.join('\n\n')}`
-  }
-
-  return content
+  return `Implement these tasks:\n\n${taskSections.join('\n\n')}`
 }
 
 export function ExportModal({
@@ -175,92 +134,37 @@ export function ExportModal({
   mode = 'authenticated',
 }: ExportModalProps) {
   const isGuestMode = mode === 'guest'
-  const [customInstructions, setCustomInstructions] = useState<CustomInstruction[]>(loadCustomInstructions)
   const [orderedTasks, setOrderedTasks] = useState<TaskWithTags[]>(tasks)
-  const [selectedInstructionIds, setSelectedInstructionIds] = useState<Set<string>>(new Set())
-  const selectedInstructions = useMemo(
-    () => customInstructions.filter((instruction) => selectedInstructionIds.has(instruction.id)),
-    [customInstructions, selectedInstructionIds]
-  )
   const [format, setFormat] = useState<ExportFormat>('numbered')
   const [includeTags, setIncludeTags] = useState(!isGuestMode)
   const [includePriority, setIncludePriority] = useState(true)
   const [includeTicketNumber, setIncludeTicketNumber] = useState(!isGuestMode)
-  const [isAddInstructionOpen, setIsAddInstructionOpen] = useState(false)
   const [exportCopied, setExportCopied] = useState(false)
-  const [instructionTitle, setInstructionTitle] = useState('')
-  const [instructionContent, setInstructionContent] = useState('')
+  
+  // Card expansion states - all collapsed by default
+  const [expandedCards, setExpandedCards] = useState({
+    options: false,
+    taskOrder: false,
+  })
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(CUSTOM_INSTRUCTIONS_STORAGE_KEY, JSON.stringify(customInstructions))
-  }, [customInstructions])
-
   const exportText = useMemo(
     () =>
-      generateExportText(orderedTasks, selectedInstructions, {
+      generateExportText(orderedTasks, {
         format,
         includeTags: isGuestMode ? false : includeTags,
         includePriority,
         includeTicketNumber: isGuestMode ? false : includeTicketNumber,
       }),
-    [
-    orderedTasks,
-    selectedInstructions,
-    format,
-    includeTags,
-    includePriority,
-    includeTicketNumber,
-    isGuestMode,
-    ]
+    [orderedTasks, format, includeTags, includePriority, includeTicketNumber, isGuestMode]
   )
 
-  const handleAddInstruction = () => {
-    const nextTitle = instructionTitle.trim()
-    const nextContent = instructionContent.trim()
-
-    if (!nextTitle || !nextContent) return
-
-    const instruction: CustomInstruction = {
-      id: crypto.randomUUID(),
-      title: nextTitle,
-      content: nextContent,
-    }
-
-    const nextInstructions = [...customInstructions, instruction]
-    const nextSelectedInstructionIds = new Set(selectedInstructionIds)
-    nextSelectedInstructionIds.add(instruction.id)
-
-    setCustomInstructions(nextInstructions)
-    setSelectedInstructionIds(nextSelectedInstructionIds)
-    setInstructionTitle('')
-    setInstructionContent('')
-    setIsAddInstructionOpen(false)
-  }
-
-  const handleDeleteInstruction = (instructionId: string) => {
-    const nextInstructions = customInstructions.filter((instruction) => instruction.id !== instructionId)
-    const nextSelectedInstructionIds = new Set(selectedInstructionIds)
-    nextSelectedInstructionIds.delete(instructionId)
-
-    setCustomInstructions(nextInstructions)
-    setSelectedInstructionIds(nextSelectedInstructionIds)
-  }
-
-  const toggleInstruction = (instructionId: string) => {
-    const nextSelectedInstructionIds = new Set(selectedInstructionIds)
-    if (nextSelectedInstructionIds.has(instructionId)) {
-      nextSelectedInstructionIds.delete(instructionId)
-    } else {
-      nextSelectedInstructionIds.add(instructionId)
-    }
-
-    setSelectedInstructionIds(nextSelectedInstructionIds)
+  const toggleCard = (card: keyof typeof expandedCards) => {
+    setExpandedCards((prev) => ({ ...prev, [card]: !prev[card] }))
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -328,199 +232,148 @@ export function ExportModal({
             <div className="flex min-h-0 flex-col overflow-hidden bg-slate-50/60">
               <div className="flex-1 space-y-4 overflow-y-auto p-4 scrollbar-thin">
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-foreground">Prompt Options</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Tighten the output format without changing the selected tasks.
-                    </p>
-                    {isGuestMode ? (
-                      <p className="mt-2 rounded-md border border-rose-100 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
-                        Guest exports always omit ticket numbers and tags.
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
-                    <label className="text-sm font-medium text-foreground" htmlFor="export-format">
-                      Format
-                    </label>
-                    <select
-                      id="export-format"
-                      value={format}
-                      onChange={(event) => setFormat(event.target.value as ExportFormat)}
-                      className="w-full max-w-[180px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      {FORMAT_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="mt-4 flex flex-col gap-3">
-                    {!isGuestMode ? (
-                      <>
-                        <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                          <input
-                            type="checkbox"
-                            checked={includeTicketNumber}
-                            onChange={(event) => setIncludeTicketNumber(event.target.checked)}
-                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                          />
-                          Include ticket number
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                          <input
-                            type="checkbox"
-                            checked={includeTags}
-                            onChange={(event) => setIncludeTags(event.target.checked)}
-                            className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                          />
-                          Include tags
-                        </label>
-                      </>
-                    ) : null}
-                    <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                      <input
-                        type="checkbox"
-                        checked={includePriority}
-                        onChange={(event) => setIncludePriority(event.target.checked)}
-                        className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                      />
-                      Include priority
-                    </label>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shrink-0">
-                  <div className="mb-3">
-                    <h3 className="text-sm font-semibold text-foreground">Task Order</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Reorder the exported list by dragging the handle.
-                    </p>
-                  </div>
-
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={handleDragEnd}
-                  >
-                    <SortableContext
-                      items={orderedTasks.map((t) => t.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1 flex flex-col min-h-0">
-                        {orderedTasks.map((task, index) => (
-                          <SortableTaskItem key={task.id} task={task} index={index} />
-                        ))}
-                      </div>
-                    </SortableContext>
-                  </DndContext>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <div className="mb-3">
-                    <h3 className="text-sm font-semibold text-foreground">Saved Instructions</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Choose reusable guidance to append below the task list.
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    {customInstructions.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-muted-foreground">
-                        No saved instructions yet.
-                      </div>
-                    ) : (
-                      customInstructions.map((instruction) => (
-                        <div
-                          key={instruction.id}
-                          className="rounded-lg border border-slate-200 p-3 transition-colors hover:border-primary/40"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <label className="flex flex-1 cursor-pointer items-start gap-3">
-                              <input
-                                type="checkbox"
-                                checked={selectedInstructionIds.has(instruction.id)}
-                                onChange={() => toggleInstruction(instruction.id)}
-                                className="mt-1 h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                              />
-                              <div>
-                                <div className="text-sm font-medium text-foreground">{instruction.title}</div>
-                                <div className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
-                                  {instruction.content}
-                                </div>
-                              </div>
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteInstruction(instruction.id)}
-                              className="rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-                              aria-label={`Delete ${instruction.title}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <button
                     type="button"
-                    onClick={() => setIsAddInstructionOpen((prev) => !prev)}
+                    onClick={() => toggleCard('options')}
                     className="flex w-full items-center justify-between gap-3 text-left"
                   >
                     <div>
-                      <div className="text-sm font-semibold text-foreground">Add Custom Instruction</div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        Save a new reusable prompt snippet.
-                      </div>
+                      <h3 className="text-sm font-semibold text-foreground">Prompt Options</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Tighten the output format without changing the selected tasks.
+                      </p>
                     </div>
-                    {isAddInstructionOpen ? (
-                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    )}
+                    <motion.div
+                      animate={{ rotate: expandedCards.options ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </motion.div>
                   </button>
 
-                  {isAddInstructionOpen ? (
-                    <div className="mt-4 space-y-3 rounded-lg border border-slate-200 bg-muted/20 p-3">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Title
-                        </label>
-                        <input
-                          value={instructionTitle}
-                          onChange={(event) => setInstructionTitle(event.target.value)}
-                          placeholder="Use Tailwind CSS"
-                          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Content
-                        </label>
-                        <textarea
-                          value={instructionContent}
-                          onChange={(event) => setInstructionContent(event.target.value)}
-                          placeholder="Prefer utility classes, keep components small, and preserve the existing design tokens."
-                          rows={4}
-                          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleAddInstruction}
-                        className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  <AnimatePresence initial={false}>
+                    {expandedCards.options && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                        className="overflow-hidden"
                       >
-                        <Plus className="h-4 w-4" /> Save Instruction
-                      </button>
+                        <div className="mt-4 space-y-4">
+                          {isGuestMode ? (
+                            <p className="rounded-md border border-rose-100 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
+                              Guest exports always omit ticket numbers and tags.
+                            </p>
+                          ) : null}
+
+                          <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
+                            <label className="text-sm font-medium text-foreground" htmlFor="export-format">
+                              Format
+                            </label>
+                            <select
+                              id="export-format"
+                              value={format}
+                              onChange={(event) => setFormat(event.target.value as ExportFormat)}
+                              className="w-full max-w-[180px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                            >
+                              {FORMAT_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="mt-4 flex flex-col gap-3">
+                            {!isGuestMode ? (
+                              <>
+                                <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                                  <input
+                                    type="checkbox"
+                                    checked={includeTicketNumber}
+                                    onChange={(event) => setIncludeTicketNumber(event.target.checked)}
+                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                                  />
+                                  Include ticket number
+                                </label>
+                                <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                                  <input
+                                    type="checkbox"
+                                    checked={includeTags}
+                                    onChange={(event) => setIncludeTags(event.target.checked)}
+                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                                  />
+                                  Include tags
+                                </label>
+                              </>
+                            ) : null}
+                            <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={includePriority}
+                                onChange={(event) => setIncludePriority(event.target.checked)}
+                                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                              />
+                              Include priority
+                            </label>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleCard('taskOrder')}
+                    className="flex w-full items-center justify-between gap-3 text-left"
+                  >
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Task Order</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Reorder the exported list by dragging the handle.
+                      </p>
                     </div>
-                  ) : null}
+                    <motion.div
+                      animate={{ rotate: expandedCards.taskOrder ? 180 : 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    </motion.div>
+                  </button>
+
+                  <AnimatePresence initial={false}>
+                    {expandedCards.taskOrder && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mt-3">
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                          >
+                            <SortableContext
+                              items={orderedTasks.map((t) => t.id)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              <div className="max-h-[300px] space-y-2 overflow-y-auto pr-1 flex flex-col min-h-0">
+                                {orderedTasks.map((task, index) => (
+                                  <SortableTaskItem key={task.id} task={task} index={index} />
+                                ))}
+                              </div>
+                            </SortableContext>
+                          </DndContext>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
 

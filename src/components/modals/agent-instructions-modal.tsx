@@ -6,7 +6,6 @@ import { FileText, Plus, Save, Shield, Trash2, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
   AgentInstructionSetWithFiles,
-  INSTRUCTION_SET_SCOPES,
   InstructionSetScope,
 } from '@/domains/agent-instruction/types'
 import { getProjectInstructionSets } from '@/domains/agent-instruction/queries'
@@ -66,10 +65,6 @@ function buildInstructionSetCode(rawName: string) {
 
 function sortInstructionSets(sets: AgentInstructionSetWithFiles[]) {
   return [...sets].sort((left, right) => {
-    if (left.scope !== right.scope) {
-      return left.scope === 'global' ? -1 : 1
-    }
-
     if (left.sort_order !== right.sort_order) {
       return left.sort_order - right.sort_order
     }
@@ -90,7 +85,6 @@ export function AgentInstructionsModal({
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
 
   const [newSetName, setNewSetName] = useState('')
-  const [newSetScope, setNewSetScope] = useState<InstructionSetScope>('specialized')
   const [isCreateSetOpen, setIsCreateSetOpen] = useState(false)
 
   const [newFileName, setNewFileName] = useState('')
@@ -278,11 +272,10 @@ export function AgentInstructionsModal({
         project_id: projectId,
         name,
         code: buildInstructionSetCode(name),
-        scope: newSetScope,
+        scope: 'global' as InstructionSetScope,
       })
 
       setNewSetName('')
-      setNewSetScope('specialized')
       setIsCreateSetOpen(false)
       await fetchInstructionSets({ selectedSetId: createdSet.id })
     } catch (error) {
@@ -481,20 +474,12 @@ export function AgentInstructionsModal({
                               : 'border-slate-200 hover:border-primary/30 hover:bg-muted/30'
                           }`}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium text-foreground">
-                                {instructionSet.name}
-                              </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="truncate text-sm font-medium text-foreground">
+                              {instructionSet.name}
                             </div>
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                                instructionSet.scope === 'global'
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : 'bg-sky-100 text-sky-700'
-                              }`}
-                            >
-                              {instructionSet.scope}
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                              global
                             </span>
                           </div>
                           <div className="mt-2 text-xs text-muted-foreground">
@@ -520,29 +505,12 @@ export function AgentInstructionsModal({
                           className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                         />
                       </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Scope
-                        </label>
-                        <select
-                          value={newSetScope}
-                          onChange={(event) => setNewSetScope(event.target.value as InstructionSetScope)}
-                          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          {INSTRUCTION_SET_SCOPES.map((scope) => (
-                            <option key={scope} value={scope}>
-                              {scope === 'global' ? 'Global (always applied)' : 'Specialized (link to tasks)'}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => {
                             setIsCreateSetOpen(false)
                             setNewSetName('')
-                            setNewSetScope('specialized')
                           }}
                           className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-foreground hover:bg-slate-50"
                         >

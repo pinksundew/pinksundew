@@ -42,12 +42,12 @@ export function TaskCard({
       id: task.id,
       task 
     },
-    disabled: isSelectionMode,
+    disabled: isSelectionMode || isDeleting,
   })
 
   const style = {
-    transition,
-    transform: CSS.Transform.toString(transform),
+    transition: isDeleting ? undefined : transition,
+    transform: isDeleting ? undefined : CSS.Transform.toString(transform),
   }
 
   const isReadyForReview = task.workflow_signal === 'ready_for_review'
@@ -82,7 +82,7 @@ export function TaskCard({
         group flex flex-col bg-white border p-4 rounded-xl transition-all shadow-sm
         ${signalClassName}
         ${isSelectionMode ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing border-border hover:border-primary/40 hover:shadow-md'}
-        ${isDeleting ? 'pointer-events-none' : ''}
+        ${isDeleting ? 'pointer-events-none task-delete-card border-rose-300 bg-rose-50/80 shadow-none' : ''}
         ${isSelected 
           ? 'border-rose-300 bg-rose-50/50 ring-2 ring-rose-200/50 shadow-md' 
           : ''}

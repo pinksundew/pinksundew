@@ -14,6 +14,7 @@ import {
   PointerSensor, 
   useSensor, 
   useSensors, 
+  DragCancelEvent,
   DragStartEvent,
   DragOverEvent,
   DragEndEvent
@@ -58,6 +59,7 @@ const BASE_FLOATING_PILL_BOTTOM = 20
 const FLOATING_PILL_GAP = 12
 const ACTION_PILL_HEIGHT = 48
 const SELECTION_PILL_HEIGHT = 56
+const TASK_DELETE_ANIMATION_MS = 260
 
 const collisionDetectionStrategy: CollisionDetection = (args) => {
   const abyssContainer = args.droppableContainers.find(
@@ -188,6 +190,7 @@ export function KanbanBoard({
   const [selectedTask, setSelectedTask] = useState<TaskWithTags | null>(null)
   const [followUpSourceTask, setFollowUpSourceTask] = useState<Pick<TaskWithTags, 'id' | 'title'> | null>(null)
   const [activeTask, setActiveTask] = useState<TaskWithTags | null>(null)
+  const [isDeleteArmed, setIsDeleteArmed] = useState(false)
   const [authPromptMessage, setAuthPromptMessage] = useState<string | null>(null)
   const [pillAnchorX, setPillAnchorX] = useState<number | null>(null)
   const [floatingPillBottom, setFloatingPillBottom] = useState(BASE_FLOATING_PILL_BOTTOM)
@@ -401,7 +404,7 @@ export function KanbanBoard({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  const { isOver: isOverAbyssDrop, setNodeRef: setAbyssDropNodeRef } = useDroppable({
+  const { setNodeRef: setAbyssDropNodeRef } = useDroppable({
     id: ABYSS_DROP_ZONE_ID,
     data: { type: 'AbyssDropZone' },
   })
@@ -686,8 +689,22 @@ export function KanbanBoard({
     const { active } = event
     const activeId = String(active.id)
 
+    setIsDeleteArmed(false)
     dragStartTasksRef.current = [...tasksRef.current]
     setActiveTask(tasksRef.current.find((task) => task.id === activeId) || null)
+  }
+
+  const handleDragCancel = (_event: DragCancelEvent) => {
+    setActiveTask(null)
+    setIsDeleteArmed(false)
+
+    const dragStartTasks = dragStartTasksRef.current
+    if (dragStartTasks) {
+      tasksRef.current = dragStartTasks
+      setTasks(dragStartTasks)
+    }
+
+    dragStartTasksRef.current = null
   }
 
   const handleDragOver = (event: DragOverEvent) => {
@@ -696,10 +713,26 @@ export function KanbanBoard({
 
     try {
       const { active, over } = event
-      if (!over) return
-
       const activeId = String(active.id)
+      const translatedRect = active.rect.current.translated
+      const isNearAbyss = translatedRect
+        ? isPointNearAbyss(
+            translatedRect.left + translatedRect.width / 2,
+            translatedRect.top + translatedRect.height / 2
+          )
+        : false
+
+      if (!over) {
+        setIsDeleteArmed(isNearAbyss)
+        return
+      }
+
       const overId = String(over.id)
+
+      const nextDeleteArmed =
+        overId === ABYSS_DROP_ZONE_ID || over.data.current?.type === 'AbyssDropZone' || isNearAbyss
+
+      setIsDeleteArmed(nextDeleteArmed)
 
       if (activeId === overId) return
       if (overId === ABYSS_DROP_ZONE_ID || over.data.current?.type === 'AbyssDropZone') return
@@ -734,6 +767,7 @@ export function KanbanBoard({
       : false
 
     setActiveTask(null)
+    setIsDeleteArmed(false)
     const dragStartTasks = dragStartTasksRef.current ?? tasksRef.current
     const currentPreviewTasks = tasksRef.current
     dragStartTasksRef.current = null
@@ -744,6 +778,7 @@ export function KanbanBoard({
     }
 
     if (!over) {
+      setIsDeleteArmed(false)
       // DragOver may have already moved the task visually; persist if changed
       if (hasOrderChanged(dragStartTasks, currentPreviewTasks)) {
         queuePersistTaskOrder(currentPreviewTasks)
@@ -779,6 +814,12 @@ export function KanbanBoard({
     }
   }
 
+  useEffect(() => {
+    if (!activeTask && isDeleteArmed) {
+      setIsDeleteArmed(false)
+    }
+  }, [activeTask, isDeleteArmed])
+
   const deleteTaskById = async (id: string) => {
     const previousTasks = tasksRef.current
     if (!previousTasks.some((task) => task.id === id)) {
@@ -792,7 +833,7 @@ export function KanbanBoard({
     })
 
     await new Promise<void>((resolve) => {
-      window.setTimeout(resolve, 180)
+      window.setTimeout(resolve, TASK_DELETE_ANIMATION_MS)
     })
 
     const remainingTasks = normalizeTaskPositions(tasksRef.current.filter((task) => task.id !== id))
@@ -969,6 +1010,7 @@ export function KanbanBoard({
         collisionDetection={collisionDetectionStrategy}
         autoScroll={false}
         onDragStart={handleDragStart}
+        onDragCancel={handleDragCancel}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
@@ -989,7 +1031,7 @@ export function KanbanBoard({
           ))}
         </div>
 
-        <DragOverlay>
+        <DragOverlay dropAnimation={null}>
           {activeTask && !isSelectionMode ? <TaskCard task={activeTask} isOverlay /> : null}
         </DragOverlay>
 
@@ -1022,14 +1064,14 @@ export function KanbanBoard({
                 ref={setAbyssDropRefs}
                 className={`absolute inset-0 flex items-center justify-center gap-2 rounded-full border px-5 text-sm font-semibold transition-all duration-200 ease-out ${
                   activeTask
-                    ? isOverAbyssDrop
-                      ? 'pointer-events-auto scale-100 opacity-100 border-rose-300 bg-rose-50 text-rose-700 shadow-lg'
+                    ? isDeleteArmed
+                      ? 'pointer-events-auto scale-105 opacity-100 border-rose-600 bg-rose-600 text-white shadow-xl ring-4 ring-rose-200/70'
                       : 'pointer-events-auto scale-100 opacity-100 border-slate-200 bg-white/95 text-slate-600 shadow-lg backdrop-blur'
                     : 'pointer-events-none translate-y-1 scale-95 opacity-0 border-transparent bg-transparent text-transparent'
                 }`}
               >
                 <Trash2 className="h-4 w-4" />
-                <span>{isOverAbyssDrop ? 'Release to delete' : 'Drop here to delete'}</span>
+                <span>{isDeleteArmed ? 'Release to delete' : 'Drop here to delete'}</span>
               </div>
             </div>
           </div>

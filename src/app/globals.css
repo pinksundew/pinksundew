@@ -88,17 +88,47 @@ body {
 @keyframes taskDeleteExit {
   0% {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
     filter: blur(0);
+  }
+
+  35% {
+    opacity: 0.95;
+    transform: translateY(2px) scale(0.98);
+    filter: blur(0.3px);
   }
 
   100% {
     opacity: 0;
-    transform: translateY(6px);
-    filter: blur(1px);
+    transform: translateY(14px) scale(0.9);
+    filter: blur(2px);
   }
 }
 
 .task-delete-exit {
-  animation: taskDeleteExit 180ms ease forwards;
+  animation: taskDeleteExit 260ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes taskDeleteCollapse {
+  0% {
+    opacity: 1;
+    max-height: 420px;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    border-width: 1px;
+  }
+
+  100% {
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+  }
+}
+
+.task-delete-card {
+  overflow: hidden;
+  max-height: 420px;
+  animation: taskDeleteCollapse 260ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }

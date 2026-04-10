@@ -1248,6 +1248,7 @@ export function KanbanBoard({
       <ConnectMcpModal
         isOpen={isConnectModalOpen}
         onClose={() => setIsConnectModalOpen(false)}
+        projectId={projectId}
       />
       <ConfirmModal
         isOpen={authPromptMessage !== null}

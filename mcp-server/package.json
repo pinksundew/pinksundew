@@ -1,15 +1,15 @@
 {
-  "name": "@saltedroads/agentplanner-mcp",
-  "version": "1.6.0",
+  "name": "@pinksundew/mcp",
+  "version": "1.0.0",
   "type": "module",
-  "description": "Kanban MCP Server for AgentPlanner",
+  "description": "Kanban MCP Server for Pink Sundew",
   "main": "dist/index.js",
   "files": [
     "dist",
     "README.md"
   ],
   "bin": {
-    "agentplanner-mcp": "dist/index.js"
+    "pinksundew-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -18,20 +18,21 @@
     "prepack": "npm run build"
   },
   "keywords": [
-    "agentplanner",
+    "pinksundew",
+    "pink-sundew",
     "kanban",
     "mcp",
     "model-context-protocol"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/qadolphe/AgentPlanner.git",
+    "url": "git+https://github.com/qadolphe/PinkSundew.git",
     "directory": "mcp-server"
   },
   "bugs": {
-    "url": "https://github.com/qadolphe/AgentPlanner/issues"
+    "url": "https://github.com/qadolphe/PinkSundew/issues"
   },
-  "homepage": "https://github.com/qadolphe/AgentPlanner/tree/main/mcp-server",
+  "homepage": "https://pinksundew.com",
   "engines": {
     "node": ">=20"
   },

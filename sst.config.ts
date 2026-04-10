@@ -1,13 +1,15 @@
 import type {} from "./.sst/platform/config";
 
+const { loadEnvConfig } = await import("@next/env");
+loadEnvConfig(process.cwd());
+
 export default $config({
   app(input) {
     return {
       name: "agentplanner",
       removal: input?.stage === "production" ? "retain" : "remove",
       protect: ["production"].includes(input?.stage || ""),
-      home: "aws",
-      providers: { cloudflare: "6.14.0" },
+      home: "aws"
     };
   },
   async run() {

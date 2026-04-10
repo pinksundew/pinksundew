@@ -68,7 +68,7 @@ export default function ApiKeyManager({ initialKeys }: { initialKeys: ApiKeyDisp
         <h2 className="text-lg font-semibold text-foreground">API Keys</h2>
       </div>
       <p className="text-sm text-muted-foreground">
-        Generate API keys to authenticate the AgentPlanner MCP CLI.
+        Generate API keys to authenticate the Pink Sundew MCP server.
       </p>
 
       {/* New key display (shown once after generation) */}

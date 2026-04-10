@@ -1,30 +1,29 @@
-# AgentPlanner MCP Server
+# Pink Sundew MCP Server
 
-Model Context Protocol server for AgentPlanner's Kanban bridge API.
+Model Context Protocol server for Pink Sundew's Kanban bridge API.
 
 This server is project-first: it can read boards, inspect tickets, move work between active stages, manage tags, export prompts, and restore tasks from the abyss.
 
 ## Install
 
 ```bash
-npm install -g @saltedroads/agentplanner-mcp
+npm install -g @pinksundew/mcp
 ```
 
 ## Required environment variables
 
-- `AGENTPLANNER_URL`: Base URL of the deployed AgentPlanner app.
-- `AGENTPLANNER_API_KEY`: API key created in the AgentPlanner dashboard.
-- `AGENTPLANNER_ALLOW_TASK_COMPLETION`: Optional. Defaults to `false`. Set to `true` only when you want the MCP server to be able to move tasks into `done`.
+- `AGENTPLANNER_API_KEY`: API key created in the Pink Sundew dashboard.
+- `AGENTPLANNER_PROJECT_IDS`: Comma-separated list of project UUIDs the agent can access. Required for project scoping.
+- `AGENTPLANNER_URL`: Optional. Defaults to `https://pinksundew.com`.
 
-`get_project_board` now strictly enforces instruction hydration for markdown files: when `.md` metadata is returned, the server checks `content_hash`, fetches new/changed files, and fails if any markdown content cannot be resolved.
+`get_project_board` enforces instruction hydration for markdown files: when `.md` metadata is returned, the server checks `content_hash`, fetches new/changed files, and fails if any markdown content cannot be resolved.
 
 ## Run
 
 ```bash
-AGENTPLANNER_URL=https://your-agentplanner.example.com \
 AGENTPLANNER_API_KEY=your_api_key \
-AGENTPLANNER_ALLOW_TASK_COMPLETION=false \
-agentplanner-mcp
+AGENTPLANNER_PROJECT_IDS=project-uuid-1,project-uuid-2 \
+pinksundew-mcp
 ```
 
 ## Example MCP client configuration
@@ -32,13 +31,12 @@ agentplanner-mcp
 ```json
 {
   "mcpServers": {
-    "agentplanner": {
+    "pinksundew": {
       "command": "npx",
-      "args": ["-y", "@saltedroads/agentplanner-mcp"],
+      "args": ["-y", "@pinksundew/mcp"],
       "env": {
-        "AGENTPLANNER_URL": "https://your-agentplanner.example.com",
         "AGENTPLANNER_API_KEY": "your_api_key",
-        "AGENTPLANNER_ALLOW_TASK_COMPLETION": "false"
+        "AGENTPLANNER_PROJECT_IDS": "your_project_id"
       }
     }
   }

@@ -1,3 +1,4 @@
+import { assertProjectAllowed, filterByProjectScope } from './project-scope.js'
 import { bridgeFetch } from './supabase.js'
 import {
   AbyssState,
@@ -10,31 +11,40 @@ import {
 } from './types.js'
 
 export async function getProjects() {
-  return bridgeFetch<Project[]>('/projects')
+  const allProjects = await bridgeFetch<Project[]>('/projects')
+  return filterByProjectScope(allProjects, (p) => p.id)
 }
 
 export async function getBoardState(projectId: string) {
+  assertProjectAllowed(projectId, 'getBoardState')
   return bridgeFetch<BoardState>(`/board/${projectId}`)
 }
 
 export async function getTaskDetails(taskId: string) {
-  return bridgeFetch<Task>(`/task/${taskId}`)
+  const task = await bridgeFetch<Task>(`/task/${taskId}`)
+  assertProjectAllowed(task.project_id, 'getTaskDetails')
+  return task
 }
 
 export async function getProjectAgentControls(projectId: string) {
+  assertProjectAllowed(projectId, 'getProjectAgentControls')
   return bridgeFetch<AgentControls>(`/controls/${projectId}`)
 }
 
 export async function getAbyssState(projectId: string) {
+  assertProjectAllowed(projectId, 'getAbyssState')
   return bridgeFetch<AbyssState>(`/abyss/${projectId}`)
 }
 
 export async function getProjectTags(projectId: string) {
+  assertProjectAllowed(projectId, 'getProjectTags')
   return bridgeFetch<Tag[]>(`/tags?projectId=${encodeURIComponent(projectId)}`)
 }
 
 export async function getTagDetails(tagId: string) {
-  return bridgeFetch<Tag>(`/tags/${tagId}`)
+  const tag = await bridgeFetch<Tag>(`/tags/${tagId}`)
+  assertProjectAllowed(tag.project_id, 'getTagDetails')
+  return tag
 }
 
 export async function getInstructionFilesForProject(projectId: string, fileIds: string[]) {

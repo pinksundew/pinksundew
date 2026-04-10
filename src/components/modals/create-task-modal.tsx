@@ -73,7 +73,7 @@ export function CreateTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim()) return
+    if (!title.trim() || !description.trim()) return
 
     setLoading(true)
     try {
@@ -165,7 +165,13 @@ export function CreateTaskModal({
               ) : null}
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Title</label>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Title
+                  <span className="ml-1 text-pink-500" aria-hidden="true">
+                    *
+                  </span>
+                  <span className="sr-only">required</span>
+                </label>
                 <input
                   type="text"
                   required
@@ -177,8 +183,15 @@ export function CreateTaskModal({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-foreground mb-1">Description</label>
+                <label className="block text-sm font-medium text-foreground mb-1">
+                  Description
+                  <span className="ml-1 text-pink-500" aria-hidden="true">
+                    *
+                  </span>
+                  <span className="sr-only">required</span>
+                </label>
                 <textarea
+                  required
                   placeholder="Add details..."
                   rows={3}
                   className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none resize-none"
@@ -234,7 +247,7 @@ export function CreateTaskModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || !title.trim()}
+                  disabled={loading || !title.trim() || !description.trim()}
                   className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition disabled:opacity-50"
                 >
                   {loading ? 'Creating...' : 'Create Task'}

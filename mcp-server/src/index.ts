@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+/**
+ * Pink Sundew MCP Server
+ */
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
@@ -8,6 +12,7 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
+import { assertProjectAllowed, isProjectScopingEnabled, getAllowedProjectIds } from './project-scope.js'
 import {
   getAbyssState,
   getBoardState,
@@ -37,8 +42,16 @@ import {
 } from './tools.js'
 import { CoreMcpToolName, ExportFormat, TaskPriority, TaskStatus } from './types.js'
 
-const SERVER_VERSION = '1.4.0'
+const SERVER_NAME = 'pinksundew-mcp'
+const SERVER_VERSION = '1.0.0'
 const allowedTaskStatuses: TaskStatus[] = ['todo', 'in-progress', 'done']
+
+// Log project scoping status at startup
+if (isProjectScopingEnabled()) {
+  console.error(`[${SERVER_NAME}] Project scoping enabled. Allowed IDs: ${getAllowedProjectIds().join(', ')}`)
+} else {
+  console.error(`[${SERVER_NAME}] Warning: No AGENTPLANNER_PROJECT_IDS configured. All projects accessible.`)
+}
 
 const projectScopedToolNames = new Set<CoreMcpToolName>([
   'get_project_board',
@@ -203,7 +216,7 @@ async function resolveProjectIdForTool(
 const toolDefinitions: ToolDefinition[] = [
   {
     name: 'list_projects',
-    description: 'Lists the projects accessible to the current AgentPlanner API key.',
+    description: 'Lists the projects accessible to the current Pink Sundew API key and project scope.',
     inputSchema: {
       type: 'object',
       properties: {},
@@ -525,7 +538,7 @@ const toolDefinitions: ToolDefinition[] = [
 const toolMap = new Map(toolDefinitions.map((tool) => [tool.name, tool]))
 
 const server = new Server(
-  { name: 'agentplanner-mcp', version: SERVER_VERSION },
+  { name: SERVER_NAME, version: SERVER_VERSION },
   { capabilities: { resources: {}, tools: {} } }
 )
 
@@ -534,13 +547,13 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
   return {
     resources: projects.flatMap((project) => [
       {
-        uri: `agentplanner://board/${project.id}`,
+        uri: `pinksundew://board/${project.id}`,
         name: `Board: ${project.name}`,
         mimeType: 'application/json',
         description: `Visible board state for ${project.name}`,
       },
       {
-        uri: `agentplanner://abyss/${project.id}`,
+        uri: `pinksundew://abyss/${project.id}`,
         name: `Abyss: ${project.name}`,
         mimeType: 'application/json',
         description: `Deleted and archived tasks for ${project.name}`,
@@ -552,12 +565,13 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const url = new URL(request.params.uri)
 
-  if (url.protocol !== 'agentplanner:') {
+  if (url.protocol !== 'pinksundew:') {
     throw new Error(`Unknown resource uri: ${request.params.uri}`)
   }
 
   if (url.host === 'board') {
     const projectId = url.pathname.replace('/', '')
+    assertProjectAllowed(projectId, 'ReadResource:board')
     const state = await getBoardState(projectId)
     return {
       contents: [
@@ -572,6 +586,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
 
   if (url.host === 'abyss') {
     const projectId = url.pathname.replace('/', '')
+    assertProjectAllowed(projectId, 'ReadResource:abyss')
     const state = await getAbyssState(projectId)
     return {
       contents: [

@@ -1,4 +1,5 @@
 import { generateExportText } from './formatters.js'
+import { assertProjectAllowed } from './project-scope.js'
 import {
   getAbyssState,
   getBoardState,
@@ -164,6 +165,7 @@ async function hydrateBoardInstructions(board: BoardState) {
 }
 
 export async function getProjectBoard(projectId: string) {
+  assertProjectAllowed(projectId, 'getProjectBoard')
   const board = await getBoardState(projectId)
   return hydrateBoardInstructions(board)
 }
@@ -173,14 +175,17 @@ export async function getTask(taskId: string) {
 }
 
 export async function listAbyssTasks(projectId: string) {
+  assertProjectAllowed(projectId, 'listAbyssTasks')
   return getAbyssState(projectId)
 }
 
 export async function listTags(projectId: string) {
+  assertProjectAllowed(projectId, 'listTags')
   return bridgeFetch<Tag[]>(`/tags?projectId=${encodeURIComponent(projectId)}`)
 }
 
 export async function createTask(input: CreateTaskInput) {
+  assertProjectAllowed(input.projectId, 'createTask')
   const status = input.status ?? 'todo'
 
   return bridgeFetch<Task>('/tasks', {
@@ -310,6 +315,7 @@ export async function addPlanToTask(taskId: string, content: string) {
 }
 
 export async function createTag(projectId: string, name: string, color: string = '#3b82f6') {
+  assertProjectAllowed(projectId, 'createTag')
   return bridgeFetch<Tag>('/tags', {
     method: 'POST',
     body: JSON.stringify({ project_id: projectId, name, color }),

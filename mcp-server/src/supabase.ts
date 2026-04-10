@@ -1,8 +1,14 @@
-const apiKey = process.env.AGENTPLANNER_API_KEY
-const baseUrl = process.env.AGENTPLANNER_URL
+/**
+ * Pink Sundew MCP Server - Bridge API Client
+ */
 
-if (!apiKey || !baseUrl) {
-  console.error('Missing AGENTPLANNER_API_KEY or AGENTPLANNER_URL environment variables.')
+const DEFAULT_URL = 'https://pinksundew.com'
+
+const apiKey = process.env.AGENTPLANNER_API_KEY
+const baseUrl = process.env.AGENTPLANNER_URL ?? DEFAULT_URL
+
+if (!apiKey) {
+  console.error('Missing AGENTPLANNER_API_KEY environment variable.')
   process.exit(1)
 }
 

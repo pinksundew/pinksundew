@@ -13,7 +13,6 @@ import {
   createInstructionFile,
   createInstructionSet,
   deleteInstructionFile,
-  deleteInstructionSet,
   updateInstructionFile,
 } from '@/domains/agent-instruction/mutations'
 import { upsertProjectAgentControls } from '@/domains/agent-control/mutations'
@@ -84,14 +83,10 @@ export function AgentInstructionsModal({
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
 
-  const [newSetName, setNewSetName] = useState('')
-  const [isCreateSetOpen, setIsCreateSetOpen] = useState(false)
-
   const [newFileName, setNewFileName] = useState('')
   const [isCreateFileOpen, setIsCreateFileOpen] = useState(false)
   const [draftFileName, setDraftFileName] = useState('')
   const [draftContent, setDraftContent] = useState('')
-  const [isDeleteSetConfirmOpen, setIsDeleteSetConfirmOpen] = useState(false)
   const [isDeleteFileConfirmOpen, setIsDeleteFileConfirmOpen] = useState(false)
 
   const [allowTaskCompletion, setAllowTaskCompletion] = useState(true)
@@ -119,7 +114,6 @@ export function AgentInstructionsModal({
       setInstructionErrorMessage(null)
       setControlsErrorMessage(null)
       setActiveTab('instructions')
-      setIsCreateSetOpen(false)
       setIsCreateFileOpen(false)
       return
     }
@@ -161,9 +155,20 @@ export function AgentInstructionsModal({
     setInstructionErrorMessage(null)
 
     try {
-      const nextSets = sortInstructionSets(
+      let nextSets = sortInstructionSets(
         await getProjectInstructionSets(supabase, projectId)
       )
+
+      if (nextSets.length === 0) {
+        const createdSet = await createInstructionSet(supabase, {
+          project_id: projectId,
+          name: 'Workspace Standard',
+          code: buildInstructionSetCode('workspace-standard'),
+          scope: 'global' as InstructionSetScope,
+        })
+
+        nextSets = [{ ...createdSet, files: [] }]
+      }
 
       setInstructionSets(nextSets)
 
@@ -188,7 +193,7 @@ export function AgentInstructionsModal({
       setSelectedFileId(nextSelectedFileId)
     } catch (error) {
       console.error('Error loading instruction sets:', error)
-      setInstructionErrorMessage('Unable to load instruction sets right now.')
+      setInstructionErrorMessage('Unable to load instruction files right now.')
     }
   }
 
@@ -245,67 +250,6 @@ export function AgentInstructionsModal({
       setControlsErrorMessage('Unable to save agent controls right now.')
     } finally {
       setIsControlsSaving(false)
-    }
-  }
-
-  const handleCreateSet = async (event: React.FormEvent) => {
-    event.preventDefault()
-
-    const name = newSetName.trim()
-    if (!name) return
-
-    const normalizedName = name.toLowerCase()
-    if (
-      instructionSets.some(
-        (instructionSet) => instructionSet.name.trim().toLowerCase() === normalizedName
-      )
-    ) {
-      setInstructionErrorMessage('Set names must be unique within this project.')
-      return
-    }
-
-    setIsInstructionLoading(true)
-    setInstructionErrorMessage(null)
-
-    try {
-      const createdSet = await createInstructionSet(supabase, {
-        project_id: projectId,
-        name,
-        code: buildInstructionSetCode(name),
-        scope: 'global' as InstructionSetScope,
-      })
-
-      setNewSetName('')
-      setIsCreateSetOpen(false)
-      await fetchInstructionSets({ selectedSetId: createdSet.id })
-    } catch (error) {
-      console.error('Error creating instruction set:', error)
-      setInstructionErrorMessage('Unable to create that set. Set names must be unique per project.')
-    } finally {
-      setIsInstructionLoading(false)
-    }
-  }
-
-  const handleDeleteSet = async () => {
-    if (!selectedSet) {
-      return
-    }
-
-    setIsInstructionLoading(true)
-    setInstructionErrorMessage(null)
-
-    try {
-      const deletedSetId = selectedSet.id
-      await deleteInstructionSet(supabase, deletedSetId)
-      await fetchInstructionSets({
-        selectedSetId: instructionSets.find((set) => set.id !== deletedSetId)?.id ?? null,
-      })
-    } catch (error) {
-      console.error('Error deleting instruction set:', error)
-      setInstructionErrorMessage('Unable to delete that instruction set.')
-    } finally {
-      setIsInstructionLoading(false)
-      setIsDeleteSetConfirmOpen(false)
     }
   }
 
@@ -426,7 +370,7 @@ export function AgentInstructionsModal({
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  Instruction Sets
+                  Instruction Files
                 </button>
                 <button
                   type="button"
@@ -447,70 +391,54 @@ export function AgentInstructionsModal({
           </div>
 
           {activeTab === 'instructions' ? (
-            <div className="m-4 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 lg:grid-cols-[320px_300px_minmax(0,1fr)]">
+            <div className="m-4 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 lg:grid-cols-[320px_minmax(0,1fr)]">
               <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 lg:border-b-0 lg:border-r">
                 <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Instruction Sets
+                  Files
                 </div>
+
                 <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-                  {instructionSets.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-muted-foreground">
-                      No instruction sets yet.
-                    </div>
-                  ) : (
-                    instructionSets.map((instructionSet) => {
-                      const isSelected = instructionSet.id === selectedSetId
+                  {selectedSet?.files.length ? (
+                    selectedSet.files.map((file) => {
+                      const isSelected = file.id === selectedFileId
                       return (
                         <button
-                          key={instructionSet.id}
+                          key={file.id}
                           type="button"
-                          onClick={() => {
-                            setSelectedSetId(instructionSet.id)
-                            setIsCreateFileOpen(false)
-                          }}
-                          className={`w-full rounded-lg border px-3 py-3 text-left transition-colors ${
+                          onClick={() => setSelectedFileId(file.id)}
+                          className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors ${
                             isSelected
                               ? 'border-primary bg-primary/5'
                               : 'border-slate-200 hover:border-primary/30 hover:bg-muted/30'
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="truncate text-sm font-medium text-foreground">
-                              {instructionSet.name}
-                            </div>
-                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-                              global
-                            </span>
-                          </div>
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            {instructionSet.files.length} file{instructionSet.files.length === 1 ? '' : 's'}
-                          </div>
+                          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span className="truncate text-sm text-foreground">{file.file_name}</span>
                         </button>
                       )
                     })
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-muted-foreground">
+                      No instruction files yet.
+                    </div>
                   )}
                 </div>
 
                 <div className="mt-4 border-t border-slate-200 pt-3">
-                  {isCreateSetOpen ? (
-                    <form onSubmit={handleCreateSet} className="space-y-3">
-                      <div>
-                        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Set Name
-                        </label>
-                        <input
-                          value={newSetName}
-                          onChange={(event) => setNewSetName(event.target.value)}
-                          placeholder="Default Workspace Rules"
-                          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                      </div>
+                  {isCreateFileOpen ? (
+                    <form onSubmit={handleCreateFile} className="space-y-2">
+                      <input
+                        value={newFileName}
+                        onChange={(event) => setNewFileName(event.target.value)}
+                        placeholder="workspace-rules.md"
+                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => {
-                            setIsCreateSetOpen(false)
-                            setNewSetName('')
+                            setIsCreateFileOpen(false)
+                            setNewFileName('')
                           }}
                           className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-foreground hover:bg-slate-50"
                         >
@@ -518,10 +446,10 @@ export function AgentInstructionsModal({
                         </button>
                         <button
                           type="submit"
-                          disabled={isInstructionLoading || newSetName.trim().length === 0}
-                          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                          disabled={isInstructionLoading || ensureMarkdownFileName(newFileName).length === 0}
+                          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                         >
-                          <Plus className="h-4 w-4" /> Create Set
+                          <Plus className="h-3.5 w-3.5" /> Add File
                         </button>
                       </div>
                     </form>
@@ -529,107 +457,15 @@ export function AgentInstructionsModal({
                     <button
                       type="button"
                       onClick={() => {
-                        setIsCreateSetOpen(true)
+                        setIsCreateFileOpen(true)
                         setInstructionErrorMessage(null)
                       }}
                       className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
                     >
-                      <Plus className="h-4 w-4" /> Create Set
+                      <Plus className="h-4 w-4" /> Add File
                     </button>
                   )}
                 </div>
-              </div>
-
-              <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 lg:border-b-0 lg:border-r">
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">Set Files</h3>
-                  <button
-                    type="button"
-                    onClick={() => setIsDeleteSetConfirmOpen(true)}
-                    disabled={isInstructionLoading || !selectedSet}
-                    className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" /> Delete Set
-                  </button>
-                </div>
-
-                {selectedSet ? (
-                  <>
-                    <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-                      {selectedSet.files.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-muted-foreground">
-                          No files in this set.
-                        </div>
-                      ) : (
-                        selectedSet.files.map((file) => {
-                          const isSelected = file.id === selectedFileId
-                          return (
-                            <button
-                              key={file.id}
-                              type="button"
-                              onClick={() => setSelectedFileId(file.id)}
-                              className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors ${
-                                isSelected
-                                  ? 'border-primary bg-primary/5'
-                                  : 'border-slate-200 hover:border-primary/30 hover:bg-muted/30'
-                              }`}
-                            >
-                              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                              <span className="truncate text-sm text-foreground">{file.file_name}</span>
-                            </button>
-                          )
-                        })
-                      )}
-                    </div>
-
-                    <div className="mt-4 border-t border-slate-200 pt-3">
-                      {isCreateFileOpen ? (
-                        <form onSubmit={handleCreateFile} className="space-y-2">
-                          <input
-                            value={newFileName}
-                            onChange={(event) => setNewFileName(event.target.value)}
-                            placeholder="review-checklist.md"
-                            className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsCreateFileOpen(false)
-                                setNewFileName('')
-                              }}
-                              className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-foreground hover:bg-slate-50"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={isInstructionLoading || ensureMarkdownFileName(newFileName).length === 0}
-                              className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                            >
-                              <Plus className="h-3.5 w-3.5" /> Add File
-                            </button>
-                          </div>
-                        </form>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsCreateFileOpen(true)
-                            setInstructionErrorMessage(null)
-                          }}
-                          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                        >
-                          <Plus className="h-4 w-4" /> Add File
-                        </button>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-muted-foreground">
-                    Select a set to manage its files.
-                  </div>
-                )}
               </div>
 
               <div className="flex min-h-0 flex-col overflow-hidden bg-white p-4">
@@ -781,19 +617,6 @@ export function AgentInstructionsModal({
           )}
         </motion.div>
       </div>
-
-      <ConfirmModal
-        isOpen={isDeleteSetConfirmOpen}
-        title="Delete Instruction Set"
-        message={selectedSet ? `Delete ${selectedSet.name}? This also removes all files in the set.` : 'Delete this instruction set?'}
-        confirmText="Delete Set"
-        cancelText="Cancel"
-        isDestructive
-        onClose={() => setIsDeleteSetConfirmOpen(false)}
-        onConfirm={() => {
-          void handleDeleteSet()
-        }}
-      />
 
       <ConfirmModal
         isOpen={isDeleteFileConfirmOpen}

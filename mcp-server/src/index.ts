@@ -13,6 +13,7 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { assertProjectAllowed, isProjectScopingEnabled, getAllowedProjectIds } from './project-scope.js'
+import { syncGlobalInstructions } from './sync.js'
 import {
   getAbyssState,
   getBoardState,
@@ -533,6 +534,30 @@ const toolDefinitions: ToolDefinition[] = [
         additionalInstructions: getOptionalInstructions(args, 'additionalInstructions'),
       }),
   },
+  {
+    name: 'sync_global_instructions',
+    description:
+      'Triggers a background sync of the latest global agent instructions from the Pink Sundew server and writes them to local IDE instruction files (.cursorrules, CLAUDE.md, codex.md, antigravity.md, .github/copilot-instructions.md). Call this to refresh instructions mid-session without restarting the MCP server.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+    call: async () => {
+      const result = await syncGlobalInstructions({ verbose: false })
+      if (result.success) {
+        return {
+          success: true,
+          message: `Global instructions synced to workspace successfully. ${result.instructionCount} instruction file(s) written to: ${result.filesWritten.join(', ')}. Your IDE will use these updated rules on your next message.`,
+          projectId: result.projectId,
+          projectName: result.projectName,
+          filesWritten: result.filesWritten,
+          instructionCount: result.instructionCount,
+        }
+      } else {
+        throw new Error(result.error ?? 'Failed to sync instructions')
+      }
+    },
+  },
 ]
 
 const toolMap = new Map(toolDefinitions.map((tool) => [tool.name, tool]))
@@ -573,12 +598,23 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const projectId = url.pathname.replace('/', '')
     assertProjectAllowed(projectId, 'ReadResource:board')
     const state = await getBoardState(projectId)
+
+    // Strip instruction file content from resource response
+    // Instructions are now synced to local workspace files (.cursorrules, CLAUDE.md, etc.)
+    const strippedState = {
+      ...state,
+      instructions: (state.instructions || []).map((instructionSet) => ({
+        ...instructionSet,
+        files: instructionSet.files.map(({ content, ...fileMetadata }) => fileMetadata),
+      })),
+    }
+
     return {
       contents: [
         {
           uri: request.params.uri,
           mimeType: 'application/json',
-          text: JSON.stringify(state, null, 2),
+          text: JSON.stringify(strippedState, null, 2),
         },
       ],
     }
@@ -678,6 +714,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
   }
 })
+
+// Fire startup sync asynchronously - don't block server startup
+if (isProjectScopingEnabled()) {
+  syncGlobalInstructions({ verbose: true })
+    .then((result) => {
+      if (result.success) {
+        console.error(
+          `[${SERVER_NAME}] Startup sync: ${result.instructionCount} instruction(s) written to ${result.filesWritten.join(', ')}`
+        )
+      } else {
+        console.error(`[${SERVER_NAME}] Startup sync failed: ${result.error}`)
+      }
+    })
+    .catch((err) => {
+      console.error(`[${SERVER_NAME}] Startup sync error:`, err)
+    })
+}
 
 const transport = new StdioServerTransport()
 server.connect(transport).catch(console.error)

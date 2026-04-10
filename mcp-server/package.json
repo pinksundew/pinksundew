@@ -26,11 +26,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/qadolphe/PinkSundew.git",
+    "url": "git+https://github.com/qadolphe/AgentPlanner.git",
     "directory": "mcp-server"
   },
   "bugs": {
-    "url": "https://github.com/qadolphe/PinkSundew/issues"
+    "url": "https://github.com/qadolphe/AgentPlanner/issues"
   },
   "homepage": "https://pinksundew.com",
   "engines": {

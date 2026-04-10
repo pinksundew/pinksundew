@@ -7,6 +7,7 @@ export default $config({
       removal: input?.stage === "production" ? "retain" : "remove",
       protect: ["production"].includes(input?.stage || ""),
       home: "aws",
+      providers: { cloudflare: "6.14.0" },
     };
   },
   async run() {
@@ -18,6 +19,12 @@ export default $config({
 
     // Next.js app deployed via OpenNext → CloudFront + Lambda
     new sst.aws.Nextjs("AgentPlanner", {
+      domain: $app.stage === "production" ? {
+        name: "pinksundew.com",
+        dns: sst.cloudflare.dns({
+          zone: "e1abdf6439b30b69986244aec28a1831",
+        }),
+      } : undefined,
       buildCommand: "node scripts/clean-opennext-output.mjs && npx --yes @opennextjs/aws@3.9.14 build",
       link: [supabaseUrl, supabasePublishableKey, supabaseSecretKey, resendApiKey],
       environment: {

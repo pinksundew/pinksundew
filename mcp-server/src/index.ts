@@ -734,7 +734,7 @@ if (isProjectScopingEnabled()) {
         // Start background polling after successful initial sync
         startBackgroundSync({
           projectId,
-          intervalMs: 120000, // 2 minutes
+          intervalMs: 60000, // 1 minute
           verbose: true,
         })
       } else {

@@ -447,7 +447,7 @@ export function startBackgroundSync(options: {
   const {
     projectId,
     workspaceRoot = process.cwd(),
-    intervalMs = 120000, // 2 minutes default
+    intervalMs = 60000, // 1 minute default
     verbose = true,
   } = options
 

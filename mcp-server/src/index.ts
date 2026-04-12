@@ -13,7 +13,7 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
 import { assertProjectAllowed, isProjectScopingEnabled, getProjectId, getClientEnv } from './project-scope.js'
-import { syncGlobalInstructions } from './sync.js'
+import { syncGlobalInstructions, startBackgroundSync } from './sync.js'
 import {
   getAbyssState,
   getBoardState,
@@ -722,12 +722,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 // Fire startup sync asynchronously - don't block server startup
 if (isProjectScopingEnabled()) {
+  const projectId = getProjectId()!
+  
   syncGlobalInstructions({ verbose: true })
     .then((result) => {
       if (result.success) {
         console.error(
           `[${SERVER_NAME}] Startup sync: ${result.instructionCount} instruction(s) written to ${result.fileWritten}`
         )
+        
+        // Start background polling after successful initial sync
+        startBackgroundSync({
+          projectId,
+          intervalMs: 120000, // 2 minutes
+          verbose: true,
+        })
       } else {
         console.error(`[${SERVER_NAME}] Startup sync failed: ${result.error}`)
       }

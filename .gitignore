@@ -56,5 +56,8 @@ mcp-server/sst-env.d.ts
 /mcp-server/dist
 /mcp-server/node_modules
 
+# Pink Sundew local hash cache
+.pinksundew-hash
+
 # Local MCP configuration (contains API keys)
 .vscode/mcp.json

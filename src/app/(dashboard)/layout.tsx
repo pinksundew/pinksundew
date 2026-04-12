@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { getUserProjects } from '@/domains/project/queries'
 import Link from 'next/link'
 import { User } from 'lucide-react'
-import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar'
 import { ProjectBreadcrumb } from '@/components/dashboard/project-breadcrumb'
 
 // Pink Sundew minimalist logo - geometric dewdrop/leaf
@@ -52,7 +51,7 @@ export default async function DashboardLayout({
             <Link href="/" className="flex items-center gap-2 text-primary transition-colors hover:text-primary/80">
               <PinkSundewLogo className="h-7 w-7" />
             </Link>
-            <ProjectBreadcrumb projects={projects} />
+            <ProjectBreadcrumb projects={projects} userEmail={user.email} />
           </div>
 
           {/* Right: Profile */}
@@ -66,11 +65,8 @@ export default async function DashboardLayout({
         </header>
       ) : null}
 
-      {/* Sidebar */}
-      {user ? <DashboardSidebar projects={projects} userEmail={user.email} /> : null}
-
       {/* Main content area */}
-      <div className={`flex min-h-screen flex-col ${user ? 'pt-14 md:pl-16' : ''}`}>
+      <div className={`flex min-h-screen flex-col ${user ? 'pt-14' : ''}`}>
         <main className="flex flex-1 flex-col">{children}</main>
       </div>
     </div>

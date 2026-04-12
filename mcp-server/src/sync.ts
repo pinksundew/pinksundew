@@ -362,3 +362,143 @@ export async function cleanupInstructionFiles(options: Pick<SyncOptions, 'worksp
 
   return filesCleaned
 }
+
+// ============================================================================
+// Background Polling Support
+// ============================================================================
+
+const HASH_FILE = '.pinksundew-hash'
+
+/**
+ * In-memory hash cache for fast comparisons.
+ * Falls back to .pinksundew-hash file if memory is cleared.
+ */
+let inMemoryHash: string | null = null
+
+/**
+ * Reads the current local hash from memory or file.
+ */
+export function readLocalHash(workspaceRoot = process.cwd()): string | null {
+  // Check memory first
+  if (inMemoryHash !== null) {
+    return inMemoryHash
+  }
+
+  // Fall back to file
+  const hashPath = path.join(workspaceRoot, HASH_FILE)
+  try {
+    if (fs.existsSync(hashPath)) {
+      const content = fs.readFileSync(hashPath, 'utf-8').trim()
+      inMemoryHash = content
+      return content
+    }
+  } catch {
+    // Ignore read errors
+  }
+
+  return null
+}
+
+/**
+ * Saves the hash to memory and file.
+ */
+export function saveLocalHash(hash: string, workspaceRoot = process.cwd()): void {
+  inMemoryHash = hash
+
+  const hashPath = path.join(workspaceRoot, HASH_FILE)
+  try {
+    fs.writeFileSync(hashPath, hash, 'utf-8')
+  } catch {
+    // Ignore write errors - in-memory cache is primary
+  }
+}
+
+/**
+ * Fetches the current cloud hash for a project's global instructions.
+ * Returns null on error.
+ */
+export async function fetchCloudHash(projectId: string): Promise<string | null> {
+  try {
+    const response = await bridgeFetch<{ hash: string }>(`/instructions/hash/${projectId}`)
+    return response.hash ?? null
+  } catch (error) {
+    console.error('[sync] Failed to fetch cloud hash:', error)
+    return null
+  }
+}
+
+/**
+ * Interval ID for the background sync timer.
+ * Exported for testing/cleanup purposes.
+ */
+let backgroundSyncInterval: ReturnType<typeof setInterval> | null = null
+
+/**
+ * Starts background polling for instruction changes.
+ * Polls every `intervalMs` milliseconds (default: 2 minutes).
+ * Silently syncs instructions when a hash change is detected.
+ */
+export function startBackgroundSync(options: {
+  projectId: string
+  workspaceRoot?: string
+  intervalMs?: number
+  verbose?: boolean
+} = { projectId: '' }): void {
+  const {
+    projectId,
+    workspaceRoot = process.cwd(),
+    intervalMs = 120000, // 2 minutes default
+    verbose = true,
+  } = options
+
+  if (!projectId) {
+    console.error('[sync] Cannot start background sync: no projectId provided')
+    return
+  }
+
+  const log = verbose ? console.error.bind(console) : () => {}
+
+  // Clear any existing interval
+  if (backgroundSyncInterval) {
+    clearInterval(backgroundSyncInterval)
+  }
+
+  log(`[sync] Starting background sync for project ${projectId} (every ${intervalMs / 1000}s)`)
+
+  backgroundSyncInterval = setInterval(async () => {
+    try {
+      const currentLocalHash = readLocalHash(workspaceRoot)
+      const cloudHash = await fetchCloudHash(projectId)
+
+      if (cloudHash === null) {
+        // Fetch failed, skip this cycle
+        return
+      }
+
+      if (currentLocalHash !== cloudHash) {
+        log('[sync] Hash mismatch detected, syncing...')
+        const result = await syncGlobalInstructions({ workspaceRoot, verbose })
+        
+        if (result.success) {
+          saveLocalHash(cloudHash, workspaceRoot)
+          log(`[sync] Background sync complete: ${result.instructionCount} instruction(s)`)
+        } else {
+          log(`[sync] Background sync failed: ${result.error}`)
+        }
+      }
+    } catch (error) {
+      console.error('[sync] Background sync error:', error)
+    }
+  }, intervalMs)
+}
+
+/**
+ * Stops the background sync timer.
+ */
+export function stopBackgroundSync(): void {
+  if (backgroundSyncInterval) {
+    clearInterval(backgroundSyncInterval)
+    backgroundSyncInterval = null
+    console.error('[sync] Background sync stopped')
+  }
+}

@@ -10,14 +10,12 @@ type SidebarProject = Pick<Project, 'id' | 'name'>
 
 type ProjectBreadcrumbProps = {
   projects: SidebarProject[]
-  currentProjectName?: string
-  workspaceName?: string
+  userEmail?: string | null
 }
 
 export function ProjectBreadcrumb({
   projects,
-  currentProjectName,
-  workspaceName = 'Workspace',
+  userEmail,
 }: ProjectBreadcrumbProps) {
   const params = useParams()
   const router = useRouter()
@@ -25,6 +23,7 @@ export function ProjectBreadcrumb({
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   const currentProjectId = params.projectId as string | undefined
+  const currentProject = projects.find((p) => p.id === currentProjectId)
 
   useEffect(() => {
     if (!isOpen) return
@@ -55,11 +54,12 @@ export function ProjectBreadcrumb({
     router.push(`/${projectId}`)
   }
 
-  const displayName = currentProjectName || 'Select Project'
+  const displayName = currentProject?.name || 'Select Project'
+  const displayEmail = userEmail ? userEmail.split('@')[0] : 'My Projects'
 
   return (
     <div className="flex items-center gap-1.5 text-sm">
-      <span className="text-muted-foreground">{workspaceName}</span>
+      <span className="text-muted-foreground">{displayEmail}</span>
       <span className="text-muted-foreground/50">/</span>
       
       <div ref={dropdownRef} className="relative">

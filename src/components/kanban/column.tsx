@@ -13,6 +13,7 @@ type ColumnProps = {
   selectedTaskIds?: Set<string>
   deletingTaskIds?: Set<string>
   onTaskClick?: (task: TaskWithTags) => void
+  isActiveMobile?: boolean
 }
 
 const COLUMN_TITLES: Record<TaskStatus, string> = {
@@ -28,6 +29,7 @@ export function KanbanColumn({
   selectedTaskIds = new Set<string>(),
   deletingTaskIds = new Set<string>(),
   onTaskClick,
+  isActiveMobile = true,
 }: ColumnProps) {
   const taskIds = useMemo(() => tasks.map((t) => t.id), [tasks])
 
@@ -43,7 +45,9 @@ export function KanbanColumn({
   return (
     <div
       data-board-column={columnId}
-      className="flex flex-col bg-muted/30 border border-border rounded-lg w-80 h-full overflow-hidden shrink-0 transition-colors"
+      className={`flex-col bg-muted/30 border border-border rounded-lg w-full md:w-80 h-full overflow-hidden shrink-0 transition-colors ${
+        isActiveMobile ? 'flex' : 'hidden md:flex'
+      }`}
       ref={setNodeRef}
     >
       <div className="flex items-center justify-between p-4 bg-muted/40 border-b border-border shadow-sm">

@@ -176,6 +176,7 @@ export function KanbanBoard({
   const [tasks, setTasks] = useState<TaskWithTags[]>(() =>
     normalizeVisibleTasks(initialTasks)
   )
+  const [activeMobileTab, setActiveMobileTab] = useState<TaskStatus>('todo')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false)
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
@@ -183,6 +184,7 @@ export function KanbanBoard({
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [isAbyssModalOpen, setIsAbyssModalOpen] = useState(false)
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
+  const [quickAddText, setQuickAddText] = useState('')
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
   const [deletingTaskIds, setDeletingTaskIds] = useState<Set<string>>(new Set())
   const [isSelectionMode, setIsSelectionMode] = useState(false)
@@ -580,6 +582,66 @@ export function KanbanBoard({
     openCreateModal()
   }
 
+  const handleQuickAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!quickAddText.trim()) return
+
+    if (guestTaskLimitReached) {
+      promptForAuth(`Guest boards are limited to ${GUEST_ACTIVE_TASK_LIMIT} active tasks. Sign in to add more tasks.`)
+      return
+    }
+
+    const title = quickAddText.trim()
+    setQuickAddText('')
+
+    const newTaskData = {
+      project_id: projectId,
+      title,
+      description: null,
+      status: activeMobileTab,
+      priority: 'medium' as const,
+      position: tasks.filter((t) => t.status === activeMobileTab).length,
+      predecessor_id: null,
+      assignee_id: null,
+      due_date: null,
+    }
+
+    try {
+      let newTask: TaskWithTags
+
+      if (isGuestMode) {
+        newTask = await createGuestTask({
+          projectId: newTaskData.project_id,
+          title: newTaskData.title,
+          description: newTaskData.description,
+          status: newTaskData.status,
+          priority: newTaskData.priority,
+          position: newTaskData.position,
+          predecessorId: newTaskData.predecessor_id,
+        })
+      } else {
+        const { createTask: createDbTask } = await import('@/domains/task/mutations')
+        const created = await createDbTask(supabase, newTaskData)
+        newTask = { ...created, tags: [] }
+      }
+
+      setTasks((prev) => {
+        const nextTasks = normalizeVisibleTasks([...prev, newTask])
+        tasksRef.current = nextTasks
+        if (isGuestMode) {
+          persistGuestTasks(nextTasks)
+        } else {
+          lastPersistedTasksRef.current = nextTasks
+        }
+        return nextTasks
+      })
+    } catch (err) {
+      console.error('Failed to quick add task', err)
+      // put text back
+      setQuickAddText(title)
+    }
+  }
+
   const normalizeTaskPositions = (taskList: TaskWithTags[]) =>
     taskList.map((task, index) => ({ ...task, position: index }))
 
@@ -953,6 +1015,33 @@ export function KanbanBoard({
               <span className="sm:hidden">Instructions</span>
             </button>
          </div>
+
+         {/* Mobile Tab Bar */}
+         <div className="md:hidden mt-3 w-full flex items-center justify-between bg-muted/50 p-1 rounded-lg">
+           {COLUMNS.map((col) => {
+             const count = tasks.filter((t) => t.status === col).length
+             const isSelected = activeMobileTab === col
+             const labels: Record<TaskStatus, string> = {
+               todo: 'To Do',
+               'in-progress': 'In Progress',
+               done: 'Done',
+             }
+             return (
+               <button
+                 key={col}
+                 onClick={() => setActiveMobileTab(col)}
+                 className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
+                   isSelected
+                     ? 'bg-background text-foreground shadow-sm'
+                     : 'text-muted-foreground hover:text-foreground'
+                 }`}
+               >
+                 <span>{labels[col]}</span>
+                 <span className="opacity-70">({count})</span>
+               </button>
+             )
+           })}
+         </div>
       </div>
       
       <CreateTaskModal
@@ -962,6 +1051,7 @@ export function KanbanBoard({
           setFollowUpSourceTask(null)
         }}
         projectId={projectId}
+        initialStatus={activeMobileTab}
         initialPredecessorTask={followUpSourceTask}
         onCreateTask={
           isGuestMode
@@ -1010,12 +1100,13 @@ export function KanbanBoard({
       >
         <div
           ref={boardScrollContainerRef}
-          className="flex justify-start xl:justify-center gap-6 w-full h-full pb-10 overflow-x-auto min-viewport-p"
+          className="flex justify-start xl:justify-center gap-6 w-full h-full pb-10 overflow-x-hidden md:overflow-x-auto min-viewport-p"
         >
           {COLUMNS.map((columnId) => (
             <KanbanColumn
               key={columnId}
               columnId={columnId}
+              isActiveMobile={activeMobileTab === columnId}
               tasks={tasks.filter((t) => t.status === columnId)}
               isSelectionMode={isSelectionMode}
               selectedTaskIds={selectedTaskIds}
@@ -1043,14 +1134,36 @@ export function KanbanBoard({
                   activeTask ? 'translate-y-1 scale-95 opacity-0' : 'translate-y-0 scale-100 opacity-100'
                 }`}
               >
-                <button
-                  type="button"
-                  onClick={openCreateFromPill}
-                  className="inline-flex h-full w-full items-center justify-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                <form
+                  onSubmit={handleQuickAdd}
+                  className="flex h-full w-full items-center gap-2"
                 >
-                  <PlusCircle className="h-4 w-4" />
-                  {guestTaskLimitReached ? `Guest Limit (${GUEST_ACTIVE_TASK_LIMIT})` : 'Add Task'}
-                </button>
+                  <PlusCircle className="ml-3 h-5 w-5 text-muted-foreground shrink-0" />
+                  <input
+                    type="text"
+                    value={quickAddText}
+                    onChange={(e) => setQuickAddText(e.target.value)}
+                    placeholder={`Add task to ${
+                      activeMobileTab === 'todo'
+                        ? 'To Do'
+                        : activeMobileTab === 'in-progress'
+                        ? 'In Progress'
+                        : 'Done'
+                    }`}
+                    className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground min-w-0"
+                  />
+                  <button type="submit" className="hidden">
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openCreateFromPill}
+                    className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors hover:bg-primary/20"
+                    aria-label="More options"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                  </button>
+                </form>
               </div>
 
               {/* Keep this droppable mounted full-time so dnd-kit can always measure it. */}

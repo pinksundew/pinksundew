@@ -24,6 +24,7 @@ import { createClient } from '@/lib/supabase/client'
 import { TaskWithTags, TaskStatus } from '@/domains/task/types'
 import { KanbanColumn } from './column'
 import { TaskCard } from './task-card'
+import { InlineComposer } from './inline-composer'
 import { CreateTaskModal } from '@/components/modals/create-task-modal'
 import { deleteTask, persistTaskOrderWithKeepalive } from '@/domains/task/mutations'
 import { getProjectTasks } from '@/domains/task/queries'
@@ -35,7 +36,7 @@ import { ExportModal } from '@/components/modals/export-modal'
 import { ConfirmModal } from '@/components/modals/confirm-modal'
 import { AbyssModal } from '@/components/modals/abyss-modal'
 import { ConnectMcpModal } from '@/components/modals/connect-mcp-modal'
-import { Download, FileText, Ghost, PlusCircle, PlugZap, Trash2, X } from 'lucide-react'
+import { Download, FileText, Ghost, PlugZap, Trash2, X } from 'lucide-react'
 import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility'
 import {
   GUEST_ACTIVE_TASK_LIMIT,
@@ -184,7 +185,6 @@ export function KanbanBoard({
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [isAbyssModalOpen, setIsAbyssModalOpen] = useState(false)
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
-  const [quickAddText, setQuickAddText] = useState('')
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
   const [deletingTaskIds, setDeletingTaskIds] = useState<Set<string>>(new Set())
   const [isSelectionMode, setIsSelectionMode] = useState(false)
@@ -582,63 +582,83 @@ export function KanbanBoard({
     openCreateModal()
   }
 
-  const handleQuickAdd = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!quickAddText.trim()) return
+  const createTaskInline = async (taskInput: {
+    project_id: string
+    title: string
+    description: string | null
+    status: TaskStatus
+    priority: 'low' | 'medium' | 'high'
+    position: number
+    predecessor_id: string | null
+    assignee_id: string | null
+    due_date: string | null
+  }): Promise<TaskWithTags> => {
+    const computedPosition = tasks.filter((t) => t.status === taskInput.status).length
 
-    if (guestTaskLimitReached) {
-      promptForAuth(`Guest boards are limited to ${GUEST_ACTIVE_TASK_LIMIT} active tasks. Sign in to add more tasks.`)
+    const newTaskData = {
+      ...taskInput,
+      position: computedPosition,
+    }
+
+    let newTask: TaskWithTags
+
+    if (isGuestMode) {
+      newTask = await createGuestTask({
+        projectId: newTaskData.project_id,
+        title: newTaskData.title,
+        description: newTaskData.description,
+        status: newTaskData.status,
+        priority: newTaskData.priority,
+        position: newTaskData.position,
+        predecessorId: newTaskData.predecessor_id,
+      })
+    } else {
+      const { createTask: createDbTask } = await import('@/domains/task/mutations')
+      const created = await createDbTask(supabase, newTaskData)
+      newTask = { ...created, tags: [] }
+    }
+
+    setTasks((prev) => {
+      const nextTasks = normalizeVisibleTasks([...prev, newTask])
+      tasksRef.current = nextTasks
+      if (isGuestMode) {
+        persistGuestTasks(nextTasks)
+      } else {
+        lastPersistedTasksRef.current = nextTasks
+      }
+      return nextTasks
+    })
+
+    return newTask
+  }
+
+  const handleUpdateTaskTitle = async (taskId: string, title: string) => {
+    if (isGuestMode) {
+      setTasks((prev) => {
+        const nextTasks = prev.map((task) =>
+          task.id === taskId ? { ...task, title } : task
+        )
+        tasksRef.current = nextTasks
+        persistGuestTasks(nextTasks)
+        return nextTasks
+      })
       return
     }
 
-    const title = quickAddText.trim()
-    setQuickAddText('')
-
-    const newTaskData = {
-      project_id: projectId,
-      title,
-      description: null,
-      status: activeMobileTab,
-      priority: 'medium' as const,
-      position: tasks.filter((t) => t.status === activeMobileTab).length,
-      predecessor_id: null,
-      assignee_id: null,
-      due_date: null,
-    }
-
     try {
-      let newTask: TaskWithTags
-
-      if (isGuestMode) {
-        newTask = await createGuestTask({
-          projectId: newTaskData.project_id,
-          title: newTaskData.title,
-          description: newTaskData.description,
-          status: newTaskData.status,
-          priority: newTaskData.priority,
-          position: newTaskData.position,
-          predecessorId: newTaskData.predecessor_id,
-        })
-      } else {
-        const { createTask: createDbTask } = await import('@/domains/task/mutations')
-        const created = await createDbTask(supabase, newTaskData)
-        newTask = { ...created, tags: [] }
-      }
+      const { updateTask } = await import('@/domains/task/mutations')
+      await updateTask(supabase, taskId, { title })
 
       setTasks((prev) => {
-        const nextTasks = normalizeVisibleTasks([...prev, newTask])
+        const nextTasks = prev.map((task) =>
+          task.id === taskId ? { ...task, title } : task
+        )
         tasksRef.current = nextTasks
-        if (isGuestMode) {
-          persistGuestTasks(nextTasks)
-        } else {
-          lastPersistedTasksRef.current = nextTasks
-        }
+        lastPersistedTasksRef.current = nextTasks
         return nextTasks
       })
-    } catch (err) {
-      console.error('Failed to quick add task', err)
-      // put text back
-      setQuickAddText(title)
+    } catch (error) {
+      console.error('Failed to update task title:', error)
     }
   }
 
@@ -1122,48 +1142,28 @@ export function KanbanBoard({
 
         {shouldShowActionPill ? (
           <div
-            className="pointer-events-none fixed z-[70] -translate-x-1/2 transition-[bottom] duration-200 ease-out"
+            className="pointer-events-none fixed z-[70] -translate-x-1/2 transition-[bottom] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
             style={{
               left: pillAnchorX !== null ? `${pillAnchorX}px` : '50%',
               bottom: `${floatingPillBottom}px`,
             }}
           >
-            <div className="relative h-12 w-[20rem] max-w-[calc(100vw-2rem)]">
+            <div className="relative w-[26rem] max-w-[calc(100vw-1.5rem)]">
               <div
-                className={`pointer-events-auto absolute inset-0 flex items-center rounded-full border border-slate-200 bg-white/95 p-1.5 shadow-lg backdrop-blur transition-all duration-200 ease-out ${
+                className={`pointer-events-auto transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
                   activeTask ? 'translate-y-1 scale-95 opacity-0' : 'translate-y-0 scale-100 opacity-100'
                 }`}
               >
-                <form
-                  onSubmit={handleQuickAdd}
-                  className="flex h-full w-full items-center gap-2"
-                >
-                  <PlusCircle className="ml-3 h-5 w-5 text-muted-foreground shrink-0" />
-                  <input
-                    type="text"
-                    value={quickAddText}
-                    onChange={(e) => setQuickAddText(e.target.value)}
-                    placeholder={`Add task to ${
-                      activeMobileTab === 'todo'
-                        ? 'To Do'
-                        : activeMobileTab === 'in-progress'
-                        ? 'In Progress'
-                        : 'Done'
-                    }`}
-                    className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground min-w-0"
-                  />
-                  <button type="submit" className="hidden">
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openCreateFromPill}
-                    className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-colors hover:bg-primary/20"
-                    aria-label="More options"
-                  >
-                    <PlusCircle className="h-4 w-4" />
-                  </button>
-                </form>
+                <InlineComposer
+                  projectId={projectId}
+                  status={activeMobileTab}
+                  isGuestMode={isGuestMode}
+                  guestTaskLimitReached={guestTaskLimitReached}
+                  onPromptAuth={promptForAuth}
+                  onCreateTask={createTaskInline}
+                  onUpdateTaskTitle={handleUpdateTaskTitle}
+                  onExpandRequest={openCreateFromPill}
+                />
               </div>
 
               {/* Keep this droppable mounted full-time so dnd-kit can always measure it. */}

@@ -432,6 +432,12 @@ export function KanbanBoard({
   const updatePillAnchor = useCallback(() => {
     if (typeof window === 'undefined') return
 
+    // On mobile, always center the pill instead of anchoring to column
+    if (window.innerWidth < 768) {
+      setPillAnchorX(null)
+      return
+    }
+
     const scrollContainer = boardScrollContainerRef.current
     if (!scrollContainer) {
       setPillAnchorX(null)
@@ -900,17 +906,8 @@ export function KanbanBoard({
 
   return (
     <div className="h-full flex flex-col items-start w-full relative">
-      <div className="sticky top-24 z-30 mb-6 -mt-2 w-full shrink-0 bg-[var(--color-muted)]/20 py-2 backdrop-blur-sm">
-         <div className="flex w-full flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-           <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
-             <h1 className="max-w-full truncate text-2xl font-bold text-foreground sm:text-[2rem] lg:max-w-[34rem]">
-               {projectName}
-             </h1>
-             <span className="hidden text-sm text-muted-foreground md:inline">
-             {isGuestMode
-               ? 'Guest mode'
-               : 'Project Board'}
-             </span>
+      <div className="sticky top-0 z-30 mb-4 w-full shrink-0 bg-background/80 py-2 backdrop-blur-sm">
+         <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3">
              <button
                type="button"
                onClick={() => {
@@ -921,25 +918,23 @@ export function KanbanBoard({
 
                  setIsConnectModalOpen(true)
                }}
-               className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/20 sm:text-sm"
+               className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/20"
              >
-               <PlugZap className="h-3.5 w-3.5" />
+               <PlugZap className="h-4 w-4" />
                <span className="hidden sm:inline">Connect to MCP</span>
-               <span className="sm:hidden">Connect MCP</span>
+               <span className="sm:hidden">Connect</span>
              </button>
-           </div>
-         <div className="flex flex-wrap items-center gap-2">
-            <button
+             <button
               onClick={startSelectionMode}
               disabled={isSelectionMode}
-              className={`inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-xl border px-4 text-sm font-medium transition-colors ${
+              className={`inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-semibold transition-colors ${
                 isSelectionMode
                   ? 'border-rose-200 bg-rose-50 text-rose-700 opacity-70'
                   : 'border-border text-foreground hover:bg-muted'
               }`}
             >
               <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Manual Export to AI Agent</span>
+              <span className="hidden sm:inline">Export to Agent</span>
               <span className="sm:hidden">Export</span>
             </button>
             <button
@@ -951,13 +946,12 @@ export function KanbanBoard({
 
                 setIsAgentInstructionsOpen(true)
               }}
-              className="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-xl border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-full border border-border px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
             >
               <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Agent Instructions</span>
+              <span className="hidden sm:inline">Instructions</span>
               <span className="sm:hidden">Instructions</span>
             </button>
-           </div>
          </div>
       </div>
       

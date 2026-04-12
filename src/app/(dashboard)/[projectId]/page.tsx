@@ -41,7 +41,7 @@ export default async function ProjectBoardPage({
   }
 
   return (
-    <div className="flex-1 flex flex-col p-4 md:p-8 ovezrflow-hidden w-full h-[calc(100vh-6rem)]">
+    <div className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden w-full h-[calc(100vh-3.5rem)]">
       <KanbanBoard
         projectId={pageParams.projectId}
         projectName={projectName}

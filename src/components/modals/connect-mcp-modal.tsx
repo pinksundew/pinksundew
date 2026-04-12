@@ -326,36 +326,36 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 bg-foreground/25 backdrop-blur-sm"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm"
         />
 
         <motion.div
-          initial={{ scale: 0.96, opacity: 0 }}
+          initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.96, opacity: 0 }}
-          className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-xl"
+          exit={{ scale: 0.95, opacity: 0 }}
+          className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4">
+          <div className="flex items-center justify-between p-4 shrink-0">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-primary-foreground">
-                <PlugZap className="h-3.5 w-3.5" /> Connect
-              </div>
-              <h2 className="mt-2 text-xl font-semibold text-foreground">Connect MCP Server</h2>
+              <h2 className="text-xl font-semibold">Connect MCP Server</h2>
+              <p className="text-sm text-muted-foreground">
+                Configure your AI agent to connect to this project board.
+              </p>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="rounded-full p-2 hover:bg-gray-100"
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
           {/* Two-column layout */}
-          <div className="flex min-h-0 flex-1">
+          <div className="m-4 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 lg:grid-cols-[280px_minmax(0,1fr)]">
             {/* Left sidebar - API Key */}
-            <div className="w-64 shrink-0 border-r border-border bg-muted/10 p-4">
+            <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 lg:border-b-0 lg:border-r">
               <div className="space-y-4">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -457,19 +457,19 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
             </div>
 
             {/* Right content - Config */}
-            <div className="flex min-w-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-col overflow-hidden bg-white">
               {/* IDE Tabs */}
-              <div className="border-b border-border bg-background px-4 pt-3">
-                <div className="flex flex-wrap gap-1.5 pb-3">
+              <div className="border-b border-slate-200 bg-slate-50/60 px-4 py-3">
+                <div className="inline-flex rounded-lg border border-border bg-muted/20 p-1">
                   {(Object.values(guides) as Guide[]).map((guide) => (
                     <button
                       key={guide.id}
                       type="button"
                       onClick={() => setActiveGuideId(guide.id)}
-                      className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
                         activeGuideId === guide.id
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-white text-foreground hover:bg-muted'
+                          ? 'bg-white text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       {guide.label}

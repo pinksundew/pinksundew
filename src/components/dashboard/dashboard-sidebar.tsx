@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { Ellipsis, FolderKanban, LogOut, Pencil, PlusSquare, Trash2, User } from 'lucide-react'
+import { Ellipsis, FolderKanban, Pencil, PlusSquare, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteProject, updateProject } from '@/domains/project/mutations'
 import type { Project } from '@/domains/project/types'
@@ -74,28 +74,6 @@ export function DashboardSidebar({
     }
   }
 
-  const handleProfileClick = (event: MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
-    if (
-      requireAuth(
-        'Profile settings are account features. Sign in to manage your profile and API keys.',
-        '/profile'
-      )
-    ) {
-      event.preventDefault()
-    }
-  }
-
-  const handleLogoutClick = (event: MouseEvent<HTMLButtonElement>) => {
-    if (
-      requireAuth(
-        'Sign in first to access account session actions like profile and logout.',
-        '/profile'
-      )
-    ) {
-      event.preventDefault()
-    }
-  }
-
   const handleProjectClick = (projectId: string) => {
     if (typeof window === 'undefined' || isGuestMode) {
       return
@@ -136,12 +114,6 @@ export function DashboardSidebar({
       setProjectToDelete(null)
     }
   }
-
-  const navItemBase =
-    'group/nav-item relative flex items-center justify-center gap-0 rounded-xl border border-transparent px-0 py-2 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:bg-muted hover:text-foreground group-hover/sidebar:justify-start group-hover/sidebar:gap-3 group-hover/sidebar:px-2.5'
-
-  const sideLabelClass =
-    'max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100'
 
   useEffect(() => {
     if (!projectMenuId) {
@@ -212,9 +184,9 @@ export function DashboardSidebar({
 
   return (
     <>
-      <aside className="group/sidebar fixed inset-y-0 left-0 z-50 hidden h-screen w-16 shrink-0 border-r border-border/80 bg-white shadow-sm transition-all duration-200 hover:w-72 md:flex">
+      <aside className="group/sidebar fixed inset-y-0 left-0 top-14 z-40 hidden h-[calc(100vh-3.5rem)] w-16 shrink-0 border-r border-border/80 bg-white shadow-sm transition-all duration-200 hover:w-72 md:flex">
         <div className="flex h-full w-full flex-col">
-          <div className="min-h-0 flex-1 overflow-hidden p-2 pt-7 group-hover/sidebar:pt-5">
+          <div className="min-h-0 flex-1 overflow-hidden p-2 pt-4">
             <div className="mb-1 flex items-center justify-center px-2 group-hover/sidebar:justify-between">
               <span className="max-w-0 overflow-hidden whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[180px] group-hover/sidebar:opacity-100">
                 Projects
@@ -332,49 +304,13 @@ export function DashboardSidebar({
           </div>
 
           <div className="border-t border-border/80 p-2">
-            <div className="space-y-1">
-              {isGuestMode ? (
-                <button type="button" onClick={handleProfileClick} className={`${navItemBase} w-full`}>
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition-transform duration-200 group-hover/nav-item:scale-110">
-                    <User className="h-4 w-4" />
-                  </span>
-                  <span className={sideLabelClass}>Profile</span>
-                </button>
-              ) : (
-                <Link href="/profile" onClick={handleProfileClick} className={navItemBase}>
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition-transform duration-200 group-hover/nav-item:scale-110">
-                    <User className="h-4 w-4" />
-                  </span>
-                  <span className={sideLabelClass}>Profile</span>
-                </Link>
-              )}
-
-              {isGuestMode ? (
-                <button type="button" onClick={handleLogoutClick} className={`${navItemBase} w-full`}>
-                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-700 transition-transform duration-200 group-hover/nav-item:scale-110">
-                    <LogOut className="h-4 w-4" />
-                  </span>
-                  <span className={sideLabelClass}>Log Out</span>
-                </button>
-              ) : (
-                <form action="/api/auth/signout" method="POST">
-                  <button type="submit" className={`${navItemBase} w-full`}>
-                    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-700 transition-transform duration-200 group-hover/nav-item:scale-110">
-                      <LogOut className="h-4 w-4" />
-                    </span>
-                    <span className={sideLabelClass}>Log Out</span>
-                  </button>
-                </form>
-              )}
-            </div>
-
             {deleteError ? (
-              <p className="mb-2 mt-2 max-w-0 overflow-hidden whitespace-nowrap text-xs font-medium text-rose-700 opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[190px] group-hover/sidebar:opacity-100">
+              <p className="mb-2 max-w-0 overflow-hidden whitespace-nowrap text-xs font-medium text-rose-700 opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[190px] group-hover/sidebar:opacity-100">
                 {deleteError}
               </p>
             ) : null}
 
-            <p className="mt-2 max-w-0 overflow-hidden truncate whitespace-nowrap text-xs text-muted-foreground opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[190px] group-hover/sidebar:opacity-100">
+            <p className="max-w-0 overflow-hidden truncate whitespace-nowrap py-2 text-center text-xs text-muted-foreground opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[190px] group-hover/sidebar:opacity-100">
               {isGuestMode ? 'Guest Mode' : userEmail || 'Signed in'}
             </p>
           </div>

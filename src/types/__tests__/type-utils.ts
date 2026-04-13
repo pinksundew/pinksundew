@@ -47,14 +47,14 @@ export type DeepRequired<T> = {
  * Extracts keys that are required in T.
  */
 export type RequiredKeys<T> = {
-  [K in keyof T]-?: {} extends Pick<T, K> ? never : K
+  [K in keyof T]-?: Record<PropertyKey, never> extends Pick<T, K> ? never : K
 }[keyof T]
 
 /**
  * Extracts keys that are optional in T.
  */
 export type OptionalKeys<T> = {
-  [K in keyof T]-?: {} extends Pick<T, K> ? K : never
+  [K in keyof T]-?: Record<PropertyKey, never> extends Pick<T, K> ? K : never
 }[keyof T]
 
 /**

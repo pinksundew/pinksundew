@@ -29,7 +29,7 @@ export default async function ProjectBoardPage({
   const supabase = await createClient()
 
   // Pre-fetch project data for SSR
-  let initialTasks: import("/Users/quentinadolphe/My Projects/AgentPlanner/src/domains/task/types").TaskWithTags[] = []
+  let initialTasks: import('@/domains/task/types').TaskWithTags[] = []
   let projectName = 'Project'
 
   try {

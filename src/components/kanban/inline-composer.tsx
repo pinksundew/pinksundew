@@ -212,7 +212,7 @@ export function InlineComposer({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 4 }}
             transition={{ duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }}
-            className="rounded-2xl border border-pink-200 bg-white shadow-xl"
+            className="relative left-1/2 w-[min(44rem,calc(100vw-1.5rem))] -translate-x-1/2 rounded-2xl border border-pink-200 bg-white shadow-xl"
           >
             <input
               type="text"
@@ -262,7 +262,7 @@ export function InlineComposer({
                 type="button"
                 onClick={handleSubmit}
                 disabled={!descriptionText.trim() || isSubmitting}
-                className="flex h-11 min-w-[96px] items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-11 min-w-[96px] items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />

@@ -10,7 +10,12 @@
     "prebuild": "node scripts/clean-next-artifacts.mjs",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:types": "vitest typecheck",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -37,7 +42,6 @@
     "eslint-config-next": "16.2.2",
     "sst": "^4.6.11",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "vitest": "^2.1.9"
+    "typescript": "^5"
   }
 }

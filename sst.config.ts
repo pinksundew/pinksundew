@@ -18,6 +18,7 @@ export default $config({
     const supabasePublishableKey = new sst.Secret("SupabasePublishableKey");
     const supabaseSecretKey = new sst.Secret("SupabaseSecretKey");
     const resendApiKey = new sst.Secret("ResendApiKey");
+    const geminiApiKey = new sst.Secret("GeminiApiKey");
 
     // Next.js app deployed via OpenNext → CloudFront + Lambda
     new sst.aws.Nextjs("AgentPlanner", {
@@ -28,12 +29,14 @@ export default $config({
         }),
       } : undefined,
       buildCommand: "node scripts/clean-opennext-output.mjs && npx --yes @opennextjs/aws@3.9.14 build",
-      link: [supabaseUrl, supabasePublishableKey, supabaseSecretKey, resendApiKey],
+      link: [supabaseUrl, supabasePublishableKey, supabaseSecretKey, resendApiKey, geminiApiKey],
       environment: {
         NEXT_PUBLIC_SUPABASE_URL: supabaseUrl.value,
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabasePublishableKey.value,
         SUPABASE_SECRET_KEY: supabaseSecretKey.value,
         RESEND_API_KEY: resendApiKey.value,
+        GEMINI_API_KEY: geminiApiKey.value,
+        GEMINI_MODEL: "gemini-3.1-flash-lite-preview",
       },
     });
   },

@@ -1,15 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { GoogleGenAI } from '@google/genai'
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite-preview'
 
 const SYSTEM_PROMPT = `You are an assistant for a developer's Kanban board. Summarize the following technical task description into a highly concise, 4 to 6 word title. Return ONLY the raw string title, no quotes, no markdown, no conversational text.`
 
+function normalizeTitle(raw: string | undefined) {
+  if (!raw) return null
+
+  const title = raw
+    .replace(/^\s*["']|["']\s*$/g, '')
+    .trim()
+    .slice(0, 100)
+
+  return title.length > 0 ? title : null
+}
+
 export async function POST(request: NextRequest) {
-  const apiKey = process.env.GOOGLE_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
 
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'GOOGLE_API_KEY environment variable is not configured' },
+      { error: 'Missing Gemini API key. Set GEMINI_API_KEY (preferred) or GOOGLE_API_KEY.' },
       { status: 500 }
     )
   }
@@ -25,59 +37,38 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+    const ai = new GoogleGenAI({ apiKey })
+
+    const response = await ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: description,
+      config: {
+        systemInstruction: SYSTEM_PROMPT,
+        temperature: 0.3,
+        maxOutputTokens: 50,
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `${SYSTEM_PROMPT}\n\nDescription:\n${description}`,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 50,
-        },
-      }),
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Gemini API error:', errorText)
+    const title = normalizeTitle(response.text)
+    if (!title) {
       return NextResponse.json(
-        { error: 'Failed to generate title from Gemini API' },
+        { error: 'No title generated from Gemini API', model: GEMINI_MODEL },
         { status: 502 }
       )
     }
-
-    const data = await response.json()
-    const generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text
-
-    if (!generatedText) {
-      return NextResponse.json(
-        { error: 'No title generated from Gemini API' },
-        { status: 502 }
-      )
-    }
-
-    // Clean up the response - remove any quotes, trim whitespace
-    const title = generatedText
-      .replace(/^["']|["']$/g, '')
-      .trim()
-      .slice(0, 100) // Ensure reasonable length
 
     return NextResponse.json({ title })
   } catch (error) {
-    console.error('AI title generation error:', error)
+    const details = error instanceof Error ? error.message : 'Unknown Gemini error'
+    console.error('AI title generation error:', details)
+
     return NextResponse.json(
-      { error: 'Internal server error generating title' },
-      { status: 500 }
+      {
+        error: 'Failed to generate title from Gemini API',
+        details,
+        model: GEMINI_MODEL,
+      },
+      { status: 502 }
     )
   }
 }

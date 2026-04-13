@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { motion, AnimatePresence } from 'framer-motion'
 import { 
   DndContext, 
   DragOverlay, 
@@ -36,7 +38,8 @@ import { ExportModal } from '@/components/modals/export-modal'
 import { ConfirmModal } from '@/components/modals/confirm-modal'
 import { AbyssModal } from '@/components/modals/abyss-modal'
 import { ConnectMcpModal } from '@/components/modals/connect-mcp-modal'
-import { Download, FileText, Ghost, PlugZap, Trash2, X } from 'lucide-react'
+import { ProjectSettingsModal } from '@/components/modals/project-settings-modal'
+import { Download, FileText, Ghost, PlugZap, Settings, Trash2, X } from 'lucide-react'
 import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility'
 import {
   GUEST_ACTIVE_TASK_LIMIT,
@@ -55,12 +58,12 @@ type KanbanBoardProps = {
 
 const COLUMNS: TaskStatus[] = ['todo', 'in-progress', 'done']
 const ABYSS_DROP_ZONE_ID = 'abyss-drop-zone'
-const ABYSS_PROXIMITY_PADDING = 84
+const ABYSS_PROXIMITY_PADDING = 112
 const BASE_FLOATING_PILL_BOTTOM = 20
 const FLOATING_PILL_GAP = 12
 const ACTION_PILL_HEIGHT = 48
 const SELECTION_PILL_HEIGHT = 56
-const TASK_DELETE_ANIMATION_MS = 260
+const TASK_DELETE_ANIMATION_MS = 320
 
 const collisionDetectionStrategy: CollisionDetection = (args) => {
   const abyssContainer = args.droppableContainers.find(
@@ -185,6 +188,7 @@ export function KanbanBoard({
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [isAbyssModalOpen, setIsAbyssModalOpen] = useState(false)
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false)
+  const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false)
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null)
   const [deletingTaskIds, setDeletingTaskIds] = useState<Set<string>>(new Set())
   const [isSelectionMode, setIsSelectionMode] = useState(false)
@@ -194,7 +198,9 @@ export function KanbanBoard({
   const [activeTask, setActiveTask] = useState<TaskWithTags | null>(null)
   const [isDeleteArmed, setIsDeleteArmed] = useState(false)
   const [authPromptMessage, setAuthPromptMessage] = useState<string | null>(null)
+  const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false)
   const [pillAnchorX, setPillAnchorX] = useState<number | null>(null)
+  const [pillWidth, setPillWidth] = useState<number | null>(null)
   const [floatingPillBottom, setFloatingPillBottom] = useState(BASE_FLOATING_PILL_BOTTOM)
   const [supabase] = useState(() => createClient())
   const tasksRef = useRef<TaskWithTags[]>(normalizeVisibleTasks(initialTasks))
@@ -202,6 +208,7 @@ export function KanbanBoard({
   const boardScrollContainerRef = useRef<HTMLDivElement | null>(null)
   const abyssDropElementRef = useRef<HTMLDivElement | null>(null)
   const abyssCtaButtonRef = useRef<HTMLButtonElement | null>(null)
+  const settingsMenuRef = useRef<HTMLDivElement | null>(null)
   const isPersistingOrderRef = useRef(false)
   const lastPersistedTasksRef = useRef<TaskWithTags[]>(normalizeVisibleTasks(initialTasks))
   const pendingPersistRef = useRef<{
@@ -431,42 +438,54 @@ export function KanbanBoard({
     )
   }, [])
 
-  const updatePillAnchor = useCallback(() => {
+  const updatePillGeometry = useCallback(() => {
     if (typeof window === 'undefined') return
 
-    // On mobile, always center the pill instead of anchoring to column
-    if (window.innerWidth < 768) {
-      setPillAnchorX(null)
-      return
-    }
+    const isMobileViewport = window.innerWidth < 768
 
     const scrollContainer = boardScrollContainerRef.current
     if (!scrollContainer) {
       setPillAnchorX(null)
+      setPillWidth(null)
       return
     }
 
-    const inProgressColumn = scrollContainer.querySelector<HTMLElement>(
-      '[data-board-column="in-progress"]'
+    const targetColumnId = isMobileViewport ? activeMobileTab : 'in-progress'
+    const targetColumn = scrollContainer.querySelector<HTMLElement>(
+      `[data-board-column="${targetColumnId}"]`
     )
 
-    if (!inProgressColumn) {
+    if (!targetColumn) {
+      setPillAnchorX(null)
+      setPillWidth(null)
+      return
+    }
+
+    const columnRect = targetColumn.getBoundingClientRect()
+    const nextWidth = Math.max(0, Math.min(columnRect.width, window.innerWidth - 24))
+    setPillWidth((previous) => {
+      if (previous !== null && Math.abs(previous - nextWidth) < 0.5) {
+        return previous
+      }
+
+      return nextWidth
+    })
+
+    if (isMobileViewport) {
       setPillAnchorX(null)
       return
     }
 
-    const columnRect = inProgressColumn.getBoundingClientRect()
     const targetCenterX = columnRect.left + columnRect.width / 2
-    const clampedCenterX = Math.min(window.innerWidth - 24, Math.max(24, targetCenterX))
 
     setPillAnchorX((previous) => {
-      if (previous !== null && Math.abs(previous - clampedCenterX) < 0.5) {
+      if (previous !== null && Math.abs(previous - targetCenterX) < 0.5) {
         return previous
       }
 
-      return clampedCenterX
+      return targetCenterX
     })
-  }, [])
+  }, [activeMobileTab])
 
   const updateFloatingPillBottom = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -497,10 +516,10 @@ export function KanbanBoard({
   }, [isSelectionMode])
 
   useEffect(() => {
-    updatePillAnchor()
+    updatePillGeometry()
 
     const handlePillAnchorUpdate = () => {
-      updatePillAnchor()
+      updatePillGeometry()
       updateFloatingPillBottom()
     }
 
@@ -515,12 +534,29 @@ export function KanbanBoard({
       window.removeEventListener('scroll', handlePillAnchorUpdate)
       scrollContainer?.removeEventListener('scroll', handlePillAnchorUpdate)
     }
-  }, [updateFloatingPillBottom, updatePillAnchor])
+  }, [updateFloatingPillBottom, updatePillGeometry])
 
   useEffect(() => {
-    updatePillAnchor()
+    updatePillGeometry()
     updateFloatingPillBottom()
-  }, [activeTask, isSelectionMode, tasks, updateFloatingPillBottom, updatePillAnchor])
+  }, [activeTask, isSelectionMode, tasks, updateFloatingPillBottom, updatePillGeometry])
+
+  // Click outside handler for settings menu
+  useEffect(() => {
+    if (!isSettingsMenuOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        settingsMenuRef.current &&
+        !settingsMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsSettingsMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isSettingsMenuOpen])
 
   const selectedTasks = tasks.filter((task) => selectedTaskIds.has(task.id))
 
@@ -634,6 +670,7 @@ export function KanbanBoard({
 
   const handleUpdateTaskTitle = async (taskId: string, title: string) => {
     if (isGuestMode) {
+      // Update guest task in local state
       setTasks((prev) => {
         const nextTasks = prev.map((task) =>
           task.id === taskId ? { ...task, title } : task
@@ -980,6 +1017,7 @@ export function KanbanBoard({
     isExportModalOpen ||
     isAbyssModalOpen ||
     isConnectModalOpen ||
+    isProjectSettingsOpen ||
     taskToDelete !== null ||
     authPromptMessage !== null
 
@@ -990,6 +1028,78 @@ export function KanbanBoard({
     <div className="h-full flex flex-col items-start w-full relative">
       <div className="sticky top-0 z-30 mb-4 w-full shrink-0 bg-background/80 py-2 backdrop-blur-sm">
          <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3">
+             {/* Settings gear button with dropdown */}
+             <div ref={settingsMenuRef} className="relative">
+               <button
+                 type="button"
+                 onClick={() => setIsSettingsMenuOpen((prev) => !prev)}
+                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                 aria-label="Project settings"
+               >
+                 <motion.div
+                   animate={{ rotate: isSettingsMenuOpen ? 90 : 0 }}
+                   transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+                 >
+                   <Settings className="h-4 w-4" />
+                 </motion.div>
+               </button>
+               <AnimatePresence>
+                 {isSettingsMenuOpen && (
+                   <motion.div
+                     initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                     animate={{ opacity: 1, scale: 1, y: 0 }}
+                     exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                     transition={{ duration: 0.15, ease: [0.2, 0.8, 0.2, 1] }}
+                     className="absolute left-0 top-full z-50 mt-2 w-56 origin-top-left rounded-xl border border-border bg-white py-2 shadow-xl"
+                   >
+                     <button
+                       type="button"
+                       onClick={() => {
+                         setIsSettingsMenuOpen(false)
+                         if (isGuestMode) {
+                           promptForAuth('The Abyss history is account-backed. Sign in to keep deleted and archived task history.')
+                           return
+                         }
+                         setIsAbyssModalOpen(true)
+                       }}
+                       className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                     >
+                       <Ghost className="h-4 w-4 text-muted-foreground" />
+                       View The Abyss
+                     </button>
+                     <button
+                       type="button"
+                       onClick={() => {
+                         setIsSettingsMenuOpen(false)
+                         if (isGuestMode) {
+                           promptForAuth('Agent instruction and controls are account features. Sign in to manage them.')
+                           return
+                         }
+                         setIsAgentInstructionsOpen(true)
+                       }}
+                       className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                     >
+                       <FileText className="h-4 w-4 text-muted-foreground" />
+                       Agent Instructions & Controls
+                     </button>
+                     {!isGuestMode && (
+                       <button
+                         type="button"
+                         onClick={() => {
+                           setIsSettingsMenuOpen(false)
+                           setIsProjectSettingsOpen(true)
+                         }}
+                         className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                       >
+                         <Settings className="h-4 w-4 text-muted-foreground" />
+                         Project Settings
+                       </button>
+                     )}
+                   </motion.div>
+                 )}
+               </AnimatePresence>
+             </div>
+
              <button
                type="button"
                onClick={() => {
@@ -1006,7 +1116,9 @@ export function KanbanBoard({
                <span className="hidden sm:inline">Connect to MCP</span>
                <span className="sm:hidden">Connect</span>
              </button>
+
              <button
+              type="button"
               onClick={startSelectionMode}
               disabled={isSelectionMode}
               className={`inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-semibold transition-colors ${
@@ -1019,28 +1131,13 @@ export function KanbanBoard({
               <span className="hidden sm:inline">Export to Agent</span>
               <span className="sm:hidden">Export</span>
             </button>
-            <button
-              onClick={() => {
-                if (isGuestMode) {
-                  promptForAuth('Agent instruction sets are project features tied to your account. Sign in to manage them.')
-                  return
-                }
-
-                setIsAgentInstructionsOpen(true)
-              }}
-              className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-full border border-border px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Instructions</span>
-              <span className="sm:hidden">Instructions</span>
-            </button>
          </div>
 
          {/* Mobile Tab Bar */}
          <div className="md:hidden mt-3 w-full flex items-center justify-between bg-muted/50 p-1 rounded-lg">
            {COLUMNS.map((col) => {
              const count = tasks.filter((t) => t.status === col).length
-             const isSelected = activeMobileTab === col
+             const isActive = activeMobileTab === col
              const labels: Record<TaskStatus, string> = {
                todo: 'To Do',
                'in-progress': 'In Progress',
@@ -1049,10 +1146,11 @@ export function KanbanBoard({
              return (
                <button
                  key={col}
+                 type="button"
                  onClick={() => setActiveMobileTab(col)}
-                 className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 py-2 sm:py-1.5 text-xs sm:text-sm font-medium rounded-md transition-all ${
-                   isSelected
-                     ? 'bg-background text-foreground shadow-sm'
+                 className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-2 text-xs font-medium transition-colors ${
+                   isActive
+                     ? 'bg-white text-foreground shadow-sm'
                      : 'text-muted-foreground hover:text-foreground'
                  }`}
                >
@@ -1140,82 +1238,97 @@ export function KanbanBoard({
           {activeTask && !isSelectionMode ? <TaskCard task={activeTask} isOverlay /> : null}
         </DragOverlay>
 
-        {shouldShowActionPill ? (
-          <div
-            className="pointer-events-none fixed z-[70] -translate-x-1/2 transition-[bottom] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
-            style={{
-              left: pillAnchorX !== null ? `${pillAnchorX}px` : '50%',
-              bottom: `${floatingPillBottom}px`,
-            }}
-          >
-            <div className="relative w-[26rem] max-w-[calc(100vw-1.5rem)]">
+        <AnimatePresence mode="wait">
+          {shouldShowActionPill ? (
+            <motion.div
+              key="action-pill"
+              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 16 }}
+              transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
+              className="pointer-events-none fixed z-[70] -translate-x-1/2 transition-[bottom] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
+              style={{
+                left: pillAnchorX !== null ? `${pillAnchorX}px` : '50%',
+                bottom: `${floatingPillBottom}px`,
+              }}
+            >
               <div
-                className={`pointer-events-auto transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
-                  activeTask ? 'translate-y-1 scale-95 opacity-0' : 'translate-y-0 scale-100 opacity-100'
-                }`}
+                className="relative max-w-[calc(100vw-1.5rem)]"
+                style={{ width: pillWidth !== null ? `${pillWidth}px` : 'min(22rem, calc(100vw - 1.5rem))' }}
               >
-                <InlineComposer
-                  projectId={projectId}
-                  status={activeMobileTab}
-                  isGuestMode={isGuestMode}
-                  guestTaskLimitReached={guestTaskLimitReached}
-                  onPromptAuth={promptForAuth}
-                  onCreateTask={createTaskInline}
-                  onUpdateTaskTitle={handleUpdateTaskTitle}
-                  onExpandRequest={openCreateFromPill}
-                />
-              </div>
+                <div
+                  className={`pointer-events-auto transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+                    activeTask ? 'translate-y-1 scale-95 opacity-0' : 'translate-y-0 scale-100 opacity-100'
+                  }`}
+                >
+                  <InlineComposer
+                    projectId={projectId}
+                    status={activeMobileTab}
+                    isGuestMode={isGuestMode}
+                    guestTaskLimitReached={guestTaskLimitReached}
+                    onPromptAuth={promptForAuth}
+                    onCreateTask={createTaskInline}
+                    onUpdateTaskTitle={handleUpdateTaskTitle}
+                    onExpandRequest={openCreateFromPill}
+                  />
+                </div>
 
-              {/* Keep this droppable mounted full-time so dnd-kit can always measure it. */}
-              <div
-                ref={setAbyssDropRefs}
-                className={`absolute inset-0 flex items-center justify-center gap-2 rounded-full border px-5 text-sm font-semibold transition-all duration-200 ease-out ${
-                  activeTask
-                    ? isDeleteArmed
-                      ? 'pointer-events-auto scale-105 opacity-100 border-rose-600 bg-rose-600 text-white shadow-xl ring-4 ring-rose-200/70'
-                      : 'pointer-events-auto scale-100 opacity-100 border-slate-200 bg-white/95 text-slate-600 shadow-lg backdrop-blur'
-                    : 'pointer-events-none translate-y-1 scale-95 opacity-0 border-transparent bg-transparent text-transparent'
-                }`}
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>{isDeleteArmed ? 'Release to delete' : 'Drop here to delete'}</span>
+                {/* Keep this droppable mounted full-time so dnd-kit can always measure it. */}
+                <div
+                  ref={setAbyssDropRefs}
+                  className={`absolute inset-0 flex h-12 items-center justify-center gap-2 rounded-full border px-5 text-sm font-semibold transition-all duration-200 ease-out ${
+                    activeTask
+                      ? isDeleteArmed
+                        ? 'pointer-events-auto scale-110 opacity-100 border-rose-600 bg-rose-600 text-white shadow-xl ring-4 ring-rose-300 animate-pulse'
+                        : 'pointer-events-auto scale-100 opacity-100 border-slate-200 bg-white/95 text-slate-600 shadow-lg backdrop-blur'
+                      : 'pointer-events-none translate-y-1 scale-95 opacity-0 border-transparent bg-transparent text-transparent'
+                  }`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>{isDeleteArmed ? 'Release to delete' : 'Drop here to delete'}</span>
+                </div>
               </div>
-            </div>
-          </div>
-        ) : null}
+            </motion.div>
+          ) : null}
 
-        {shouldShowSelectionPill ? (
-          <div
-            className="pointer-events-none fixed z-[70] -translate-x-1/2 transition-[bottom] duration-200 ease-out"
-            style={{
-              left: pillAnchorX !== null ? `${pillAnchorX}px` : '50%',
-              bottom: `${floatingPillBottom}px`,
-            }}
-          >
-            <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur">
-              <button
-                type="button"
-                onClick={openExportModal}
-                disabled={selectedTaskIds.size === 0}
-                className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
-                  selectedTaskIds.size > 0
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    : 'bg-slate-200 text-slate-500'
-                }`}
-              >
-                {selectedTaskIds.size > 0 ? `Export (${selectedTaskIds.size})` : 'Export'}
-              </button>
-              <button
-                type="button"
-                onClick={exitSelectionMode}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-                aria-label="Exit selection mode"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        ) : null}
+          {shouldShowSelectionPill ? (
+            <motion.div
+              key="selection-pill"
+              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 16 }}
+              transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}
+              className="pointer-events-none fixed z-[70] -translate-x-1/2 transition-[bottom] duration-200 ease-out"
+              style={{
+                left: pillAnchorX !== null ? `${pillAnchorX}px` : '50%',
+                bottom: `${floatingPillBottom}px`,
+              }}
+            >
+              <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur">
+                <button
+                  type="button"
+                  onClick={openExportModal}
+                  disabled={selectedTaskIds.size === 0}
+                  className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
+                    selectedTaskIds.size > 0
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  {selectedTaskIds.size > 0 ? `Export (${selectedTaskIds.size})` : 'Export'}
+                </button>
+                <button
+                  type="button"
+                  onClick={exitSelectionMode}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                  aria-label="Exit selection mode"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </DndContext>
 
       <button
@@ -1229,7 +1342,7 @@ export function KanbanBoard({
 
           setIsAbyssModalOpen(true)
         }}
-        className="mt-4 flex w-full shrink-0 items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/90 px-5 py-4 text-left transition-colors hover:border-slate-400 hover:bg-slate-100"
+        className="mt-4 hidden w-full shrink-0 items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/90 px-5 py-4 text-left transition-colors hover:border-slate-400 hover:bg-slate-100 md:flex"
       >
         <div className="flex items-center gap-4">
           <span className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm">
@@ -1357,6 +1470,14 @@ export function KanbanBoard({
         onClose={() => setIsConnectModalOpen(false)}
         projectId={projectId}
       />
+      {!isGuestMode && (
+        <ProjectSettingsModal
+          isOpen={isProjectSettingsOpen}
+          projectId={projectId}
+          projectName={projectName}
+          onClose={() => setIsProjectSettingsOpen(false)}
+        />
+      )}
       <ConfirmModal
         isOpen={authPromptMessage !== null}
         title="Sign In Required"

@@ -7,8 +7,6 @@ import { KanbanBoard } from '@/components/kanban/board'
 import { clearGuestDraft, loadGuestDraft } from '@/domains/task/guest-draft'
 import type { TaskWithTags } from '@/domains/task/types'
 import { ConfirmModal } from '@/components/modals/confirm-modal'
-import { DashboardSidebar } from '@/components/dashboard/dashboard-sidebar'
-import { LayoutDashboard, LogOut, PlusSquare, User } from 'lucide-react'
 
 type ImportResponse = {
   projectId: string
@@ -22,6 +20,32 @@ type AuthPromptState = {
 
 const IMPORT_ID_STORAGE_KEY = 'agentplanner.guest_import.id'
 const EMPTY_TASKS: TaskWithTags[] = []
+
+// Pink Sundew minimalist logo - geometric dewdrop/leaf
+function PinkSundewLogo({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      className={className}
+      aria-label="Pink Sundew"
+    >
+      {/* Dewdrop shape */}
+      <path
+        d="M12 3C12 3 6 9.5 6 14C6 17.5 8.5 20 12 20C15.5 20 18 17.5 18 14C18 9.5 12 3 12 3Z"
+        fill="currentColor"
+        fillOpacity="0.15"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Inner highlight */}
+      <circle cx="10" cy="12" r="1.5" fill="currentColor" fillOpacity="0.4" />
+      <circle cx="13" cy="14" r="1" fill="currentColor" fillOpacity="0.3" />
+    </svg>
+  )
+}
 
 function createImportId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -51,8 +75,6 @@ export function GuestBoardShell() {
   const [importError, setImportError] = useState<string | null>(null)
   const [authPrompt, setAuthPrompt] = useState<AuthPromptState>(null)
   const supabase = useMemo(() => createClient(), [])
-
-  const guestProjects = useMemo(() => [{ id: 'guest-board', name: 'Guest Board' }], [])
 
   const openAuthPrompt = (message: string, nextPath: string = '/guest') => {
     setAuthPrompt({ message, nextPath })
@@ -136,120 +158,39 @@ export function GuestBoardShell() {
 
   return (
     <div className="min-h-screen bg-muted/20">
-      <DashboardSidebar
-        mode="guest"
-        projects={guestProjects}
-        userEmail="Guest Mode"
-        onRequireAuth={openAuthPrompt}
-      />
-
-      <div className="flex min-h-screen flex-col md:pl-16">
-        <header className="sticky top-0 z-40 flex h-24 flex-col border-b border-border/80 bg-white shadow-sm backdrop-blur">
-          <div className="hidden h-12 items-center justify-between border-b border-border/70 px-1 md:flex">
-            <div className="flex items-center gap-2">
-              <LayoutDashboard className="h-5 w-5 text-primary" />
-              <span className="text-lg font-bold text-foreground">AgentPlanner</span>
-              <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-primary-foreground">
-                Guest
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/login?next=/guest"
-                className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/signup?next=/guest"
-                className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Create Account
-              </Link>
-            </div>
+      {/* Simplified single-row header matching authenticated layout */}
+      <header className="fixed left-0 right-0 top-0 z-50 flex h-14 items-center justify-between border-b border-border/70 bg-white px-4 shadow-sm">
+        {/* Left: Logo + Guest Board label */}
+        <div className="flex items-center gap-4">
+          <Link href="/guest" className="flex items-center gap-2 text-primary transition-colors hover:text-primary/80">
+            <PinkSundewLogo className="h-7 w-7" />
+          </Link>
+          <div className="flex items-center gap-2">
+            <span className="rounded-lg border border-primary/50 bg-primary/10 px-3 py-1 text-sm font-medium text-primary-foreground">
+              Guest Board
+            </span>
           </div>
+        </div>
 
-          <div className="flex h-12 items-center justify-between border-b border-border/70 px-4 md:hidden">
-            <div className="flex items-center gap-2">
-              <LayoutDashboard className="h-5 w-5 text-primary" />
-              <span className="text-sm font-semibold text-foreground">AgentPlanner</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() =>
-                  openAuthPrompt(
-                    'Creating additional projects requires an account. Sign in to unlock full multi-project support.',
-                    '/create-project'
-                  )
-                }
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <PlusSquare className="h-4 w-4" />
-                <span className="sr-only">Create project</span>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  openAuthPrompt(
-                    'Profile settings are account features. Sign in to manage your profile and API keys.',
-                    '/profile'
-                  )
-                }
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <User className="h-4 w-4" />
-                <span className="sr-only">Profile</span>
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  openAuthPrompt(
-                    'Sign in first to access account session actions like profile and logout.',
-                    '/profile'
-                  )
-                }
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="sr-only">Log out</span>
-              </button>
-            </div>
-          </div>
+        {/* Right: Auth buttons */}
+        <div className="flex items-center gap-2">
+          <Link
+            href="/login?next=/guest"
+            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Sign In
+          </Link>
+          <Link
+            href="/signup?next=/guest"
+            className="hidden rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 sm:inline-flex"
+          >
+            Create Account
+          </Link>
+        </div>
+      </header>
 
-          <div className="flex h-12 items-center justify-between border-b border-border/70 px-4">
-            <div className="flex items-center gap-2 overflow-x-auto">
-              <span className="rounded-lg border border-primary/50 bg-primary/10 px-3 py-1 text-sm font-medium text-primary-foreground">
-                Guest Board
-              </span>
-              <button
-                type="button"
-                onClick={() =>
-                  openAuthPrompt(
-                    'Creating additional projects requires an account. Sign in to unlock full multi-project support.',
-                    '/create-project'
-                  )
-                }
-                className="rounded-md border border-border bg-muted px-3 py-1 text-sm font-medium text-foreground transition-colors hover:bg-border"
-              >
-                + New Project
-              </button>
-            </div>
-            <button
-              type="button"
-              onClick={() =>
-                openAuthPrompt(
-                  'Sign in to sync your guest board and unlock account-only project management features.',
-                  '/guest'
-                )
-              }
-              className="rounded-md border border-border px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground transition-colors hover:bg-muted"
-            >
-              Sign In to Sync
-            </button>
-          </div>
-        </header>
-
+      {/* Main content area with top padding for fixed header */}
+      <div className="flex min-h-screen flex-col pt-14">
         {isImporting ? (
           <div className="border-b border-border bg-primary/10 px-4 py-2 text-sm text-primary-foreground">
             Importing your guest board into your account.
@@ -262,8 +203,10 @@ export function GuestBoardShell() {
           </div>
         ) : null}
 
-        <main className="flex-1 p-4 md:p-8">
-          <KanbanBoard mode="guest" projectId="guest-board" projectName="Guest Board" initialTasks={EMPTY_TASKS} />
+        <main className="flex flex-1 flex-col p-4 md:p-6">
+          <div className="flex-1 flex flex-col h-[calc(100vh-3.5rem)]">
+            <KanbanBoard mode="guest" projectId="guest-board" projectName="Guest Board" initialTasks={EMPTY_TASKS} />
+          </div>
         </main>
       </div>
 

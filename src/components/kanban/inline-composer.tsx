@@ -201,7 +201,7 @@ export function InlineComposer({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -4 }}
             transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
-            className="group flex h-12 w-full items-center justify-center rounded-full border border-slate-200 bg-white/95 px-5 text-sm font-semibold text-slate-700 shadow-lg backdrop-blur transition-colors hover:bg-white"
+            className="group flex h-11 w-full items-center justify-center rounded-full border border-pink-300 bg-pink-50 px-6 text-sm font-semibold text-pink-700 shadow-md transition-all hover:bg-pink-100 hover:border-pink-400 hover:shadow-lg"
           >
             Add Task +
           </motion.button>

@@ -1,32 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { getUserProjects } from '@/domains/project/queries'
 import Link from 'next/link'
+import Image from 'next/image'
 import { User } from 'lucide-react'
 import { ProjectBreadcrumb } from '@/components/dashboard/project-breadcrumb'
 
-// Pink Sundew minimalist logo - geometric dewdrop/leaf
-function PinkSundewLogo({ className }: { className?: string }) {
+function AppLogo({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
+    <Image
+      src="/favicon.ico"
+      alt="AgentPlanner logo"
+      width={28}
+      height={28}
       className={className}
-      aria-label="Pink Sundew"
-    >
-      {/* Dewdrop shape */}
-      <path
-        d="M12 3C12 3 6 9.5 6 14C6 17.5 8.5 20 12 20C15.5 20 18 17.5 18 14C18 9.5 12 3 12 3Z"
-        fill="currentColor"
-        fillOpacity="0.15"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Inner highlight */}
-      <circle cx="10" cy="12" r="1.5" fill="currentColor" fillOpacity="0.4" />
-      <circle cx="13" cy="14" r="1" fill="currentColor" fillOpacity="0.3" />
-    </svg>
+      priority
+    />
   )
 }
 
@@ -49,7 +37,7 @@ export default async function DashboardLayout({
           {/* Left: Logo + Breadcrumb */}
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-2 text-primary transition-colors hover:text-primary/80">
-              <PinkSundewLogo className="h-7 w-7" />
+              <AppLogo className="h-7 w-7 rounded-md" />
             </Link>
             <ProjectBreadcrumb projects={projects} userEmail={user.email} />
           </div>

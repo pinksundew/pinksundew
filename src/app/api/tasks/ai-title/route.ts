@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai'
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite-preview'
 
-const SYSTEM_PROMPT = `You are an assistant for a developer's Kanban board. Summarize the following technical task description into a highly concise, 4 to 6 word title. Return ONLY the raw string title, no quotes, no markdown, no conversational text.`
+const SYSTEM_PROMPT = `You are an assistant for someone's Kanban board. Summarize the following technical task description into a highly concise, 3 to 6 word title. Return ONLY the raw string title, no quotes, no markdown, no conversational text.`
 
 function normalizeTitle(raw: string | undefined) {
   if (!raw) return null

@@ -179,7 +179,8 @@ function isToolEnabled(
   controls: Awaited<ReturnType<typeof getProjectAgentControls>>,
   toolName: CoreMcpToolName
 ) {
-  return controls.tool_toggles?.[toolName] !== false
+  const toggles = controls.tool_toggles as Record<string, boolean> | undefined
+  return toggles?.[toolName] !== false
 }
 
 async function resolveProjectIdForTool(

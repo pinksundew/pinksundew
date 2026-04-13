@@ -1,0 +1,16 @@
+{
+  "name": "@agent-planner/types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./schemas": "./schemas/index.ts",
+    "./schemas/*": "./schemas/*.ts"
+  },
+  "peerDependencies": {
+    "zod": "^4.0.0"
+  }
+}

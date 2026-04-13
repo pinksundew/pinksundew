@@ -11,6 +11,14 @@ type AbyssModalProps = {
   projectId: string
 }
 
+type RawTaskTagJoin = {
+  tags: TaskWithTags['tags'][number] | null
+}
+
+type RawTaskWithJoin = TaskWithTags & {
+  task_tags?: RawTaskTagJoin[] | null
+}
+
 export function AbyssModal({ isOpen, onClose, projectId }: AbyssModalProps) {
   const [deletedTasks, setDeletedTasks] = useState<TaskWithTags[]>([])
   const [archivedTasks, setArchivedTasks] = useState<TaskWithTags[]>([])
@@ -33,11 +41,17 @@ export function AbyssModal({ isOpen, onClose, projectId }: AbyssModalProps) {
         .order('updated_at', { ascending: false })
 
       if (!error && data) {
-        const rawTasks = data.map((row: any) => ({
-          ...row,
-          tags: row.task_tags ? row.task_tags.map((tt: any) => tt.tags).filter(Boolean) : [],
-          task_tags: undefined,
-        })) as TaskWithTags[]
+        const rawTasks = (data as RawTaskWithJoin[]).map((row) => {
+          const tags = (row.task_tags ?? [])
+            .map((tt) => tt.tags)
+            .filter((tag): tag is TaskWithTags['tags'][number] => Boolean(tag))
+
+          return {
+            ...row,
+            tags,
+            task_tags: undefined,
+          }
+        }) as TaskWithTags[]
 
         setDeletedTasks(rawTasks.filter((task) => isDeletedTask(task)))
         setArchivedTasks(rawTasks.filter((task) => isArchivedTask(task)))

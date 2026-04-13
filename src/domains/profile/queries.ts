@@ -1,6 +1,10 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { Profile } from './types'
 
+type ProjectMemberWithProfile = {
+  profiles: Profile | Profile[] | null
+}
+
 export async function getProfile(
   client: SupabaseClient,
   userId: string
@@ -28,5 +32,8 @@ export async function getProjectMembers(
     .eq('project_id', projectId)
 
   if (error) throw error
-  return (data as any[]).map(r => r.profiles)
+  return (data as unknown as ProjectMemberWithProfile[]).flatMap((row) => {
+    if (!row.profiles) return []
+    return Array.isArray(row.profiles) ? row.profiles : [row.profiles]
+  })
 }

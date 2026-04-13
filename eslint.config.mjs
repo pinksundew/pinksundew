@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Generated SST platform sources.
     ".sst/**",
+    // Generated OpenNext artifacts.
+    ".open-next/**",
+    // Built MCP output.
+    "mcp-server/dist/**",
   ]),
 ]);
 

@@ -18,8 +18,15 @@ export async function GET(request: NextRequest) {
     return membershipError
   }
 
-  const tags = await getProjectTags(auth.supabase, projectId)
-  return NextResponse.json(tags)
+  try {
+    const tags = await getProjectTags(auth.supabase, projectId)
+    return NextResponse.json(tags)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to get tags' },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -40,11 +47,18 @@ export async function POST(request: NextRequest) {
     return membershipError
   }
 
-  const tag = await createTag(auth.supabase, {
-    project_id: projectId,
-    name,
-    color,
-  })
+  try {
+    const tag = await createTag(auth.supabase, {
+      project_id: projectId,
+      name,
+      color,
+    })
 
-  return NextResponse.json(tag, { status: 201 })
+    return NextResponse.json(tag, { status: 201 })
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create tag' },
+      { status: 500 }
+    )
+  }
 }

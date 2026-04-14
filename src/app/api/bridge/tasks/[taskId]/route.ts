@@ -160,26 +160,33 @@ export async function PATCH(
     return NextResponse.json({ error: 'No updates were provided' }, { status: 400 })
   }
 
-  const updated = await updateTask(auth.supabase, taskId, updates)
+  try {
+    const updated = await updateTask(auth.supabase, taskId, updates)
 
-  const signalChanged = nextSignal !== taskResult.task.workflow_signal
-  const signalMessageChanged = nextSignalMessage !== taskResult.task.workflow_signal_message
-  const shouldCreateSignalMessage =
-    (signalChanged || signalMessageChanged) &&
-    nextSignal !== null &&
-    typeof nextSignalMessage === 'string' &&
-    nextSignalMessage.length > 0
+    const signalChanged = nextSignal !== taskResult.task.workflow_signal
+    const signalMessageChanged = nextSignalMessage !== taskResult.task.workflow_signal_message
+    const shouldCreateSignalMessage =
+      (signalChanged || signalMessageChanged) &&
+      nextSignal !== null &&
+      typeof nextSignalMessage === 'string' &&
+      nextSignalMessage.length > 0
 
-  if (shouldCreateSignalMessage) {
-    await createTaskStateMessage(auth.supabase, {
-      taskId,
-      signal: nextSignal,
-      message: nextSignalMessage,
-      createdBy: auth.userId,
-    })
+    if (shouldCreateSignalMessage) {
+      await createTaskStateMessage(auth.supabase, {
+        taskId,
+        signal: nextSignal,
+        message: nextSignalMessage,
+        createdBy: auth.userId,
+      })
+    }
+
+    return NextResponse.json(updated)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to update task' },
+      { status: 500 }
+    )
   }
-
-  return NextResponse.json(updated)
 }
 
 export async function DELETE(
@@ -201,6 +208,13 @@ export async function DELETE(
     return taskResult.response
   }
 
-  await deleteTask(auth.supabase, taskId)
-  return NextResponse.json({ deleted: true })
+  try {
+    await deleteTask(auth.supabase, taskId)
+    return NextResponse.json({ deleted: true })
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete task' },
+      { status: 500 }
+    )
+  }
 }

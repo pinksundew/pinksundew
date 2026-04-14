@@ -91,7 +91,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'VS Code',
       title: 'Connect In VS Code',
       description:
-        'Add the Pink Sundew MCP server to your workspace settings. One copy-paste and reload.',
+        'Add the Pink Sundew MCP server to your workspace settings. Requires Node.js (npx will auto-download the server on first run).',
       steps: [
         'Generate an API key (or use an existing one).',
         'Copy the mcp.json snippet and paste it into .vscode/mcp.json in your project.',
@@ -129,7 +129,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Claude Code',
       title: 'Connect In Claude Code',
       description:
-        'Add via CLI or paste the JSON into your project .mcp.json config file.',
+        'Add via CLI or paste the JSON into your project .mcp.json config file. Requires Node.js (npx will auto-download the server on first run).',
       steps: [
         'Generate an API key.',
         'Run the CLI command from your project root, OR paste the JSON into .mcp.json.',
@@ -178,7 +178,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Codex',
       title: 'Connect In Codex',
       description:
-        'Codex supports MCP through codex mcp commands or config.toml.',
+        'Codex supports MCP through codex mcp commands or config.toml. Requires Node.js; npx will auto-download the server on first run.',
       steps: [
         'Generate an API key.',
         'Add the server with codex mcp add (fastest) or paste the TOML block into ~/.codex/config.toml.',
@@ -189,13 +189,7 @@ function createGuides(): Record<GuideId, Guide> {
           id: 'codex-command',
           label: 'CLI command',
           language: 'bash',
-          code: [
-            'codex mcp add pinksundew \\',
-            `  --env AGENTPLANNER_API_KEY=${config.apiKey} \\`,
-            `  --env AGENTPLANNER_PROJECT_ID=${config.projectId} \\`,
-            '  --env AGENTPLANNER_CLIENT_ENV=codex \\',
-            '  -- npx -y @pinksundew/mcp',
-          ].join('\n'),
+          code: `codex mcp add pinksundew --env AGENTPLANNER_API_KEY=${config.apiKey} --env AGENTPLANNER_PROJECT_ID=${config.projectId} --env AGENTPLANNER_CLIENT_ENV=codex --env PATH=/usr/local/bin:/usr/bin:/bin -- /usr/local/bin/npx -y @pinksundew/mcp`,
         },
         {
           id: 'codex-toml',
@@ -203,13 +197,14 @@ function createGuides(): Record<GuideId, Guide> {
           language: 'toml',
           code: [
             '[mcp_servers.pinksundew]',
-            'command = "npx"',
+            'command = "/usr/local/bin/npx"',
             'args = ["-y", "@pinksundew/mcp"]',
             '',
             '[mcp_servers.pinksundew.env]',
             `AGENTPLANNER_API_KEY = "${config.apiKey}"`,
             `AGENTPLANNER_PROJECT_ID = "${config.projectId}"`,
             'AGENTPLANNER_CLIENT_ENV = "codex"',
+            'PATH = "/usr/local/bin:/usr/bin:/bin"',
           ].join('\n'),
         },
       ],
@@ -219,7 +214,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Antigravity',
       title: 'Connect In Antigravity',
       description:
-        'Add a local stdio MCP server with the configuration below.',
+        'Add a local stdio MCP server with the configuration below. Requires Node.js; npx will auto-download the server on first run.',
       steps: [
         'Generate an API key.',
         'Open Antigravity MCP settings and add a new local/stdio server.',

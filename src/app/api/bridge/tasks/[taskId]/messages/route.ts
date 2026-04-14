@@ -49,8 +49,15 @@ export async function GET(
     return NextResponse.json({ error: 'limit must be a valid integer' }, { status: 400 })
   }
 
-  const messages = await listTaskStateMessages(auth.supabase, taskId, limit)
-  return NextResponse.json(messages)
+  try {
+    const messages = await listTaskStateMessages(auth.supabase, taskId, limit)
+    return NextResponse.json(messages)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to list messages' },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(
@@ -89,22 +96,29 @@ export async function POST(
 
   const trimmedMessage = rawMessage.trim()
 
-  if (signal !== 'note') {
-    const now = new Date().toISOString()
-    await updateTask(auth.supabase, taskId, {
-      workflow_signal: signal,
-      workflow_signal_message: trimmedMessage,
-      workflow_signal_updated_at: now,
-      workflow_signal_updated_by: null,
+  try {
+    if (signal !== 'note') {
+      const now = new Date().toISOString()
+      await updateTask(auth.supabase, taskId, {
+        workflow_signal: signal,
+        workflow_signal_message: trimmedMessage,
+        workflow_signal_updated_at: now,
+        workflow_signal_updated_by: null,
+      })
+    }
+
+    const message = await createTaskStateMessage(auth.supabase, {
+      taskId,
+      signal,
+      message: trimmedMessage,
+      createdBy: null,
     })
+
+    return NextResponse.json(message, { status: 201 })
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create message' },
+      { status: 500 }
+    )
   }
-
-  const message = await createTaskStateMessage(auth.supabase, {
-    taskId,
-    signal,
-    message: trimmedMessage,
-    createdBy: null,
-  })
-
-  return NextResponse.json(message, { status: 201 })
 }

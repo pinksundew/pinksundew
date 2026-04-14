@@ -731,19 +731,27 @@ if (isProjectScopingEnabled()) {
         console.error(
           `[${SERVER_NAME}] Startup sync: ${result.instructionCount} instruction(s) written to ${result.fileWritten}`
         )
-        
-        // Start background polling after successful initial sync
-        startBackgroundSync({
-          projectId,
-          intervalMs: 60000, // 1 minute
-          verbose: true,
-        })
       } else {
         console.error(`[${SERVER_NAME}] Startup sync failed: ${result.error}`)
       }
+      
+      // Start background polling regardless of initial sync result
+      // This allows retry in restricted environments (e.g., Codex sandbox)
+      startBackgroundSync({
+        projectId,
+        intervalMs: 60000, // 1 minute
+        verbose: true,
+      })
     })
     .catch((err) => {
       console.error(`[${SERVER_NAME}] Startup sync error:`, err)
+      
+      // Still start background sync so it can retry later
+      startBackgroundSync({
+        projectId,
+        intervalMs: 60000,
+        verbose: true,
+      })
     })
 }
 

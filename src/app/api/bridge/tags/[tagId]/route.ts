@@ -65,8 +65,15 @@ export async function PATCH(
     return NextResponse.json({ error: 'No valid tag updates provided' }, { status: 400 })
   }
 
-  const updated = await updateTag(access.auth.supabase, tagId, updates)
-  return NextResponse.json(updated)
+  try {
+    const updated = await updateTag(access.auth.supabase, tagId, updates)
+    return NextResponse.json(updated)
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to update tag' },
+      { status: 500 }
+    )
+  }
 }
 
 export async function GET(
@@ -102,6 +109,13 @@ export async function DELETE(
     return access.response
   }
 
-  await deleteTag(access.auth.supabase, tagId)
-  return NextResponse.json({ deleted: true })
+  try {
+    await deleteTag(access.auth.supabase, tagId)
+    return NextResponse.json({ deleted: true })
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to delete tag' },
+      { status: 500 }
+    )
+  }
 }

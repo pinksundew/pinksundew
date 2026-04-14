@@ -29,17 +29,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid priority' }, { status: 400 })
   }
 
-  const task = await createTask(auth.supabase, {
-    project_id,
-    title,
-    description: description ?? null,
-    status: status ?? 'todo',
-    priority: priority ?? 'medium',
-    assignee_id: assignee_id ?? null,
-    due_date: due_date ?? null,
-    predecessor_id: predecessor_id ?? null,
-    position: position ?? 0,
-  })
+  try {
+    const task = await createTask(auth.supabase, {
+      project_id,
+      title,
+      description: description ?? null,
+      status: status ?? 'todo',
+      priority: priority ?? 'medium',
+      assignee_id: assignee_id ?? null,
+      due_date: due_date ?? null,
+      predecessor_id: predecessor_id ?? null,
+      position: position ?? 0,
+    })
 
-  return NextResponse.json(task, { status: 201 })
+    return NextResponse.json(task, { status: 201 })
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create task' },
+      { status: 500 }
+    )
+  }
 }

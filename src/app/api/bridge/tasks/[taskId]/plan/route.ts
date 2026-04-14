@@ -32,11 +32,18 @@ export async function POST(
     return taskResult.response
   }
 
-  const plan = await createTaskPlan(auth.supabase, {
-    task_id: taskId,
-    content: body.content,
-    created_by: auth.userId,
-  })
+  try {
+    const plan = await createTaskPlan(auth.supabase, {
+      task_id: taskId,
+      content: body.content,
+      created_by: auth.userId,
+    })
 
-  return NextResponse.json(plan, { status: 201 })
+    return NextResponse.json(plan, { status: 201 })
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to create plan' },
+      { status: 500 }
+    )
+  }
 }

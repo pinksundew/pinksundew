@@ -1171,6 +1171,7 @@ export function KanbanBoard({
         projectId={projectId}
         initialStatus={activeMobileTab}
         initialPredecessorTask={followUpSourceTask}
+        onUpdateTaskTitle={handleUpdateTaskTitle}
         onCreateTask={
           isGuestMode
             ? async (taskInput) => {

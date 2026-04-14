@@ -30,11 +30,14 @@ type CreateTaskRequest = {
   predecessor_id: string | null
 }
 
+const DRAFTING_PLACEHOLDER = 'Drafting...'
+
 type CreateTaskModalProps = {
   isOpen: boolean
   onClose: () => void
   projectId: string
   onSuccess: (task: TaskWithTags) => void
+  onUpdateTaskTitle?: (taskId: string, title: string) => Promise<void>
   initialStatus?: TaskStatus
   initialPredecessorTask?: Pick<TaskWithTags, 'id' | 'title'> | null
   onCreateTask?: (task: CreateTaskRequest) => Promise<TaskWithTags>
@@ -45,6 +48,7 @@ export function CreateTaskModal({
   onClose,
   projectId,
   onSuccess,
+  onUpdateTaskTitle,
   initialPredecessorTask = null,
   onCreateTask,
   initialStatus = 'todo',
@@ -75,14 +79,18 @@ export function CreateTaskModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim() || !description.trim()) return
+    const trimmedDescription = description.trim()
+    if (!trimmedDescription) return
+
+    const hasCustomTitle = title.trim().length > 0
+    const initialTitle = hasCustomTitle ? title.trim() : DRAFTING_PLACEHOLDER
 
     setLoading(true)
     try {
       const taskInput: CreateTaskRequest = {
         project_id: projectId,
-        title: title.trim(),
-        description: description.trim() || null,
+        title: initialTitle,
+        description: trimmedDescription,
         status,
         priority,
         position: 0,
@@ -91,20 +99,49 @@ export function CreateTaskModal({
         predecessor_id: predecessorId,
       }
 
+      let createdTask: TaskWithTags
+
       if (onCreateTask) {
-        const localTask = await onCreateTask(taskInput)
-        onSuccess(localTask)
+        createdTask = await onCreateTask(taskInput)
       } else {
         const newTask = await createTask(supabase, taskInput)
-        onSuccess({ ...newTask, tags: [] })
+        createdTask = { ...newTask, tags: [] }
       }
 
+      onSuccess(createdTask)
+
       onClose()
+
+      if (!hasCustomTitle && onUpdateTaskTitle) {
+        void generateAITitle(createdTask.id, trimmedDescription)
+      }
     } catch (error) {
       console.error('Failed to create task:', error)
       alert(error instanceof Error ? error.message : 'Error creating task')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const generateAITitle = async (taskId: string, sourceDescription: string) => {
+    try {
+      const response = await fetch('/api/tasks/ai-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: sourceDescription }),
+      })
+
+      if (!response.ok) {
+        console.error('AI title generation failed')
+        return
+      }
+
+      const { title: generatedTitle } = await response.json()
+      if (generatedTitle && onUpdateTaskTitle) {
+        await onUpdateTaskTitle(taskId, generatedTitle)
+      }
+    } catch (error) {
+      console.error('Error generating AI title:', error)
     }
   }
 
@@ -168,20 +205,18 @@ export function CreateTaskModal({
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">
-                  Title
-                  <span className="ml-1 text-pink-500" aria-hidden="true">
-                    *
-                  </span>
-                  <span className="sr-only">required</span>
+                  Title (optional)
                 </label>
                 <input
                   type="text"
-                  required
-                  placeholder="Task title"
+                  placeholder="Leave blank to auto-generate"
                   className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  If left blank, a title will be auto-generated from the description.
+                </p>
               </div>
 
               <div>
@@ -249,7 +284,7 @@ export function CreateTaskModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || !title.trim() || !description.trim()}
+                  disabled={loading || !description.trim()}
                   className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition disabled:opacity-50"
                 >
                   {loading ? 'Creating...' : 'Create Task'}

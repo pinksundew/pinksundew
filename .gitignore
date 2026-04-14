@@ -61,3 +61,6 @@ mcp-server/sst-env.d.ts
 
 # Local MCP configuration (contains API keys)
 .vscode/mcp.json
+
+
+introdemo.mp4

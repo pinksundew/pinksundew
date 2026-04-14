@@ -218,7 +218,7 @@ export function InlineComposer({
               type="text"
               value={titleText}
               onChange={(e) => setTitleText(e.target.value)}
-              placeholder="Task Title (Optional)"
+              placeholder="Task Title (Optional - auto-generated if blank)"
               className="w-full rounded-t-2xl border-b border-pink-100 bg-transparent px-4 py-3 text-sm font-medium text-gray-800 placeholder:text-gray-400 focus:outline-none"
             />
 

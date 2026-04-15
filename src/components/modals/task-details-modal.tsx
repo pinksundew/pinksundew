@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/client'
 import { TaskPriority, TaskStateMessage, TaskStatus, TaskWithTags } from '@/domains/task/types'
 import { TaskPlan } from '@/domains/plan/types'
 import { getTaskPlans } from '@/domains/plan/queries'
+import { ConfirmModal } from './confirm-modal'
 
 type TaskDetailsModalProps = {
   isOpen: boolean
@@ -71,6 +72,7 @@ export function TaskDetailsModal({
   const [plans, setPlans] = useState<TaskPlan[]>([])
   const [signalMessages, setSignalMessages] = useState<TaskStateMessage[]>([])
   const [isInProgressActionMenuOpen, setIsInProgressActionMenuOpen] = useState(false)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
 
   const [supabase] = useState(() => createClient())
 
@@ -83,6 +85,7 @@ export function TaskDetailsModal({
       setEditingMessageId(null)
       setEditingMessageText('')
       setIsInProgressActionMenuOpen(false)
+      setIsDeleteConfirmOpen(false)
       return
     }
 
@@ -266,6 +269,14 @@ export function TaskDetailsModal({
     const trimmedMessage = editingMessageText.trim()
     if (!trimmedMessage) return
 
+    const latestEditableMessageId = task
+      ? getLatestEditableMessageId(buildThreadMessages(task, signalMessages))
+      : null
+    if (!latestEditableMessageId || latestEditableMessageId !== messageId) {
+      handleCancelEditingMessage()
+      return
+    }
+
     setLoading(true)
     try {
       const {
@@ -320,7 +331,6 @@ export function TaskDetailsModal({
 
   const handleDelete = async () => {
     if (!task) return
-    if (!confirm('Move this task to the abyss? You can restore it later.')) return
 
     setLoading(true)
     try {
@@ -331,12 +341,18 @@ export function TaskDetailsModal({
       console.error('Error deleting task:', error)
     } finally {
       setLoading(false)
+      setIsDeleteConfirmOpen(false)
     }
+  }
+
+  const handleDeleteRequest = () => {
+    setIsDeleteConfirmOpen(true)
   }
 
   if (!isOpen || !task) return null
 
   const threadMessages = buildThreadMessages(task, signalMessages)
+  const latestEditableMessageId = getLatestEditableMessageId(threadMessages)
   const quickAction = getQuickAction(status)
 
   return (
@@ -454,10 +470,7 @@ export function TaskDetailsModal({
                   <div className="mt-4 space-y-3">
                     {threadMessages.map((message) => {
                       const isAgentMessage = message.signal !== 'note' || message.created_by === null
-                      const canEditMessage =
-                        message.signal === 'note' &&
-                        message.created_by !== null &&
-                        !message.id.startsWith('active-signal-')
+                      const canEditMessage = message.id === latestEditableMessageId
                       const isEditingThisMessage = editingMessageId === message.id
                       return (
                         <div
@@ -465,7 +478,7 @@ export function TaskDetailsModal({
                           className={`flex ${isAgentMessage ? 'justify-start' : 'justify-end'}`}
                         >
                           <div
-                            className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${getThreadBubbleClassName(
+                            className={`w-full max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${getThreadBubbleClassName(
                               message
                             )}`}
                           >
@@ -480,7 +493,7 @@ export function TaskDetailsModal({
                                 {formatThreadAuthorLabel(message)}
                               </span>
                               <div className="flex items-center gap-2">
-                                <span>{new Date(message.created_at).toLocaleString()}</span>
+                                <span>{formatTimestamp(message.created_at)}</span>
                                 {canEditMessage && !isEditingThisMessage ? (
                                   <button
                                     type="button"
@@ -593,7 +606,7 @@ export function TaskDetailsModal({
                       >
                         <div className="mb-2 flex items-center justify-between border-b border-border pb-1 text-xs text-muted-foreground">
                           <span>{plan.created_by}</span>
-                          <span>{new Date(plan.created_at).toLocaleString()}</span>
+                          <span>{formatTimestamp(plan.created_at)}</span>
                         </div>
                         {plan.content}
                       </div>
@@ -606,7 +619,7 @@ export function TaskDetailsModal({
             <div className="flex flex-col-reverse justify-between gap-2 border-t border-border bg-background p-4 shrink-0 sm:flex-row">
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={handleDeleteRequest}
                 disabled={loading}
                 className="flex items-center justify-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50"
               >
@@ -704,6 +717,18 @@ export function TaskDetailsModal({
           </form>
         </motion.div>
       </div>
+      <ConfirmModal
+        isOpen={isDeleteConfirmOpen}
+        title="Move Task To The Abyss"
+        message="Move this task to the abyss? You can restore it later."
+        confirmText="Move Task"
+        cancelText="Cancel"
+        isDestructive
+        onConfirm={() => {
+          void handleDelete()
+        }}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+      />
     </AnimatePresence>
   )
 }
@@ -799,4 +824,38 @@ function getQuickAction(status: TaskStatus) {
   if (status === 'in-progress') return 'Complete'
   if (status === 'done') return 'Create Follow-Up'
   return null
+}
+
+function getLatestEditableMessageId(messages: ReviewThreadMessage[]) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index]
+    if (
+      message.signal === 'note' &&
+      message.created_by !== null &&
+      !message.id.startsWith('active-signal-')
+    ) {
+      return message.id
+    }
+  }
+
+  return null
+}
+
+const THREAD_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+  timeZone: 'UTC',
+})
+
+function formatTimestamp(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return THREAD_TIMESTAMP_FORMATTER.format(date)
 }

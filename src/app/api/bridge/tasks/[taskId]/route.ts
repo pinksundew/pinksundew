@@ -52,7 +52,16 @@ export async function PATCH(
   if (isBridgeAuthError(auth)) return auth
 
   const { taskId } = await params
-  const body = await request.json()
+  let body: Record<string, unknown>
+  try {
+    const parsed = await request.json()
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return NextResponse.json({ error: 'Request body must be a JSON object' }, { status: 400 })
+    }
+    body = parsed as Record<string, unknown>
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
   const taskResult = await requireTaskAccess<TaskProjectRow>(
     auth.supabase,

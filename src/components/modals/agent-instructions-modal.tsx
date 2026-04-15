@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { FileText, Plus, Save, Shield, Trash2, X } from 'lucide-react'
+import { FileText, Save, Shield, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
   AgentInstructionSetWithFiles,
@@ -12,7 +12,6 @@ import { getProjectInstructionSets } from '@/domains/agent-instruction/queries'
 import {
   createInstructionFile,
   createInstructionSet,
-  deleteInstructionFile,
   updateInstructionFile,
 } from '@/domains/agent-instruction/mutations'
 import { upsertProjectAgentControls } from '@/domains/agent-control/mutations'
@@ -23,7 +22,6 @@ import {
   ToolToggleMap,
   getDefaultToolToggles,
 } from '@/domains/agent-control/types'
-import { ConfirmModal } from './confirm-modal'
 
 type AgentInstructionsModalProps = {
   isOpen: boolean
@@ -32,12 +30,7 @@ type AgentInstructionsModalProps = {
 }
 
 type AgentSettingsTab = 'instructions' | 'controls'
-
-function ensureMarkdownFileName(rawValue: string) {
-  const trimmed = rawValue.trim()
-  if (!trimmed) return ''
-  return /\.md$/i.test(trimmed) ? trimmed : `${trimmed}.md`
-}
+const DEFAULT_INSTRUCTION_FILE_NAME = 'copilot-instructions.md'
 
 function slugifyInstructionCode(rawValue: string) {
   const slug = rawValue
@@ -83,11 +76,7 @@ export function AgentInstructionsModal({
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
 
-  const [newFileName, setNewFileName] = useState('')
-  const [isCreateFileOpen, setIsCreateFileOpen] = useState(false)
-  const [draftFileName, setDraftFileName] = useState('')
   const [draftContent, setDraftContent] = useState('')
-  const [isDeleteFileConfirmOpen, setIsDeleteFileConfirmOpen] = useState(false)
 
   const [allowTaskCompletion, setAllowTaskCompletion] = useState(true)
   const [toolToggles, setToolToggles] = useState<ToolToggleMap>(getDefaultToolToggles())
@@ -114,7 +103,6 @@ export function AgentInstructionsModal({
       setInstructionErrorMessage(null)
       setControlsErrorMessage(null)
       setActiveTab('instructions')
-      setIsCreateFileOpen(false)
       return
     }
 
@@ -142,12 +130,10 @@ export function AgentInstructionsModal({
 
   useEffect(() => {
     if (!selectedFile) {
-      setDraftFileName('')
       setDraftContent('')
       return
     }
 
-    setDraftFileName(selectedFile.file_name)
     setDraftContent(selectedFile.content)
   }, [selectedFile])
 
@@ -181,6 +167,20 @@ export function AgentInstructionsModal({
       const nextSelectedSet = nextSets.find((set) => set.id === nextSelectedSetId) ?? null
       if (!nextSelectedSet) {
         setSelectedFileId(null)
+        return
+      }
+
+      if (nextSelectedSet.files.length === 0) {
+        const createdFile = await createInstructionFile(supabase, {
+          set_id: nextSelectedSet.id,
+          file_name: DEFAULT_INSTRUCTION_FILE_NAME,
+          content: '',
+        })
+
+        await fetchInstructionSets({
+          selectedSetId: nextSelectedSet.id,
+          selectedFileId: createdFile.id,
+        })
         return
       }
 
@@ -253,49 +253,15 @@ export function AgentInstructionsModal({
     }
   }
 
-  const handleCreateFile = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!selectedSet) return
-
-    const fileName = ensureMarkdownFileName(newFileName)
-    if (!fileName) return
-
-    setIsInstructionLoading(true)
-    setInstructionErrorMessage(null)
-
-    try {
-      const createdFile = await createInstructionFile(supabase, {
-        set_id: selectedSet.id,
-        file_name: fileName,
-        content: '',
-      })
-
-      setNewFileName('')
-      setIsCreateFileOpen(false)
-      await fetchInstructionSets({
-        selectedSetId: selectedSet.id,
-        selectedFileId: createdFile.id,
-      })
-    } catch (error) {
-      console.error('Error creating instruction file:', error)
-      setInstructionErrorMessage('Unable to create that file. File names must be unique per set.')
-    } finally {
-      setIsInstructionLoading(false)
-    }
-  }
-
   const handleSaveFile = async () => {
     if (!selectedFile) return
-
-    const fileName = ensureMarkdownFileName(draftFileName)
-    if (!fileName) return
 
     setIsInstructionLoading(true)
     setInstructionErrorMessage(null)
 
     try {
       await updateInstructionFile(supabase, selectedFile.id, {
-        file_name: fileName,
+        file_name: selectedFile.file_name || DEFAULT_INSTRUCTION_FILE_NAME,
         content: draftContent,
       })
 
@@ -308,31 +274,6 @@ export function AgentInstructionsModal({
       setInstructionErrorMessage('Unable to save that instruction file.')
     } finally {
       setIsInstructionLoading(false)
-    }
-  }
-
-  const handleDeleteFile = async () => {
-    if (!selectedSet || !selectedFile) {
-      return
-    }
-
-    setIsInstructionLoading(true)
-    setInstructionErrorMessage(null)
-
-    try {
-      await deleteInstructionFile(supabase, selectedFile.id)
-      const fallbackFileId = selectedSet.files.find((file) => file.id !== selectedFile.id)?.id ?? null
-
-      await fetchInstructionSets({
-        selectedSetId: selectedSet.id,
-        selectedFileId: fallbackFileId,
-      })
-    } catch (error) {
-      console.error('Error deleting instruction file:', error)
-      setInstructionErrorMessage('Unable to delete that instruction file.')
-    } finally {
-      setIsInstructionLoading(false)
-      setIsDeleteFileConfirmOpen(false)
     }
   }
 
@@ -391,131 +332,53 @@ export function AgentInstructionsModal({
           </div>
 
           {activeTab === 'instructions' ? (
-            <div className="m-4 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 lg:grid-cols-[320px_minmax(0,1fr)]">
-              <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 lg:border-b-0 lg:border-r">
-                <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Files
+            <div className="m-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex items-start gap-2 text-foreground">
+                  <FileText className="mt-0.5 h-5 w-5 text-primary" />
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.08em]">
+                      Single Instruction File
+                    </h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      These instructions are synced into your workspace&apos;s agent instruction file
+                      based on your IDE/environment (for example `AGENTS.md`,
+                      `.github/copilot-instructions.md`, `.cursorrules`, or similar).
+                    </p>
+                  </div>
                 </div>
-
-                <div className="flex-1 space-y-2 overflow-y-auto pr-1">
-                  {selectedSet?.files.length ? (
-                    selectedSet.files.map((file) => {
-                      const isSelected = file.id === selectedFileId
-                      return (
-                        <button
-                          key={file.id}
-                          type="button"
-                          onClick={() => setSelectedFileId(file.id)}
-                          className={`flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left transition-colors ${
-                            isSelected
-                              ? 'border-primary bg-primary/5'
-                              : 'border-slate-200 hover:border-primary/30 hover:bg-muted/30'
-                          }`}
-                        >
-                          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <span className="truncate text-sm text-foreground">{file.file_name}</span>
-                        </button>
-                      )
-                    })
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-muted-foreground">
-                      No instruction files yet.
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-4 border-t border-slate-200 pt-3">
-                  {isCreateFileOpen ? (
-                    <form onSubmit={handleCreateFile} className="space-y-2">
-                      <input
-                        value={newFileName}
-                        onChange={(event) => setNewFileName(event.target.value)}
-                        placeholder="workspace-rules.md"
-                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsCreateFileOpen(false)
-                            setNewFileName('')
-                          }}
-                          className="rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-foreground hover:bg-slate-50"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={isInstructionLoading || ensureMarkdownFileName(newFileName).length === 0}
-                          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                        >
-                          <Plus className="h-3.5 w-3.5" /> Add File
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCreateFileOpen(true)
-                        setInstructionErrorMessage(null)
-                      }}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                    >
-                      <Plus className="h-4 w-4" /> Add File
-                    </button>
-                  )}
+                <div className="mt-3 inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-muted-foreground">
+                  <span className="font-semibold uppercase tracking-wide">Editing</span>
+                  <code className="font-mono text-[11px] text-foreground">
+                    {selectedFile?.file_name ?? DEFAULT_INSTRUCTION_FILE_NAME}
+                  </code>
                 </div>
               </div>
 
-              <div className="flex min-h-0 flex-col overflow-hidden bg-white p-4">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
                 {selectedFile ? (
                   <>
-                    <div>
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        File Name
-                      </label>
-                      <input
-                        value={draftFileName}
-                        onChange={(event) => setDraftFileName(event.target.value)}
-                        className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-
-                    <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-hidden">
-                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Markdown Content
-                      </label>
-                      <textarea
-                        value={draftContent}
-                        onChange={(event) => setDraftContent(event.target.value)}
-                        placeholder="## Agent Notes\n\n- Read linked review thread first\n- Prefer smallest safe code change"
-                        className="h-full min-h-0 w-full flex-1 resize-none rounded-md border border-slate-200 px-3 py-3 font-mono text-sm leading-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
+                    <textarea
+                      value={draftContent}
+                      onChange={(event) => setDraftContent(event.target.value)}
+                      placeholder="## Agent Notes\n\n- Read linked review thread first\n- Prefer smallest safe code change"
+                      className="h-full min-h-0 w-full flex-1 resize-none rounded-md border border-slate-200 px-3 py-3 font-mono text-sm leading-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
 
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
                       <button
                         type="button"
-                        onClick={() => setIsDeleteFileConfirmOpen(true)}
-                        disabled={isInstructionLoading}
-                        className="inline-flex items-center justify-center gap-2 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
-                      >
-                        <Trash2 className="h-4 w-4" /> Delete File
-                      </button>
-                      <button
-                        type="button"
                         onClick={handleSaveFile}
-                        disabled={isInstructionLoading || ensureMarkdownFileName(draftFileName).length === 0}
+                        disabled={isInstructionLoading}
                         className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
                       >
-                        <Save className="h-4 w-4" /> Save File
+                        <Save className="h-4 w-4" /> Save Instructions
                       </button>
                     </div>
                   </>
                 ) : (
                   <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-muted/20 px-6 text-center text-sm text-muted-foreground">
-                    Select or create a markdown file to edit.
+                    Preparing your instruction file...
                   </div>
                 )}
 
@@ -618,18 +481,6 @@ export function AgentInstructionsModal({
         </motion.div>
       </div>
 
-      <ConfirmModal
-        isOpen={isDeleteFileConfirmOpen}
-        title="Delete Instruction File"
-        message={selectedFile ? `Delete ${selectedFile.file_name}?` : 'Delete this instruction file?'}
-        confirmText="Delete File"
-        cancelText="Cancel"
-        isDestructive
-        onClose={() => setIsDeleteFileConfirmOpen(false)}
-        onConfirm={() => {
-          void handleDeleteFile()
-        }}
-      />
     </AnimatePresence>
   )
 }

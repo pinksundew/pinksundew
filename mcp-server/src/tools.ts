@@ -271,10 +271,48 @@ export async function setTaskSignal(input: SetTaskSignalInput) {
     throw new Error('At least one of signal, message, lockMinutes, or lockReason must be provided')
   }
 
-  return bridgeFetch<Task>(`/tasks/${input.taskId}`, {
-    method: 'PATCH',
-    body: JSON.stringify(updates),
-  })
+  try {
+    return await bridgeFetch<Task>(`/tasks/${input.taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    const isServerError = /Bridge API error 5\d{2}/.test(errorMessage)
+
+    if (!isServerError) {
+      throw error
+    }
+
+    // Some bridge failures are transient after the task row is already updated.
+    // Verify task state before failing the tool call so agents can continue safely.
+    try {
+      const currentTask = await getTask(input.taskId)
+
+      const signalMatches =
+        input.signal === undefined || currentTask.workflow_signal === input.signal
+      const messageMatches =
+        input.message === undefined || currentTask.workflow_signal_message === input.message
+      const lockReasonMatches =
+        input.lockReason === undefined || currentTask.agent_lock_reason === input.lockReason
+      const lockUntilMatches =
+        input.lockMinutes === undefined ||
+        (input.lockMinutes === null || input.lockMinutes <= 0
+          ? currentTask.agent_lock_until === null
+          : currentTask.agent_lock_until !== null)
+
+      if (signalMatches && messageMatches && lockReasonMatches && lockUntilMatches) {
+        console.warn(
+          `Recovered from transient bridge 5xx while setting signal for task ${input.taskId}.`
+        )
+        return currentTask
+      }
+    } catch {
+      // Fall through to original error when verification fails.
+    }
+
+    throw error
+  }
 }
 
 export async function listTaskMessages(taskId: string, limit?: number) {

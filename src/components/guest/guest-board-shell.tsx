@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { PlayCircle, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { KanbanBoard } from '@/components/kanban/board'
 import { clearGuestDraft, loadGuestDraft } from '@/domains/task/guest-draft'
@@ -62,11 +63,10 @@ export function GuestBoardShell() {
   const [isImporting, setIsImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [authPrompt, setAuthPrompt] = useState<AuthPromptState>(null)
+  const [isDemoModalOpen, setIsDemoModalOpen] = useState(false)
+  const [isDemoVideoMissing, setIsDemoVideoMissing] = useState(false)
   const supabase = useMemo(() => createClient(), [])
-
-  const openAuthPrompt = (message: string, nextPath: string = '/guest') => {
-    setAuthPrompt({ message, nextPath })
-  }
+  const demoVideoSrc = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL ?? '/demo/workflow.mp4'
 
   const redirectToAuth = () => {
     if (typeof window === 'undefined') {
@@ -197,6 +197,85 @@ export function GuestBoardShell() {
           </div>
         </main>
       </div>
+
+      <div className="pointer-events-none fixed bottom-4 right-4 z-40 w-[min(21rem,calc(100vw-2rem))]">
+        <div className="pointer-events-auto overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+          <div className="relative aspect-video bg-gradient-to-br from-slate-100 via-white to-pink-50">
+            {!isDemoVideoMissing ? (
+              <video
+                src={demoVideoSrc}
+                autoPlay
+                muted
+                loop
+                playsInline
+                className="h-full w-full object-cover"
+                onError={() => setIsDemoVideoMissing(true)}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center px-4 text-center text-sm text-slate-600">
+                Add your demo video at `public/demo/workflow.mp4` or set
+                `NEXT_PUBLIC_DEMO_VIDEO_URL`.
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsDemoModalOpen(true)}
+              className="absolute inset-x-3 bottom-3 inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-sm font-medium text-foreground shadow-sm backdrop-blur transition-colors hover:bg-white"
+            >
+              <PlayCircle className="h-4 w-4 text-primary" />
+              Watch Demo
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {isDemoModalOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <button
+            type="button"
+            onClick={() => setIsDemoModalOpen(false)}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            aria-label="Close demo video"
+          />
+          <div className="relative z-10 w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">AgentPlanner Demo</h2>
+                <p className="text-xs text-muted-foreground">
+                  Full workflow preview of board + agent handoff.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDemoModalOpen(false)}
+                className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="bg-black">
+              {!isDemoVideoMissing ? (
+                <video
+                  src={demoVideoSrc}
+                  autoPlay
+                  muted
+                  loop
+                  controls
+                  playsInline
+                  className="max-h-[75vh] w-full object-contain"
+                  onError={() => setIsDemoVideoMissing(true)}
+                />
+              ) : (
+                <div className="flex min-h-[40vh] items-center justify-center px-6 text-center text-sm text-slate-100">
+                  Demo video source not found. Add `public/demo/workflow.mp4` or set
+                  `NEXT_PUBLIC_DEMO_VIDEO_URL`.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmModal
         isOpen={authPrompt !== null}

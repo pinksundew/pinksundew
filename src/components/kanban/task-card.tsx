@@ -20,6 +20,13 @@ const PRIORITY_COLORS = {
   high: 'bg-rose-50 text-rose-700 border-rose-200'
 }
 
+const DATE_LABEL_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
 function formatDateLabel(value: string | null) {
   if (!value) {
     return null
@@ -30,7 +37,7 @@ function formatDateLabel(value: string | null) {
     return null
   }
 
-  return date.toLocaleDateString()
+  return DATE_LABEL_FORMATTER.format(date)
 }
 
 export function TaskCard({

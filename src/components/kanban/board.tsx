@@ -223,6 +223,8 @@ export function KanbanBoard({
   const hasGuestDraftRef = useRef(false)
   const isAutoRefreshRunningRef = useRef(false)
   const isDragOverProcessingRef = useRef(false)
+  const dragPreviewFrameRef = useRef<number | null>(null)
+  const pendingDragPreviewRef = useRef<TaskWithTags[] | null>(null)
 
   const persistGuestTasks = (taskList: TaskWithTags[]) => {
     saveGuestDraft(projectName, taskList)
@@ -710,17 +712,63 @@ export function KanbanBoard({
   const normalizeTaskPositions = (taskList: TaskWithTags[]) =>
     taskList.map((task, index) => ({ ...task, position: index }))
 
-  const hasOrderChanged = (before: TaskWithTags[], after: TaskWithTags[]) =>
-    before.length !== after.length ||
-    before.some((task, index) => {
-      const nextTask = after[index]
-      return (
-        !nextTask ||
-        nextTask.id !== task.id ||
-        nextTask.status !== task.status ||
-        nextTask.position !== task.position
-      )
-    })
+  const hasOrderChanged = useCallback(
+    (before: TaskWithTags[], after: TaskWithTags[]) =>
+      before.length !== after.length ||
+      before.some((task, index) => {
+        const nextTask = after[index]
+        return (
+          !nextTask ||
+          nextTask.id !== task.id ||
+          nextTask.status !== task.status ||
+          nextTask.position !== task.position
+        )
+      }),
+    []
+  )
+
+  const setDeleteArmedIfChanged = useCallback((nextValue: boolean) => {
+    setIsDeleteArmed((previous) => (previous === nextValue ? previous : nextValue))
+  }, [])
+
+  const cancelScheduledDragPreview = useCallback(() => {
+    pendingDragPreviewRef.current = null
+
+    if (dragPreviewFrameRef.current !== null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(dragPreviewFrameRef.current)
+      dragPreviewFrameRef.current = null
+    }
+  }, [])
+
+  const scheduleDragPreview = useCallback(
+    (nextTasks: TaskWithTags[]) => {
+      pendingDragPreviewRef.current = nextTasks
+      tasksRef.current = nextTasks
+
+      if (dragPreviewFrameRef.current !== null || typeof window === 'undefined') {
+        return
+      }
+
+      dragPreviewFrameRef.current = window.requestAnimationFrame(() => {
+        dragPreviewFrameRef.current = null
+        const pendingPreview = pendingDragPreviewRef.current
+        pendingDragPreviewRef.current = null
+
+        if (!pendingPreview) {
+          return
+        }
+
+        setTasks((previous) =>
+          hasOrderChanged(previous, pendingPreview) ? pendingPreview : previous
+        )
+      })
+    },
+    [hasOrderChanged]
+  )
+
+  useEffect(() => () => {
+    cancelScheduledDragPreview()
+  }, [cancelScheduledDragPreview])
 
   const toPersistedTaskOrder = (taskList: TaskWithTags[]): PersistedTaskOrder[] =>
     taskList.map((task) => ({
@@ -822,14 +870,16 @@ export function KanbanBoard({
     const { active } = event
     const activeId = String(active.id)
 
-    setIsDeleteArmed(false)
+    cancelScheduledDragPreview()
+    setDeleteArmedIfChanged(false)
     dragStartTasksRef.current = [...tasksRef.current]
     setActiveTask(tasksRef.current.find((task) => task.id === activeId) || null)
   }
 
   const handleDragCancel = (_event: DragCancelEvent) => {
+    cancelScheduledDragPreview()
     setActiveTask(null)
-    setIsDeleteArmed(false)
+    setDeleteArmedIfChanged(false)
 
     const dragStartTasks = dragStartTasksRef.current
     if (dragStartTasks) {
@@ -856,7 +906,7 @@ export function KanbanBoard({
         : false
 
       if (!over) {
-        setIsDeleteArmed(isNearAbyss)
+        setDeleteArmedIfChanged(isNearAbyss)
         return
       }
 
@@ -865,7 +915,7 @@ export function KanbanBoard({
       const nextDeleteArmed =
         overId === ABYSS_DROP_ZONE_ID || over.data.current?.type === 'AbyssDropZone' || isNearAbyss
 
-      setIsDeleteArmed(nextDeleteArmed)
+      setDeleteArmedIfChanged(nextDeleteArmed)
 
       if (activeId === overId) return
       if (overId === ABYSS_DROP_ZONE_ID || over.data.current?.type === 'AbyssDropZone') return
@@ -878,8 +928,7 @@ export function KanbanBoard({
 
       const preview = buildReorderedTasks(tasksRef.current, activeId, overId, over.data.current?.type)
       if (preview && hasOrderChanged(tasksRef.current, preview)) {
-        tasksRef.current = preview
-        setTasks(preview)
+        scheduleDragPreview(preview)
       }
     } finally {
       isDragOverProcessingRef.current = false
@@ -899,8 +948,9 @@ export function KanbanBoard({
         )
       : false
 
+    cancelScheduledDragPreview()
     setActiveTask(null)
-    setIsDeleteArmed(false)
+    setDeleteArmedIfChanged(false)
     const dragStartTasks = dragStartTasksRef.current ?? tasksRef.current
     const currentPreviewTasks = tasksRef.current
     dragStartTasksRef.current = null
@@ -911,7 +961,7 @@ export function KanbanBoard({
     }
 
     if (!over) {
-      setIsDeleteArmed(false)
+      setDeleteArmedIfChanged(false)
       // DragOver may have already moved the task visually; persist if changed
       if (hasOrderChanged(dragStartTasks, currentPreviewTasks)) {
         queuePersistTaskOrder(currentPreviewTasks)
@@ -949,9 +999,9 @@ export function KanbanBoard({
 
   useEffect(() => {
     if (!activeTask && isDeleteArmed) {
-      setIsDeleteArmed(false)
+      setDeleteArmedIfChanged(false)
     }
-  }, [activeTask, isDeleteArmed])
+  }, [activeTask, isDeleteArmed, setDeleteArmedIfChanged])
 
   const deleteTaskById = async (id: string) => {
     const previousTasks = tasksRef.current

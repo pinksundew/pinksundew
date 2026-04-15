@@ -367,7 +367,7 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
+          className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
         >
           {/* Header */}
           <div className="flex items-center justify-between p-4 shrink-0">
@@ -387,9 +387,9 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
           </div>
 
           {/* Two-column layout */}
-          <div className="m-4 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="m-3 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 md:m-4 md:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]">
             {/* Left sidebar - API Key */}
-            <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 lg:border-b-0 lg:border-r">
+            <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 md:border-b-0 md:border-r">
               <div className="space-y-4">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -494,21 +494,23 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
             <div className="flex min-h-0 flex-col overflow-hidden bg-white">
               {/* IDE Tabs */}
               <div className="border-b border-slate-200 bg-slate-50/60 px-4 py-3">
-                <div className="inline-flex rounded-lg border border-border bg-muted/20 p-1">
-                  {(Object.values(guides) as Guide[]).map((guide) => (
-                    <button
-                      key={guide.id}
-                      type="button"
-                      onClick={() => setActiveGuideId(guide.id)}
-                      className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
-                        activeGuideId === guide.id
-                          ? 'bg-white text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {guide.label}
-                    </button>
-                  ))}
+                <div className="overflow-x-auto">
+                  <div className="inline-flex min-w-max rounded-lg border border-border bg-muted/20 p-1">
+                    {(Object.values(guides) as Guide[]).map((guide) => (
+                      <button
+                        key={guide.id}
+                        type="button"
+                        onClick={() => setActiveGuideId(guide.id)}
+                        className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                          activeGuideId === guide.id
+                            ? 'bg-white text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {guide.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 

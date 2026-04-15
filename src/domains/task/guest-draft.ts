@@ -40,6 +40,85 @@ function createGuestTaskId() {
   return `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
 }
 
+function createSeedGuestTasks(): TaskWithTags[] {
+  const now = nowIso()
+
+  return [
+    {
+      id: 'guest-readme-1',
+      project_id: 'guest-board',
+      title: 'Stop copy-pasting context into Cursor.',
+      description:
+        `AgentPlanner keeps your live board, review thread, and agent status in one place so your agent can read context directly instead of re-pasting instructions every run.`,
+      status: 'todo',
+      priority: 'medium',
+      assignee_id: null,
+      due_date: null,
+      predecessor_id: null,
+      position: 0,
+      is_deleted: false,
+      completed_at: null,
+      workflow_signal: null,
+      workflow_signal_message: null,
+      workflow_signal_updated_at: null,
+      workflow_signal_updated_by: null,
+      agent_lock_until: null,
+      agent_lock_reason: null,
+      created_at: now,
+      updated_at: now,
+      tags: [],
+    },
+    {
+      id: 'guest-readme-2',
+      project_id: 'guest-board',
+      title: 'Run npx @pinksundew/mcp start in your terminal.',
+      description:
+        `Open “Connect to MCP” to generate your API key, then paste the config snippet for your IDE. Once connected, your agent can read this board and post updates back to tasks.`,
+      status: 'todo',
+      priority: 'medium',
+      assignee_id: null,
+      due_date: null,
+      predecessor_id: null,
+      position: 1,
+      is_deleted: false,
+      completed_at: null,
+      workflow_signal: null,
+      workflow_signal_message: null,
+      workflow_signal_updated_at: null,
+      workflow_signal_updated_by: null,
+      agent_lock_until: null,
+      agent_lock_reason: null,
+      created_at: now,
+      updated_at: now,
+      tags: [],
+    },
+    {
+      id: 'guest-readme-3',
+      project_id: 'guest-board',
+      title: 'Watch the agent read this board.',
+      description:
+        `Try this in your agent chat: "Open my Pink Sundew board, set this task to agent_working, and post a progress note on what you’ll do next."`,
+      status: 'todo',
+      priority: 'medium',
+      assignee_id: null,
+      due_date: null,
+      predecessor_id: null,
+      position: 2,
+      is_deleted: false,
+      completed_at: null,
+      workflow_signal: null,
+      workflow_signal_message: null,
+      workflow_signal_updated_at: null,
+      workflow_signal_updated_by: null,
+      agent_lock_until: null,
+      agent_lock_reason: null,
+      created_at: now,
+      updated_at: now,
+      tags: [],
+    },
+  ]
+}
+
 function normalizeTask(candidate: unknown, index: number): TaskWithTags | null {
   if (!candidate || typeof candidate !== 'object') return null
 
@@ -101,10 +180,12 @@ function normalizeTask(candidate: unknown, index: number): TaskWithTags | null {
 }
 
 function buildEmptyDraft(defaultProjectName: string): StoredGuestDraft {
+  const seededTasks = createSeedGuestTasks()
+
   return {
     version: 1,
     projectName: defaultProjectName,
-    tasks: [],
+    tasks: seededTasks,
     updatedAt: nowIso(),
   }
 }

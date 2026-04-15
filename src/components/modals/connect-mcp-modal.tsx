@@ -10,7 +10,7 @@ type ConnectMcpModalProps = {
   projectId: string
 }
 
-type GuideId = 'vscode' | 'claude-code' | 'codex' | 'antigravity'
+type GuideId = 'vscode' | 'cursor' | 'claude-code' | 'codex' | 'antigravity'
 
 type Guide = {
   id: GuideId
@@ -124,6 +124,44 @@ function createGuides(): Record<GuideId, Guide> {
         },
       ],
     },
+    cursor: {
+      id: 'cursor',
+      label: 'Cursor',
+      title: 'Connect In Cursor',
+      description:
+        'Add the MCP server to Cursor workspace settings. Requires Node.js (npx will auto-download the server on first run).',
+      steps: [
+        'Generate an API key (or use an existing one).',
+        'Copy the mcp.json snippet and paste it into .cursor/mcp.json in your project.',
+        'Add .cursor/mcp.json to your .gitignore to keep your API key private.',
+        'Restart Cursor or reconnect MCP, then confirm Pink Sundew tools appear.',
+      ],
+      getSnippets: (config) => [
+        {
+          id: 'cursor-config',
+          label: '.cursor/mcp.json',
+          language: 'json',
+          code: JSON.stringify(
+            {
+              mcpServers: {
+                pinksundew: {
+                  type: 'stdio',
+                  command: 'npx',
+                  args: ['-y', '@pinksundew/mcp'],
+                  env: {
+                    AGENTPLANNER_API_KEY: config.apiKey,
+                    AGENTPLANNER_PROJECT_ID: config.projectId,
+                    AGENTPLANNER_CLIENT_ENV: 'cursor',
+                  },
+                },
+              },
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    },
     'claude-code': {
       id: 'claude-code',
       label: 'Claude Code',
@@ -178,11 +216,12 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Codex',
       title: 'Connect In Codex',
       description:
-        'Codex supports MCP through codex mcp commands or config.toml. Requires Node.js; npx will auto-download the server on first run.',
+        'Codex supports MCP through codex mcp commands or config.toml. Use AGENTPLANNER_CLIENT_ENV=codex so instruction sync targets AGENTS.md for Codex extension compatibility.',
       steps: [
         'Generate an API key.',
         'Add the server with codex mcp add (fastest) or paste the TOML block into ~/.codex/config.toml.',
         'Run /mcp in Codex or codex mcp list in terminal to verify.',
+        'If you use the Codex extension in VS Code or Cursor, keep AGENTPLANNER_CLIENT_ENV=codex so synced instructions land in AGENTS.md.',
       ],
       getSnippets: (config) => [
         {
@@ -499,6 +538,15 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
                     />
                   ))}
                 </div>
+
+                {activeGuideId === 'codex' ? (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
+                    <PlugZap className="mr-1 inline-block h-3.5 w-3.5" />
+                    In restricted sandbox environments, Codex may connect but fail to write synced instruction
+                    files until filesystem permissions are granted. MCP tools still work while sync retries in
+                    the background.
+                  </div>
+                ) : null}
 
                 {!hasApiKey && (
                   <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">

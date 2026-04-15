@@ -39,6 +39,8 @@ type CreateTaskModalProps = {
   onSuccess: (task: TaskWithTags) => void
   onUpdateTaskTitle?: (taskId: string, title: string) => Promise<void>
   initialStatus?: TaskStatus
+  initialTitle?: string
+  initialDescription?: string
   initialPredecessorTask?: Pick<TaskWithTags, 'id' | 'title'> | null
   onCreateTask?: (task: CreateTaskRequest) => Promise<TaskWithTags>
 }
@@ -52,9 +54,11 @@ export function CreateTaskModal({
   initialPredecessorTask = null,
   onCreateTask,
   initialStatus = 'todo',
+  initialTitle = '',
+  initialDescription = '',
 }: CreateTaskModalProps) {
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
+  const [title, setTitle] = useState(initialTitle)
+  const [description, setDescription] = useState(initialDescription)
   const [status, setStatus] = useState<TaskStatus>(initialStatus)
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [dueDate, setDueDate] = useState('')
@@ -67,15 +71,15 @@ export function CreateTaskModal({
   useEffect(() => {
     if (!isOpen) return
 
-    setTitle('')
-    setDescription('')
+    setTitle(initialTitle)
+    setDescription(initialDescription)
     setStatus(initialStatus)
     setPriority('medium')
     setDueDate('')
     setLoading(false)
     setPredecessorId(initialPredecessorTask?.id ?? null)
     setPredecessorTitle(initialPredecessorTask?.title ?? '')
-  }, [initialPredecessorTask, isOpen, initialStatus])
+  }, [initialDescription, initialPredecessorTask, initialStatus, initialTitle, isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

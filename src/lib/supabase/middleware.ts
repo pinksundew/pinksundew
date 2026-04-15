@@ -31,21 +31,15 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || 
-                      request.nextUrl.pathname.startsWith('/signup') ||
-                      request.nextUrl.pathname.startsWith('/callback');
-  const isGuestRoute = request.nextUrl.pathname.startsWith('/guest');
-
-  if (!user && !isAuthRoute && !isGuestRoute && !request.nextUrl.pathname.startsWith('/api')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
-  }
+  const isAuthRoute =
+    request.nextUrl.pathname.startsWith('/login') ||
+    request.nextUrl.pathname.startsWith('/signup') ||
+    request.nextUrl.pathname.startsWith('/callback')
 
   if (user && isAuthRoute) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/'
-      return NextResponse.redirect(url)
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    return NextResponse.redirect(url)
   }
 
   return supabaseResponse

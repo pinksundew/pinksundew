@@ -13,7 +13,7 @@ type InlineComposerProps = {
   onPromptAuth?: (message: string) => void
   onCreateTask: (task: CreateTaskInput) => Promise<TaskWithTags>
   onUpdateTaskTitle?: (taskId: string, title: string) => Promise<void>
-  onExpandRequest?: () => void
+  onExpandRequest?: (draft: { title: string; description: string }) => void
 }
 
 type CreateTaskInput = {
@@ -179,7 +179,10 @@ export function InlineComposer({
 
   const handleExpandClick = () => {
     if (onExpandRequest) {
-      onExpandRequest()
+      onExpandRequest({
+        title: titleText,
+        description: descriptionText,
+      })
       handleCancel()
     }
   }

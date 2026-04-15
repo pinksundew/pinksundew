@@ -542,7 +542,7 @@ const toolDefinitions: ToolDefinition[] = [
   {
     name: 'sync_global_instructions',
     description:
-      'Triggers a background sync of the latest global agent instructions from the Pink Sundew server and writes them to local IDE instruction files (.cursorrules, CLAUDE.md, codex.md, antigravity.md, .github/copilot-instructions.md). Call this to refresh instructions mid-session without restarting the MCP server.',
+      'Triggers a background sync of the latest global agent instructions from the Pink Sundew server and writes them to local IDE instruction files (.cursorrules, CLAUDE.md, AGENTS.md, antigravity.md, .github/copilot-instructions.md). Call this to refresh instructions mid-session without restarting the MCP server.',
     inputSchema: {
       type: 'object',
       properties: {},

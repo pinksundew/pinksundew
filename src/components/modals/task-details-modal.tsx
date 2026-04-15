@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Save, Trash2, X } from 'lucide-react'
+import { ChevronDown, PencilLine, Save, Trash2, X } from 'lucide-react'
 import {
   createTaskStateMessage,
   deleteTask,
   listTaskStateMessages,
+  updateTaskStateMessage,
   updateTask,
 } from '@/domains/task/mutations'
 import { createClient } from '@/lib/supabase/client'
@@ -64,6 +65,8 @@ export function TaskDetailsModal({
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [dueDate, setDueDate] = useState('')
   const [replyMessage, setReplyMessage] = useState('')
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editingMessageText, setEditingMessageText] = useState('')
   const [loading, setLoading] = useState(false)
   const [plans, setPlans] = useState<TaskPlan[]>([])
   const [signalMessages, setSignalMessages] = useState<TaskStateMessage[]>([])
@@ -77,6 +80,8 @@ export function TaskDetailsModal({
       setSignalMessages([])
       setDueDate('')
       setReplyMessage('')
+      setEditingMessageId(null)
+      setEditingMessageText('')
       setIsInProgressActionMenuOpen(false)
       return
     }
@@ -87,6 +92,8 @@ export function TaskDetailsModal({
     setPriority(task.priority)
     setDueDate(toDateInputValue(task.due_date))
     setReplyMessage('')
+    setEditingMessageId(null)
+    setEditingMessageText('')
     setIsInProgressActionMenuOpen(false)
     void fetchPlans(task.id)
     void fetchSignalMessages(task.id)
@@ -238,6 +245,50 @@ export function TaskDetailsModal({
       }
     } catch (error) {
       console.error('Error replying to task signal:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleStartEditingMessage = (message: ReviewThreadMessage) => {
+    if (message.signal !== 'note' || message.created_by === null) return
+
+    setEditingMessageId(message.id)
+    setEditingMessageText(message.message)
+  }
+
+  const handleCancelEditingMessage = () => {
+    setEditingMessageId(null)
+    setEditingMessageText('')
+  }
+
+  const handleSaveEditedMessage = async (messageId: string) => {
+    const trimmedMessage = editingMessageText.trim()
+    if (!trimmedMessage) return
+
+    setLoading(true)
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      const updatedMessage = await updateTaskStateMessage(supabase, {
+        messageId,
+        message: trimmedMessage,
+        createdBy: user.id,
+      })
+
+      setSignalMessages((previousMessages) =>
+        previousMessages.map((message) =>
+          message.id === updatedMessage.id ? updatedMessage : message
+        )
+      )
+
+      handleCancelEditingMessage()
+    } catch (error) {
+      console.error('Error editing task reply:', error)
     } finally {
       setLoading(false)
     }
@@ -403,6 +454,11 @@ export function TaskDetailsModal({
                   <div className="mt-4 space-y-3">
                     {threadMessages.map((message) => {
                       const isAgentMessage = message.signal !== 'note' || message.created_by === null
+                      const canEditMessage =
+                        message.signal === 'note' &&
+                        message.created_by !== null &&
+                        !message.id.startsWith('active-signal-')
+                      const isEditingThisMessage = editingMessageId === message.id
                       return (
                         <div
                           key={message.id}
@@ -423,15 +479,62 @@ export function TaskDetailsModal({
                               <span className="font-semibold uppercase tracking-[0.14em]">
                                 {formatThreadAuthorLabel(message)}
                               </span>
-                              <span>{new Date(message.created_at).toLocaleString()}</span>
+                              <div className="flex items-center gap-2">
+                                <span>{new Date(message.created_at).toLocaleString()}</span>
+                                {canEditMessage && !isEditingThisMessage ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEditingMessage(message)}
+                                    disabled={loading}
+                                    className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors ${
+                                      isAgentMessage
+                                        ? 'border-border bg-white text-foreground hover:bg-muted'
+                                        : 'border-primary-foreground/40 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20'
+                                    }`}
+                                  >
+                                    <PencilLine className="h-3 w-3" />
+                                    Edit
+                                  </button>
+                                ) : null}
+                              </div>
                             </div>
-                            <p
-                              className={`mt-2 whitespace-pre-wrap text-sm leading-6 ${
-                                isAgentMessage ? 'text-foreground' : 'text-primary-foreground'
-                              }`}
-                            >
-                              {message.message}
-                            </p>
+
+                            {isEditingThisMessage ? (
+                              <div className="mt-2 space-y-2">
+                                <textarea
+                                  rows={3}
+                                  value={editingMessageText}
+                                  onChange={(event) => setEditingMessageText(event.target.value)}
+                                  className="w-full rounded-md border border-border bg-white p-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={handleCancelEditingMessage}
+                                    disabled={loading}
+                                    className="rounded-md border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleSaveEditedMessage(message.id)}
+                                    disabled={loading || editingMessageText.trim().length === 0}
+                                    className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    Save Reply
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p
+                                className={`mt-2 whitespace-pre-wrap text-sm leading-6 ${
+                                  isAgentMessage ? 'text-foreground' : 'text-primary-foreground'
+                                }`}
+                              >
+                                {message.message}
+                              </p>
+                            )}
                           </div>
                         </div>
                       )

@@ -24,6 +24,26 @@ function parseNullableString(value: unknown, fieldName: string) {
   return trimmed.length > 0 ? trimmed : null
 }
 
+function getErrorMessage(error: unknown, fallback = 'Failed to update task') {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message
+  }
+
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as { message?: unknown }).message === 'string'
+  ) {
+    const message = (error as { message: string }).message.trim()
+    if (message.length > 0) {
+      return message
+    }
+  }
+
+  return fallback
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
@@ -172,20 +192,40 @@ export async function PATCH(
       nextSignalMessage.length > 0
 
     if (shouldCreateSignalMessage) {
-      await createTaskStateMessage(auth.supabase, {
-        taskId,
-        signal: nextSignal,
-        message: nextSignalMessage,
-        createdBy: auth.userId,
-      })
+      try {
+        await createTaskStateMessage(auth.supabase, {
+          taskId,
+          signal: nextSignal,
+          message: nextSignalMessage,
+          createdBy: auth.userId,
+        })
+      } catch (messageError) {
+        console.error(
+          `Failed to persist task_state_messages entry for task ${taskId}:`,
+          getErrorMessage(messageError, 'Unknown task_state_messages error')
+        )
+
+        if (nextSignal === 'agent_working') {
+          try {
+            await createTaskStateMessage(auth.supabase, {
+              taskId,
+              signal: 'note',
+              message: `Agent Working: ${nextSignalMessage}`,
+              createdBy: auth.userId,
+            })
+          } catch (fallbackError) {
+            console.error(
+              `Failed to persist fallback note for task ${taskId}:`,
+              getErrorMessage(fallbackError, 'Unknown fallback task_state_messages error')
+            )
+          }
+        }
+      }
     }
 
     return NextResponse.json(updated)
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update task' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 })
   }
 }
 

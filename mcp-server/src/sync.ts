@@ -7,6 +7,7 @@
  * - claude -> CLAUDE.md
  * - windsurf -> .windsurfrules
  * - vscode -> .github/copilot-instructions.md
+ * - codex -> AGENTS.md
  * - default -> .agentrules
  *
  * Uses non-destructive "Injection Block" pattern with HTML comment markers.
@@ -49,7 +50,7 @@ const CLIENT_ENV_FILES: Record<string, string> = {
   claude: 'CLAUDE.md',
   windsurf: '.windsurfrules',
   vscode: '.github/copilot-instructions.md',
-  codex: 'codex.md',
+  codex: 'AGENTS.md',
   antigravity: 'antigravity.md',
 }
 

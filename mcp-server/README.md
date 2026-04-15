@@ -27,9 +27,11 @@ npm install -g @pinksundew/mcp
 | claude       | CLAUDE.md                        |
 | windsurf     | .windsurfrules                   |
 | vscode       | .github/copilot-instructions.md  |
-| codex        | codex.md                         |
+| codex        | AGENTS.md                        |
 | antigravity  | antigravity.md                   |
 | (default)    | .agentrules                      |
+
+`codex` maps to `AGENTS.md` so Codex CLI and the Codex extension (VS Code/Cursor) ingest the same synced instructions.
 
 ### Non-Destructive Sync
 

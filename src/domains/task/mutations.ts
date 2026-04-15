@@ -96,6 +96,12 @@ type CreateTaskStateMessageInput = {
   createdBy?: string | null
 }
 
+type UpdateTaskStateMessageInput = {
+  messageId: string
+  message: string
+  createdBy: string
+}
+
 export async function setTaskSignal(
   client: SupabaseClient,
   input: SetTaskSignalInput
@@ -157,6 +163,29 @@ export async function createTaskStateMessage(
       message: input.message,
       created_by: input.createdBy ?? null,
     })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data as TaskStateMessage
+}
+
+export async function updateTaskStateMessage(
+  client: SupabaseClient,
+  input: UpdateTaskStateMessageInput
+): Promise<TaskStateMessage> {
+  const trimmedMessage = input.message.trim()
+  if (!trimmedMessage) {
+    throw new Error('Message is required')
+  }
+
+  const { data, error } = await client
+    .from('task_state_messages')
+    .update({
+      message: trimmedMessage,
+    })
+    .eq('id', input.messageId)
+    .eq('created_by', input.createdBy)
     .select('*')
     .single()
 

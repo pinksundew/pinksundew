@@ -195,6 +195,10 @@ export function KanbanBoard({
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [selectedTask, setSelectedTask] = useState<TaskWithTags | null>(null)
   const [followUpSourceTask, setFollowUpSourceTask] = useState<Pick<TaskWithTags, 'id' | 'title'> | null>(null)
+  const [createModalDraft, setCreateModalDraft] = useState<{
+    title: string
+    description: string
+  } | null>(null)
   const [activeTask, setActiveTask] = useState<TaskWithTags | null>(null)
   const [isDeleteArmed, setIsDeleteArmed] = useState(false)
   const [authPromptMessage, setAuthPromptMessage] = useState<string | null>(null)
@@ -604,18 +608,22 @@ export function KanbanBoard({
     setIsExportModalOpen(true)
   }
 
-  const openCreateModal = (predecessorTask: Pick<TaskWithTags, 'id' | 'title'> | null = null) => {
+  const openCreateModal = (
+    predecessorTask: Pick<TaskWithTags, 'id' | 'title'> | null = null,
+    draft: { title: string; description: string } | null = null
+  ) => {
     setFollowUpSourceTask(predecessorTask)
+    setCreateModalDraft(draft)
     setIsCreateModalOpen(true)
   }
 
-  const openCreateFromPill = () => {
+  const openCreateFromPill = (draft: { title: string; description: string }) => {
     if (guestTaskLimitReached) {
       promptForAuth(`Guest boards are limited to ${GUEST_ACTIVE_TASK_LIMIT} active tasks. Sign in to add more tasks.`)
       return
     }
 
-    openCreateModal()
+    openCreateModal(null, draft)
   }
 
   const createTaskInline = async (taskInput: {
@@ -1167,9 +1175,12 @@ export function KanbanBoard({
         onClose={() => {
           setIsCreateModalOpen(false)
           setFollowUpSourceTask(null)
+          setCreateModalDraft(null)
         }}
         projectId={projectId}
         initialStatus={activeMobileTab}
+        initialTitle={createModalDraft?.title ?? ''}
+        initialDescription={createModalDraft?.description ?? ''}
         initialPredecessorTask={followUpSourceTask}
         onUpdateTaskTitle={handleUpdateTaskTitle}
         onCreateTask={
@@ -1205,6 +1216,7 @@ export function KanbanBoard({
             return nextTasks
           })
           setFollowUpSourceTask(null)
+          setCreateModalDraft(null)
         }}
       />
       

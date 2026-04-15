@@ -1,20 +1,20 @@
 {
   "name": "@pinksundew/mcp",
-  "version": "1.4.5",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Kanban MCP Server for Pink Sundew",
-  "main": "dist/index.js",
+  "description": "Pink Sundew MCP launcher (native Rust binary wrapper)",
+  "main": "bin/pinksundew-mcp.js",
   "files": [
-    "dist",
+    "bin",
     "README.md"
   ],
   "bin": {
-    "pinksundew-mcp": "dist/index.js"
+    "pinksundew-mcp": "bin/pinksundew-mcp.js"
   },
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsx src/index.ts",
+    "build": "node ./scripts/verify-wrapper.mjs",
+    "start": "node ./bin/pinksundew-mcp.js",
+    "dev": "node ./bin/pinksundew-mcp.js",
     "prepack": "npm run build"
   },
   "keywords": [
@@ -39,13 +39,6 @@
   "publishConfig": {
     "access": "public"
   },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.6.0",
-    "zod": "^4.3.6"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "tsx": "^4.7.1",
-    "typescript": "^5.3.3"
-  }
+  "dependencies": {},
+  "devDependencies": {}
 }

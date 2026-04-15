@@ -71,7 +71,7 @@ function createSeedGuestTasks(): TaskWithTags[] {
     {
       id: 'guest-readme-2',
       project_id: 'guest-board',
-      title: 'Run npx @pinksundew/mcp start in your terminal.',
+      title: 'Run pinksundew-mcp in your terminal.',
       description:
         `Open “Connect to MCP” to generate your API key, then paste the config snippet for your IDE. Once connected, your agent can read this board and post updates back to tasks.`,
       status: 'todo',

@@ -2,13 +2,19 @@
 
 Model Context Protocol server for Pink Sundew's Kanban bridge API.
 
-This server is project-first: it can read boards, inspect tickets, move work between active stages, manage tags, export prompts, and restore tasks from the abyss.
+This package now acts as a launcher for the native Rust runtime binary.
 
-## Install
+## Install (preferred)
+
+Install the native binary from GitHub Releases and put it on PATH as `pinksundew-mcp`.
+
+## Install (compatibility npm wrapper)
 
 ```bash
 npm install -g @pinksundew/mcp
 ```
+
+The wrapper downloads and executes the matching native binary.
 
 ## Required environment variables
 
@@ -18,9 +24,12 @@ npm install -g @pinksundew/mcp
 - `AGENTPLANNER_TARGET_FILES`: Optional. Comma-separated workspace-relative output files. When set, this **overrides** `AGENTPLANNER_CLIENT_ENV` mapping. Example: `AGENTS.md,.github/copilot-instructions.md`.
 - `AGENTPLANNER_URL`: Optional. Defaults to `https://pinksundew.com`.
 
-`get_project_board` enforces instruction hydration for markdown files: when `.md` metadata is returned, the server checks `content_hash`, fetches new/changed files, and fails if any markdown content cannot be resolved.
+## Optional launcher variables
 
-### Client Environment Output Files
+- `PINKSUNDEW_MCP_BINARY_PATH`: Absolute path to an already-installed binary. When set, download is skipped.
+- `PINKSUNDEW_MCP_RELEASE_BASE_URL`: Override release asset base URL used by the launcher.
+
+## Client Environment Output Files
 
 | CLIENT_ENV   | Output File                      |
 |--------------|----------------------------------|
@@ -34,13 +43,13 @@ npm install -g @pinksundew/mcp
 
 `codex` maps to `AGENTS.md` so Codex CLI and the Codex extension (VS Code/Cursor) ingest the same synced instructions.
 
-### Output Resolution Precedence
+## Output Resolution Precedence
 
 1. `AGENTPLANNER_TARGET_FILES` (explicit target file list)
 2. `AGENTPLANNER_CLIENT_ENV` (mapped from env values above)
 3. Default fallback: `.agentrules`
 
-### Non-Destructive Sync
+## Non-Destructive Sync
 
 The instruction sync uses an **Injection Block** pattern to preserve user-defined content. Cloud instructions are wrapped in HTML comment markers:
 
@@ -69,7 +78,24 @@ AGENTPLANNER_CLIENT_ENV=vscode,codex \
 pinksundew-mcp
 ```
 
-## Example MCP client configuration
+## Example MCP client configuration (native binary)
+
+```json
+{
+  "mcpServers": {
+    "pinksundew": {
+      "command": "pinksundew-mcp",
+      "env": {
+        "AGENTPLANNER_API_KEY": "your_api_key",
+        "AGENTPLANNER_PROJECT_ID": "your_project_id",
+        "AGENTPLANNER_CLIENT_ENV": "vscode,codex"
+      }
+    }
+  }
+}
+```
+
+## Example MCP client configuration (npm wrapper)
 
 ```json
 {
@@ -85,11 +111,4 @@ pinksundew-mcp
     }
   }
 }
-```
-
-## Development
-
-```bash
-npm install
-npm run build
 ```

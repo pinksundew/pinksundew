@@ -55,6 +55,8 @@ mcp-server/sst-env.d.ts
 # MCP Server
 /mcp-server/dist
 /mcp-server/node_modules
+/mcp-server-rust/target
+/mcp-server-rust/Cargo.lock
 
 # Pink Sundew local hash cache
 .pinksundew-hash

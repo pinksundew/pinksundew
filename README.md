@@ -14,6 +14,7 @@ AgentPlanner is a Next.js 16 board application with Supabase-backed data, an MCP
 - `src/`: app routes, UI, domain logic, bridge endpoints
 - `supabase/`: SQL migrations
 - `mcp-server/`: MCP server source and package
+- `mcp-server-rust/`: Native Rust MCP runtime
 - `sst.config.ts`: production deployment config
 
 ## Local Development
@@ -50,7 +51,13 @@ npx sst deploy --stage production
 
 ## MCP Server
 
-Build MCP server:
+Build native Rust MCP server:
+
+```bash
+cargo build --manifest-path mcp-server-rust/Cargo.toml
+```
+
+Compatibility npm launcher package:
 
 ```bash
 npm --prefix mcp-server run build

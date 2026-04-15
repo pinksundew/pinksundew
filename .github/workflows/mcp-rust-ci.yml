@@ -1,0 +1,45 @@
+name: MCP Rust CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - mcp-server-rust/**
+      - .github/workflows/mcp-rust-ci.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - mcp-server-rust/**
+      - .github/workflows/mcp-rust-ci.yml
+
+jobs:
+  rust-checks:
+    name: Rust Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mcp-server-rust
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mcp-server-rust
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy (stdout print gate)
+        run: cargo clippy --all-targets --all-features -- -D warnings -D clippy::print_stdout
+
+      - name: Test
+        run: cargo test --all-targets --all-features

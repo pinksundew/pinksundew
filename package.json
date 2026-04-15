@@ -15,7 +15,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:types": "vitest run --typecheck",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "mcp:rust:build": "cargo build --manifest-path mcp-server-rust/Cargo.toml",
+    "mcp:rust:test": "cargo test --manifest-path mcp-server-rust/Cargo.toml"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

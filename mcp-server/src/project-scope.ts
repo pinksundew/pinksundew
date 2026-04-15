@@ -7,6 +7,10 @@
  */
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+const CLIENT_ENV_VALUES = ['cursor', 'claude', 'windsurf', 'vscode', 'codex', 'antigravity'] as const
+const CLIENT_ENV_SET = new Set<string>(CLIENT_ENV_VALUES)
+
+type ClientEnv = (typeof CLIENT_ENV_VALUES)[number]
 
 /**
  * Parses and validates the single project ID from environment.
@@ -36,8 +40,81 @@ function parseProjectId(): string | null {
   return projectId
 }
 
+/**
+ * Parses optional AGENTPLANNER_CLIENT_ENV list.
+ * Supports comma-separated values (e.g. "vscode,codex").
+ */
+function parseClientEnvs(): ClientEnv[] {
+  const raw = process.env.AGENTPLANNER_CLIENT_ENV ?? ''
+  if (!raw.trim()) {
+    return []
+  }
+
+  const parts = raw
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0)
+
+  const unique: ClientEnv[] = []
+  for (const part of parts) {
+    if (!CLIENT_ENV_SET.has(part)) {
+      throw new Error(
+        `Invalid AGENTPLANNER_CLIENT_ENV value "${part}". Valid values: ${CLIENT_ENV_VALUES.join(', ')}`
+      )
+    }
+
+    const clientEnv = part as ClientEnv
+    if (!unique.includes(clientEnv)) {
+      unique.push(clientEnv)
+    }
+  }
+
+  return unique
+}
+
+/**
+ * Parses optional AGENTPLANNER_TARGET_FILES list.
+ * Supports comma-separated relative paths.
+ */
+function parseTargetFiles(): string[] {
+  const raw = process.env.AGENTPLANNER_TARGET_FILES ?? ''
+  if (!raw.trim()) {
+    return []
+  }
+
+  const parts = raw
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+
+  const unique: string[] = []
+  for (const part of parts) {
+    const normalized = part.replace(/\\/g, '/')
+
+    if (normalized.startsWith('/')) {
+      throw new Error(
+        `Invalid AGENTPLANNER_TARGET_FILES entry "${part}". Use workspace-relative paths only.`
+      )
+    }
+
+    if (normalized.split('/').includes('..')) {
+      throw new Error(
+        `Invalid AGENTPLANNER_TARGET_FILES entry "${part}". Parent directory traversal is not allowed.`
+      )
+    }
+
+    if (!unique.includes(normalized)) {
+      unique.push(normalized)
+    }
+  }
+
+  return unique
+}
+
 // Parse once at module load - will throw if invalid
 const projectId = parseProjectId()
+const clientEnvs = parseClientEnvs()
+const targetFiles = parseTargetFiles()
 
 /**
  * Returns the configured project ID.
@@ -110,9 +187,25 @@ export function filterByProjectScope<T extends { project_id?: string; id?: strin
 }
 
 /**
- * Returns the configured client environment.
+ * Returns configured client environments.
  * Used for targeting IDE-specific instruction files.
  */
+export function getClientEnvs(): string[] {
+  return clientEnvs
+}
+
+/**
+ * Returns the first configured client environment, if present.
+ * @deprecated Prefer getClientEnvs() for multi-env support.
+ */
 export function getClientEnv(): string | null {
-  return process.env.AGENTPLANNER_CLIENT_ENV?.trim() || null
+  return clientEnvs[0] ?? null
+}
+
+/**
+ * Returns explicitly configured target files for instruction sync.
+ * When present, these paths override client-env output mapping.
+ */
+export function getTargetFiles(): string[] {
+  return targetFiles
 }

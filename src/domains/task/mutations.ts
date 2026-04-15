@@ -187,9 +187,12 @@ export async function updateTaskStateMessage(
     .eq('id', input.messageId)
     .eq('created_by', input.createdBy)
     .select('*')
-    .single()
+    .maybeSingle()
 
   if (error) throw error
+  if (!data) {
+    throw new Error('Unable to edit that reply. You can only edit your latest reply.')
+  }
   return data as TaskStateMessage
 }
 

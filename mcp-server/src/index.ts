@@ -12,7 +12,13 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { assertProjectAllowed, isProjectScopingEnabled, getProjectId, getClientEnv } from './project-scope.js'
+import {
+  assertProjectAllowed,
+  isProjectScopingEnabled,
+  getProjectId,
+  getClientEnvs,
+  getTargetFiles,
+} from './project-scope.js'
 import { syncGlobalInstructions, startBackgroundSync } from './sync.js'
 import {
   getAbyssState,
@@ -49,10 +55,14 @@ const allowedTaskStatuses: TaskStatus[] = ['todo', 'in-progress', 'done']
 
 // Log project scoping status at startup
 if (isProjectScopingEnabled()) {
-  const clientEnv = getClientEnv()
+  const clientEnvs = getClientEnvs()
+  const targetFiles = getTargetFiles()
   console.error(`[${SERVER_NAME}] Project scoping enabled. Project ID: ${getProjectId()}`)
-  if (clientEnv) {
-    console.error(`[${SERVER_NAME}] Client environment: ${clientEnv}`)
+  if (clientEnvs.length > 0) {
+    console.error(`[${SERVER_NAME}] Client environments: ${clientEnvs.join(', ')}`)
+  }
+  if (targetFiles.length > 0) {
+    console.error(`[${SERVER_NAME}] Explicit instruction target files: ${targetFiles.join(', ')}`)
   }
 } else {
   console.error(`[${SERVER_NAME}] Warning: No AGENTPLANNER_PROJECT_ID configured. All projects accessible.`)
@@ -550,13 +560,16 @@ const toolDefinitions: ToolDefinition[] = [
     call: async () => {
       const result = await syncGlobalInstructions({ verbose: false })
       if (result.success) {
+        const files = result.filesWritten.length > 0 ? result.filesWritten.join(', ') : 'none'
         return {
           success: true,
-          message: `Global instructions synced to workspace successfully. ${result.instructionCount} instruction file(s) written to: ${result.fileWritten}. Your IDE will use these updated rules on your next message.`,
+          message: `Global instructions synced to workspace successfully. ${result.instructionCount} instruction file(s) written to: ${files}. Your IDE will use these updated rules on your next message.`,
           projectId: result.projectId,
           projectName: result.projectName,
           clientEnv: result.clientEnv,
+          clientEnvs: result.clientEnvs,
           fileWritten: result.fileWritten,
+          filesWritten: result.filesWritten,
           instructionCount: result.instructionCount,
         }
       } else {
@@ -728,8 +741,9 @@ if (isProjectScopingEnabled()) {
   syncGlobalInstructions({ verbose: true })
     .then((result) => {
       if (result.success) {
+        const files = result.filesWritten.length > 0 ? result.filesWritten.join(', ') : 'none'
         console.error(
-          `[${SERVER_NAME}] Startup sync: ${result.instructionCount} instruction(s) written to ${result.fileWritten}`
+          `[${SERVER_NAME}] Startup sync: ${result.instructionCount} instruction(s) written to ${files}`
         )
       } else {
         console.error(`[${SERVER_NAME}] Startup sync failed: ${result.error}`)

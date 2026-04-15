@@ -73,6 +73,7 @@ export function TaskDetailsModal({
   const [signalMessages, setSignalMessages] = useState<TaskStateMessage[]>([])
   const [isInProgressActionMenuOpen, setIsInProgressActionMenuOpen] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   const [supabase] = useState(() => createClient())
 
@@ -86,6 +87,7 @@ export function TaskDetailsModal({
       setEditingMessageText('')
       setIsInProgressActionMenuOpen(false)
       setIsDeleteConfirmOpen(false)
+      setCurrentUserId(null)
       return
     }
 
@@ -101,6 +103,29 @@ export function TaskDetailsModal({
     void fetchPlans(task.id)
     void fetchSignalMessages(task.id)
   }, [task])
+
+  useEffect(() => {
+    if (!isOpen || !task) {
+      return
+    }
+
+    let isMounted = true
+    const loadCurrentUserId = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (isMounted) {
+        setCurrentUserId(user?.id ?? null)
+      }
+    }
+
+    void loadCurrentUserId()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isOpen, task, supabase])
 
   const fetchPlans = async (taskId: string) => {
     try {
@@ -254,7 +279,13 @@ export function TaskDetailsModal({
   }
 
   const handleStartEditingMessage = (message: ReviewThreadMessage) => {
-    if (message.signal !== 'note' || message.created_by === null) return
+    if (
+      message.signal !== 'note' ||
+      currentUserId === null ||
+      message.created_by !== currentUserId
+    ) {
+      return
+    }
 
     setEditingMessageId(message.id)
     setEditingMessageText(message.message)
@@ -270,7 +301,7 @@ export function TaskDetailsModal({
     if (!trimmedMessage) return
 
     const latestEditableMessageId = task
-      ? getLatestEditableMessageId(buildThreadMessages(task, signalMessages))
+      ? getLatestEditableMessageId(buildThreadMessages(task, signalMessages), currentUserId)
       : null
     if (!latestEditableMessageId || latestEditableMessageId !== messageId) {
       handleCancelEditingMessage()
@@ -352,7 +383,7 @@ export function TaskDetailsModal({
   if (!isOpen || !task) return null
 
   const threadMessages = buildThreadMessages(task, signalMessages)
-  const latestEditableMessageId = getLatestEditableMessageId(threadMessages)
+  const latestEditableMessageId = getLatestEditableMessageId(threadMessages, currentUserId)
   const quickAction = getQuickAction(status)
 
   return (
@@ -469,8 +500,10 @@ export function TaskDetailsModal({
                 {threadMessages.length > 0 ? (
                   <div className="mt-4 space-y-3">
                     {threadMessages.map((message) => {
-                      const isAgentMessage = message.signal !== 'note' || message.created_by === null
-                      const canEditMessage = message.id === latestEditableMessageId
+                      const isCurrentUserMessage = isNoteFromCurrentUser(message, currentUserId)
+                      const isAgentMessage = !isCurrentUserMessage
+                      const canEditMessage =
+                        message.id === latestEditableMessageId && isCurrentUserMessage
                       const isEditingThisMessage = editingMessageId === message.id
                       return (
                         <div
@@ -478,9 +511,7 @@ export function TaskDetailsModal({
                           className={`flex ${isAgentMessage ? 'justify-start' : 'justify-end'}`}
                         >
                           <div
-                            className={`w-full max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${getThreadBubbleClassName(
-                              message
-                            )}`}
+                            className={`w-full max-w-[85%] rounded-2xl px-4 py-3 shadow-sm ${getThreadBubbleClassName(message, currentUserId)}`}
                           >
                             <div
                               className={`flex items-center justify-between gap-3 text-xs ${
@@ -490,7 +521,7 @@ export function TaskDetailsModal({
                               }`}
                             >
                               <span className="font-semibold uppercase tracking-[0.14em]">
-                                {formatThreadAuthorLabel(message)}
+                                {formatThreadAuthorLabel(message, currentUserId)}
                               </span>
                               <div className="flex items-center gap-2">
                                 <span>{formatTimestamp(message.created_at)}</span>
@@ -787,21 +818,33 @@ function formatActiveSignalLabel(signal: TaskWithTags['workflow_signal']) {
   return signal ? formatSignalLabel(signal) : 'No Active Review'
 }
 
-function formatThreadAuthorLabel(message: ReviewThreadMessage) {
+function formatThreadAuthorLabel(message: ReviewThreadMessage, currentUserId: string | null) {
   if (message.signal === 'note') {
-    return message.created_by === null ? 'Agent' : 'You'
+    if (message.created_by === null) {
+      return 'Agent'
+    }
+
+    if (currentUserId !== null && message.created_by === currentUserId) {
+      return 'You'
+    }
+
+    return 'Teammate'
   }
 
   return `Agent · ${formatSignalLabel(message.signal)}`
 }
 
-function getThreadBubbleClassName(message: ReviewThreadMessage) {
+function getThreadBubbleClassName(message: ReviewThreadMessage, currentUserId: string | null) {
   if (message.signal === 'note') {
     if (message.created_by === null) {
       return 'border border-border bg-white'
     }
 
-    return 'bg-primary text-primary-foreground'
+    if (currentUserId !== null && message.created_by === currentUserId) {
+      return 'bg-primary text-primary-foreground'
+    }
+
+    return 'border border-slate-200 bg-slate-50'
   }
 
   if (message.signal === 'needs_help') {
@@ -826,12 +869,19 @@ function getQuickAction(status: TaskStatus) {
   return null
 }
 
-function getLatestEditableMessageId(messages: ReviewThreadMessage[]) {
+function getLatestEditableMessageId(
+  messages: ReviewThreadMessage[],
+  currentUserId: string | null
+) {
+  if (!currentUserId) {
+    return null
+  }
+
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index]
     if (
       message.signal === 'note' &&
-      message.created_by !== null &&
+      message.created_by === currentUserId &&
       !message.id.startsWith('active-signal-')
     ) {
       return message.id
@@ -839,6 +889,14 @@ function getLatestEditableMessageId(messages: ReviewThreadMessage[]) {
   }
 
   return null
+}
+
+function isNoteFromCurrentUser(message: ReviewThreadMessage, currentUserId: string | null) {
+  return (
+    message.signal === 'note' &&
+    currentUserId !== null &&
+    message.created_by === currentUserId
+  )
 }
 
 const THREAD_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('en-US', {

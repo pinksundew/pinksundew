@@ -172,7 +172,7 @@ export async function PATCH(
 
   if (signalProvided || signalMessageProvided) {
     updates.workflow_signal_updated_at = new Date().toISOString()
-    updates.workflow_signal_updated_by = auth.userId
+    updates.workflow_signal_updated_by = null
   }
 
   if (parsedAgentLockUntil !== undefined) {
@@ -206,7 +206,7 @@ export async function PATCH(
           taskId,
           signal: nextSignal,
           message: nextSignalMessage,
-          createdBy: auth.userId,
+          createdBy: null,
         })
       } catch (messageError) {
         console.error(
@@ -220,7 +220,7 @@ export async function PATCH(
               taskId,
               signal: 'note',
               message: `Agent Working: ${nextSignalMessage}`,
-              createdBy: auth.userId,
+              createdBy: null,
             })
           } catch (fallbackError) {
             console.error(

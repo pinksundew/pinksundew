@@ -1,6 +1,6 @@
 {
   "name": "@pinksundew/mcp",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "type": "module",
   "description": "Kanban MCP Server for Pink Sundew",
   "main": "dist/index.js",

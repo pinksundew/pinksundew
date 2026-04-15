@@ -1,14 +1,19 @@
 /**
  * Pink Sundew MCP Server - Global Instruction Sync
  *
- * Synchronizes agent instructions from the cloud API to a single local workspace file.
- * The target file is determined by AGENTPLANNER_CLIENT_ENV:
+ * Synchronizes agent instructions from the cloud API to one or more local workspace files.
+ *
+ * File resolution precedence:
+ * 1) AGENTPLANNER_TARGET_FILES (comma-separated relative paths)
+ * 2) AGENTPLANNER_CLIENT_ENV (comma-separated client env values mapped below)
+ * 3) default -> .agentrules
+ *
+ * Client env file mapping:
  * - cursor -> .cursorrules
  * - claude -> CLAUDE.md
  * - windsurf -> .windsurfrules
  * - vscode -> .github/copilot-instructions.md
  * - codex -> AGENTS.md
- * - default -> .agentrules
  *
  * Uses non-destructive "Injection Block" pattern with HTML comment markers.
  * User-defined content outside the sync block is preserved.
@@ -16,8 +21,14 @@
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { getProjectId, isProjectScopingEnabled, getClientEnv } from './project-scope.js'
-import { getProjectAgentControls, getInstructionFilesForProject } from './resources.js'
+import {
+  getProjectId,
+  isProjectScopingEnabled,
+  getClientEnv,
+  getClientEnvs,
+  getTargetFiles,
+} from './project-scope.js'
+import { getInstructionFilesForProject } from './resources.js'
 import { bridgeFetch } from './supabase.js'
 import type { AgentInstructionSet } from './types.js'
 
@@ -68,19 +79,29 @@ export type SyncResult = {
   projectId: string | null
   projectName: string | null
   clientEnv: string | null
+  clientEnvs: string[]
   fileWritten: string | null
+  filesWritten: string[]
   instructionCount: number
   error?: string
 }
 
 /**
- * Gets the output file path based on client environment.
+ * Gets output file paths based on explicit file targets or client environments.
  */
-function getOutputFilePath(clientEnv: string | null): string {
-  if (clientEnv && clientEnv in CLIENT_ENV_FILES) {
-    return CLIENT_ENV_FILES[clientEnv]
+function getOutputFilePaths(clientEnvs: string[], explicitTargets: string[]): string[] {
+  if (explicitTargets.length > 0) {
+    return [...new Set(explicitTargets)]
   }
-  return DEFAULT_OUTPUT_FILE
+
+  if (clientEnvs.length > 0) {
+    const mapped = clientEnvs
+      .map((clientEnv) => CLIENT_ENV_FILES[clientEnv])
+      .filter((filePath): filePath is string => typeof filePath === 'string' && filePath.length > 0)
+    return [...new Set(mapped)]
+  }
+
+  return [DEFAULT_OUTPUT_FILE]
 }
 
 /**
@@ -90,9 +111,6 @@ async function fetchActiveInstructions(projectId: string, envName?: string): Pro
   projectName: string
   instructions: AgentInstructionSet[]
 }> {
-  // Get agent controls to find active instruction set IDs
-  const controls = await getProjectAgentControls(projectId)
-  
   // Fetch the board state which includes instructions
   const boardState = await bridgeFetch<{
     project: { id: string; name: string } | null
@@ -229,21 +247,27 @@ export async function syncGlobalInstructions(options: SyncOptions = {}): Promise
       projectId: null,
       projectName: null,
       clientEnv: null,
+      clientEnvs: [],
       fileWritten: null,
+      filesWritten: [],
       instructionCount: 0,
       error,
     }
   }
 
   const projectId = getProjectId()!
+  const clientEnvs = getClientEnvs()
   const clientEnv = getClientEnv()
-  const outputFile = getOutputFilePath(clientEnv)
+  const explicitTargets = getTargetFiles()
+  const outputFiles = getOutputFilePaths(clientEnvs, explicitTargets)
   
   log(`[sync] Syncing global instructions for project: ${projectId}`)
-  if (clientEnv) {
-    log(`[sync] Client environment: ${clientEnv} -> ${outputFile}`)
+  if (explicitTargets.length > 0) {
+    log(`[sync] Using explicit output targets: ${outputFiles.join(', ')}`)
+  } else if (clientEnvs.length > 0) {
+    log(`[sync] Client environments: ${clientEnvs.join(', ')} -> ${outputFiles.join(', ')}`)
   } else {
-    log(`[sync] No client environment specified, using default: ${outputFile}`)
+    log(`[sync] No client environment specified, using default: ${outputFiles.join(', ')}`)
   }
 
   try {
@@ -254,23 +278,33 @@ export async function syncGlobalInstructions(options: SyncOptions = {}): Promise
     // Build sync block with markers
     const syncBlock = buildSyncBlock(instructions, projectName)
 
-    // Write to the target file (non-destructive)
-    const fullPath = path.join(workspaceRoot, outputFile)
+    const filesWritten: string[] = []
+    const writeErrors: string[] = []
 
-    try {
-      writeInstructionFile(fullPath, syncBlock)
-      log(`[sync] Wrote ${outputFile}`)
-    } catch (writeError) {
-      const message = writeError instanceof Error ? writeError.message : 'Unknown error'
-      log(`[sync] Failed to write ${outputFile}: ${message}`)
+    for (const outputFile of outputFiles) {
+      const fullPath = path.join(workspaceRoot, outputFile)
+      try {
+        writeInstructionFile(fullPath, syncBlock)
+        filesWritten.push(outputFile)
+        log(`[sync] Wrote ${outputFile}`)
+      } catch (writeError) {
+        const message = writeError instanceof Error ? writeError.message : 'Unknown error'
+        writeErrors.push(`Failed to write ${outputFile}: ${message}`)
+        log(`[sync] Failed to write ${outputFile}: ${message}`)
+      }
+    }
+
+    if (writeErrors.length > 0) {
       return {
         success: false,
         projectId,
         projectName,
         clientEnv,
-        fileWritten: null,
+        clientEnvs,
+        fileWritten: filesWritten.length > 0 ? filesWritten.join(', ') : null,
+        filesWritten,
         instructionCount: 0,
-        error: `Failed to write ${outputFile}: ${message}`,
+        error: writeErrors.join(' | '),
       }
     }
 
@@ -281,14 +315,18 @@ export async function syncGlobalInstructions(options: SyncOptions = {}): Promise
       0
     )
 
-    log(`[sync] Successfully synced ${instructionCount} instruction file(s) to ${outputFile}`)
+    log(
+      `[sync] Successfully synced ${instructionCount} instruction file(s) to ${filesWritten.join(', ')}`
+    )
 
     return {
       success: true,
       projectId,
       projectName,
       clientEnv,
-      fileWritten: outputFile,
+      clientEnvs,
+      fileWritten: filesWritten.join(', '),
+      filesWritten,
       instructionCount,
     }
   } catch (error) {
@@ -299,7 +337,9 @@ export async function syncGlobalInstructions(options: SyncOptions = {}): Promise
       projectId,
       projectName: null,
       clientEnv,
+      clientEnvs,
       fileWritten: null,
+      filesWritten: [],
       instructionCount: 0,
       error: message,
     }
@@ -320,8 +360,14 @@ export async function cleanupInstructionFiles(options: Pick<SyncOptions, 'worksp
   const log = verbose ? console.error.bind(console) : () => {}
   const filesCleaned: string[] = []
   
-  // Check all possible output files
-  const allFiles = [...Object.values(CLIENT_ENV_FILES), DEFAULT_OUTPUT_FILE]
+  // Check all possible output files plus explicit custom targets
+  const allFiles = [
+    ...new Set([
+      ...Object.values(CLIENT_ENV_FILES),
+      DEFAULT_OUTPUT_FILE,
+      ...getTargetFiles(),
+    ]),
+  ]
 
   for (const relativePath of allFiles) {
     const fullPath = path.join(workspaceRoot, relativePath)

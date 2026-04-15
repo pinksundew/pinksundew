@@ -216,19 +216,25 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Codex',
       title: 'Connect In Codex',
       description:
-        'Codex supports MCP through codex mcp commands or config.toml. Use AGENTPLANNER_CLIENT_ENV=codex so instruction sync targets AGENTS.md for Codex extension compatibility.',
+        'Codex supports MCP through codex mcp commands or config.toml. Use AGENTPLANNER_CLIENT_ENV=codex,vscode to sync both AGENTS.md and .github/copilot-instructions.md automatically.',
       steps: [
         'Generate an API key.',
         'Add the server with codex mcp add (fastest) or paste the TOML block into ~/.codex/config.toml.',
         'Run /mcp in Codex or codex mcp list in terminal to verify.',
-        'If you use the Codex extension in VS Code or Cursor, keep AGENTPLANNER_CLIENT_ENV=codex so synced instructions land in AGENTS.md.',
+        'For advanced setups, you can explicitly set AGENTPLANNER_TARGET_FILES=AGENTS.md,.github/copilot-instructions.md (this overrides AGENTPLANNER_CLIENT_ENV mapping).',
       ],
       getSnippets: (config) => [
         {
           id: 'codex-command',
           label: 'CLI command',
           language: 'bash',
-          code: `codex mcp add pinksundew --env AGENTPLANNER_API_KEY=${config.apiKey} --env AGENTPLANNER_PROJECT_ID=${config.projectId} --env AGENTPLANNER_CLIENT_ENV=codex --env PATH=/usr/local/bin:/usr/bin:/bin -- /usr/local/bin/npx -y @pinksundew/mcp`,
+          code: `codex mcp add pinksundew --env AGENTPLANNER_API_KEY=${config.apiKey} --env AGENTPLANNER_PROJECT_ID=${config.projectId} --env AGENTPLANNER_CLIENT_ENV=codex,vscode --env PATH=/usr/local/bin:/usr/bin:/bin -- /usr/local/bin/npx -y @pinksundew/mcp`,
+        },
+        {
+          id: 'codex-command-explicit',
+          label: 'CLI command (explicit files)',
+          language: 'bash',
+          code: `codex mcp add pinksundew --env AGENTPLANNER_API_KEY=${config.apiKey} --env AGENTPLANNER_PROJECT_ID=${config.projectId} --env AGENTPLANNER_CLIENT_ENV=codex,vscode --env AGENTPLANNER_TARGET_FILES=AGENTS.md,.github/copilot-instructions.md --env PATH=/usr/local/bin:/usr/bin:/bin -- /usr/local/bin/npx -y @pinksundew/mcp`,
         },
         {
           id: 'codex-toml',
@@ -242,7 +248,9 @@ function createGuides(): Record<GuideId, Guide> {
             '[mcp_servers.pinksundew.env]',
             `AGENTPLANNER_API_KEY = "${config.apiKey}"`,
             `AGENTPLANNER_PROJECT_ID = "${config.projectId}"`,
-            'AGENTPLANNER_CLIENT_ENV = "codex"',
+            'AGENTPLANNER_CLIENT_ENV = "codex,vscode"',
+            '# Optional explicit override:',
+            '# AGENTPLANNER_TARGET_FILES = "AGENTS.md,.github/copilot-instructions.md"',
             'PATH = "/usr/local/bin:/usr/bin:/bin"',
           ].join('\n'),
         },

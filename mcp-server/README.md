@@ -14,7 +14,8 @@ npm install -g @pinksundew/mcp
 
 - `AGENTPLANNER_API_KEY`: API key created in the Pink Sundew dashboard.
 - `AGENTPLANNER_PROJECT_ID`: Single project UUID the agent can access. **Strict mode**: Only one project ID is allowed per workspace to prevent context drift.
-- `AGENTPLANNER_CLIENT_ENV`: Optional. Client environment targeting for instruction files. Valid values: `cursor`, `claude`, `windsurf`, `vscode`, `codex`, `antigravity`. Defaults to `.agentrules` if not specified.
+- `AGENTPLANNER_CLIENT_ENV`: Optional. Comma-separated client environment list for instruction sync targeting. Valid values: `cursor`, `claude`, `windsurf`, `vscode`, `codex`, `antigravity`. Example: `vscode,codex`.
+- `AGENTPLANNER_TARGET_FILES`: Optional. Comma-separated workspace-relative output files. When set, this **overrides** `AGENTPLANNER_CLIENT_ENV` mapping. Example: `AGENTS.md,.github/copilot-instructions.md`.
 - `AGENTPLANNER_URL`: Optional. Defaults to `https://pinksundew.com`.
 
 `get_project_board` enforces instruction hydration for markdown files: when `.md` metadata is returned, the server checks `content_hash`, fetches new/changed files, and fails if any markdown content cannot be resolved.
@@ -32,6 +33,12 @@ npm install -g @pinksundew/mcp
 | (default)    | .agentrules                      |
 
 `codex` maps to `AGENTS.md` so Codex CLI and the Codex extension (VS Code/Cursor) ingest the same synced instructions.
+
+### Output Resolution Precedence
+
+1. `AGENTPLANNER_TARGET_FILES` (explicit target file list)
+2. `AGENTPLANNER_CLIENT_ENV` (mapped from env values above)
+3. Default fallback: `.agentrules`
 
 ### Non-Destructive Sync
 
@@ -58,7 +65,7 @@ Your custom instructions outside the markers are always preserved.
 ```bash
 AGENTPLANNER_API_KEY=your_api_key \
 AGENTPLANNER_PROJECT_ID=project-uuid \
-AGENTPLANNER_CLIENT_ENV=cursor \
+AGENTPLANNER_CLIENT_ENV=vscode,codex \
 pinksundew-mcp
 ```
 
@@ -73,7 +80,7 @@ pinksundew-mcp
       "env": {
         "AGENTPLANNER_API_KEY": "your_api_key",
         "AGENTPLANNER_PROJECT_ID": "your_project_id",
-        "AGENTPLANNER_CLIENT_ENV": "vscode"
+        "AGENTPLANNER_CLIENT_ENV": "vscode,codex"
       }
     }
   }

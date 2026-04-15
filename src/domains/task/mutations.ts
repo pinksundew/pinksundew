@@ -99,7 +99,6 @@ type CreateTaskStateMessageInput = {
 type UpdateTaskStateMessageInput = {
   messageId: string
   message: string
-  createdBy: string
 }
 
 export async function setTaskSignal(
@@ -171,7 +170,7 @@ export async function createTaskStateMessage(
 }
 
 export async function updateTaskStateMessage(
-  client: SupabaseClient,
+  _client: SupabaseClient,
   input: UpdateTaskStateMessageInput
 ): Promise<TaskStateMessage> {
   const trimmedMessage = input.message.trim()
@@ -179,21 +178,34 @@ export async function updateTaskStateMessage(
     throw new Error('Message is required')
   }
 
-  const { data, error } = await client
-    .from('task_state_messages')
-    .update({
+  const response = await fetch(`/api/tasks/messages/${encodeURIComponent(input.messageId)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({
       message: trimmedMessage,
-    })
-    .eq('id', input.messageId)
-    .eq('created_by', input.createdBy)
-    .select('*')
-    .maybeSingle()
+    }),
+  })
 
-  if (error) throw error
-  if (!data) {
-    throw new Error('Unable to edit that reply. You can only edit your latest reply.')
+  const payload = (await response.json().catch(() => null)) as
+    | (Partial<TaskStateMessage> & { error?: string })
+    | null
+
+  if (!response.ok) {
+    throw new Error(
+      payload && typeof payload.error === 'string'
+        ? payload.error
+        : 'Unable to edit that reply. You can only edit your latest reply.'
+    )
   }
-  return data as TaskStateMessage
+
+  if (!payload || typeof payload.id !== 'string') {
+    throw new Error('Unable to edit that reply right now.')
+  }
+
+  return payload as TaskStateMessage
 }
 
 export async function persistTaskOrderWithKeepalive(

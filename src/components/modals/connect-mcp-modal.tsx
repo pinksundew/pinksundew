@@ -261,20 +261,43 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Antigravity',
       title: 'Connect In Antigravity',
       description:
-        'Add a local stdio MCP server with the configuration below. Requires Node.js; npx will auto-download the server on first run.',
+        'Use a project .mcp.json config (recommended) or add a single local stdio server manually. Requires Node.js; npx will auto-download the server on first run.',
       steps: [
         'Generate an API key.',
-        'Open Antigravity MCP settings and add a new local/stdio server.',
-        'Paste the JSON config below, then reconnect the workspace.',
+        'Preferred: copy the `.mcp.json` snippet below into your project root.',
+        'Alternative: open Antigravity MCP settings, add a local/stdio server, and paste the single-server snippet.',
+        'Reconnect the workspace and confirm Pink Sundew tools appear.',
       ],
       getSnippets: (config) => [
         {
-          id: 'antigravity-json',
-          label: 'Server config',
+          id: 'antigravity-mcp-json',
+          label: '.mcp.json (project scope)',
           language: 'json',
           code: JSON.stringify(
             {
-              name: 'pinksundew',
+              mcpServers: {
+                pinksundew: {
+                  type: 'stdio',
+                  command: 'npx',
+                  args: ['-y', '@pinksundew/mcp'],
+                  env: {
+                    AGENTPLANNER_API_KEY: config.apiKey,
+                    AGENTPLANNER_PROJECT_ID: config.projectId,
+                    AGENTPLANNER_CLIENT_ENV: 'antigravity',
+                  },
+                },
+              },
+            },
+            null,
+            2
+          ),
+        },
+        {
+          id: 'antigravity-server-json',
+          label: 'Single server object',
+          language: 'json',
+          code: JSON.stringify(
+            {
               type: 'stdio',
               command: 'npx',
               args: ['-y', '@pinksundew/mcp'],

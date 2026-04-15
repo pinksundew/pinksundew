@@ -219,7 +219,7 @@ export function GuestBoardShell() {
       </div>
 
       <AnimatePresence initial={false}>
-        {!isDemoWidgetHidden ? (
+        {!isDemoWidgetHidden && !isDemoModalOpen ? (
           <motion.div
             key="demo-widget"
             initial={{ opacity: 0, y: 20, scale: 0.96 }}
@@ -228,7 +228,10 @@ export function GuestBoardShell() {
             transition={{ duration: 0.22, ease: 'easeOut' }}
             className="pointer-events-none fixed bottom-4 right-4 z-40 w-[min(21rem,calc(100vw-2rem))]"
           >
-            <div className="pointer-events-auto overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div
+              className="pointer-events-auto cursor-pointer overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+              onClick={openDemoModal}
+            >
               <div className="relative aspect-video bg-gradient-to-br from-slate-100 via-white to-pink-50">
                 {!isDemoVideoMissing ? (
                   <video
@@ -249,7 +252,10 @@ export function GuestBoardShell() {
 
                 <button
                   type="button"
-                  onClick={hideDemoPlayer}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    hideDemoPlayer()
+                  }}
                   className="absolute right-2 top-2 rounded-full border border-slate-200 bg-white/90 p-1.5 text-slate-600 shadow-sm backdrop-blur transition-colors hover:bg-white hover:text-slate-900"
                   aria-label="Hide demo player"
                 >
@@ -258,7 +264,10 @@ export function GuestBoardShell() {
 
                 <button
                   type="button"
-                  onClick={openDemoModal}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    openDemoModal()
+                  }}
                   className="absolute inset-x-3 bottom-3 inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-2 text-sm font-medium text-foreground shadow-sm backdrop-blur transition-colors hover:bg-white"
                 >
                   <PlayCircle className="h-4 w-4 text-primary" />

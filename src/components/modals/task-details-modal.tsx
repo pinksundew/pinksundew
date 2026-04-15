@@ -310,16 +310,9 @@ export function TaskDetailsModal({
 
     setLoading(true)
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (!user) return
-
       const updatedMessage = await updateTaskStateMessage(supabase, {
         messageId,
         message: trimmedMessage,
-        createdBy: user.id,
       })
 
       setSignalMessages((previousMessages) =>

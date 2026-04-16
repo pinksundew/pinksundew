@@ -50,7 +50,7 @@ jobs:
     runs-on: "ubuntu-22.04"
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
-      tag: ${{ !github.event.pull_request && github.ref_name || '' }}
+      tag: ${{ !github.event.pull_request && steps.ref.outputs.dist_tag || '' }}
       tag-flag: ${{ !github.event.pull_request && format('--tag={0}', steps.ref.outputs.dist_tag) || '' }}
       publishing: ${{ !github.event.pull_request }}
     env:

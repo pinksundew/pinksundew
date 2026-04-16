@@ -34,13 +34,16 @@ function cacheRoot() {
   return join(homedir(), '.cache', 'pinksundew-mcp', pkg.version)
 }
 
-function resolvedBaseUrl() {
+function resolvedBaseUrls() {
   const override = process.env[RELEASE_BASE_URL_ENV]
   if (override && override.trim()) {
-    return override.trim().replace(/\/+$/, '')
+    return [override.trim().replace(/\/+$/, '')]
   }
 
-  return `https://github.com/qadolphe/AgentPlanner/releases/download/mcp-v${pkg.version}`
+  return [
+    `https://github.com/qadolphe/AgentPlanner/releases/download/mcp-v${pkg.version}`,
+    `https://github.com/qadolphe/AgentPlanner/releases/download/v${pkg.version}`,
+  ]
 }
 
 async function download(url, outputPath) {
@@ -100,9 +103,22 @@ async function ensureBinary() {
   const tmpPath = join(tmpdir(), `${basename(archiveName)}.${randomUUID()}.tmp`)
   const extractDir = join(tmpdir(), `pinksundew-mcp-extract-${randomUUID()}`)
   mkdirSync(extractDir, { recursive: true })
-  const url = `${resolvedBaseUrl()}/${archiveName}`
-  process.stderr.write(`[pinksundew-mcp] Downloading ${url}\n`)
-  await download(url, tmpPath)
+  const baseUrls = resolvedBaseUrls()
+  let lastError = null
+  for (const baseUrl of baseUrls) {
+    const url = `${baseUrl}/${archiveName}`
+    process.stderr.write(`[pinksundew-mcp] Downloading ${url}\n`)
+    try {
+      await download(url, tmpPath)
+      lastError = null
+      break
+    } catch (error) {
+      lastError = error
+    }
+  }
+  if (lastError) {
+    throw lastError
+  }
   await extractArchive(tmpPath, extractDir, target.archiveExt)
 
   const extracted = await findFileByName(extractDir, target.binaryName)

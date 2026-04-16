@@ -1,6 +1,8 @@
 use crate::bridge::BridgeClient;
 use crate::config::ProjectScope;
-use crate::models::{AbyssState, AgentControls, AgentInstructionFile, BoardState, Project, Tag, Task};
+use crate::models::{
+    AbyssState, AgentControls, AgentInstructionFile, BoardState, Project, Tag, Task,
+};
 use anyhow::Result;
 use serde_json::{json, Value};
 
@@ -57,7 +59,10 @@ impl ResourceService {
     }
 
     pub async fn get_tag_details(&self, tag_id: &str) -> Result<Tag> {
-        let tag = self.bridge.get_json::<Tag>(&format!("/tags/{tag_id}")).await?;
+        let tag = self
+            .bridge
+            .get_json::<Tag>(&format!("/tags/{tag_id}"))
+            .await?;
         self.scope
             .assert_project_allowed(tag.project_id.as_str(), Some("getTagDetails"))?;
         Ok(tag)

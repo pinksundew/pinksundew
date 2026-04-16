@@ -69,7 +69,10 @@ impl ToolService {
 
         let tags = self
             .bridge
-            .get_json::<Vec<Tag>>(&format!("/tags?projectId={}", urlencoding::encode(project_id)))
+            .get_json::<Vec<Tag>>(&format!(
+                "/tags?projectId={}",
+                urlencoding::encode(project_id)
+            ))
             .await?;
 
         serde_json::to_value(tags).map_err(Into::into)
@@ -110,7 +113,10 @@ impl ToolService {
             "position": payload.get("position").and_then(Value::as_f64).unwrap_or(0.0),
         });
 
-        let task = self.bridge.post_json::<Value, Task>("/tasks", &body).await?;
+        let task = self
+            .bridge
+            .post_json::<Value, Task>("/tasks", &body)
+            .await?;
         serde_json::to_value(task).map_err(Into::into)
     }
 
@@ -128,10 +134,7 @@ impl ToolService {
         if payload.get("description").is_some() {
             updates.insert(
                 "description".to_string(),
-                payload
-                    .get("description")
-                    .cloned()
-                    .unwrap_or(Value::Null),
+                payload.get("description").cloned().unwrap_or(Value::Null),
             );
         }
         if let Some(priority) = payload.get("priority").and_then(Value::as_str) {
@@ -152,10 +155,7 @@ impl ToolService {
         if payload.get("predecessorId").is_some() {
             updates.insert(
                 "predecessor_id".to_string(),
-                payload
-                    .get("predecessorId")
-                    .cloned()
-                    .unwrap_or(Value::Null),
+                payload.get("predecessorId").cloned().unwrap_or(Value::Null),
             );
         }
 
@@ -231,7 +231,8 @@ impl ToolService {
                 if lock_minutes <= 0.0 {
                     updates.insert("agent_lock_until".to_string(), Value::Null);
                 } else {
-                    let lock_until = (Utc::now() + Duration::minutes(lock_minutes as i64)).to_rfc3339();
+                    let lock_until =
+                        (Utc::now() + Duration::minutes(lock_minutes as i64)).to_rfc3339();
                     updates.insert("agent_lock_until".to_string(), Value::String(lock_until));
                 }
             } else {
@@ -254,7 +255,10 @@ impl ToolService {
 
         let patch_result = self
             .bridge
-            .patch_json::<Value, Task>(&format!("/tasks/{task_id}"), &Value::Object(updates.clone()))
+            .patch_json::<Value, Task>(
+                &format!("/tasks/{task_id}"),
+                &Value::Object(updates.clone()),
+            )
             .await;
 
         match patch_result {
@@ -269,17 +273,29 @@ impl ToolService {
                 let current_task = self.resources.get_task_details(task_id).await?;
                 let signal_matches = payload.get("signal").is_none()
                     || current_task.workflow_signal
-                        == payload.get("signal").and_then(Value::as_str).map(ToString::to_string);
+                        == payload
+                            .get("signal")
+                            .and_then(Value::as_str)
+                            .map(ToString::to_string);
                 let message_matches = payload.get("message").is_none()
                     || current_task.workflow_signal_message
-                        == payload.get("message").and_then(Value::as_str).map(ToString::to_string);
+                        == payload
+                            .get("message")
+                            .and_then(Value::as_str)
+                            .map(ToString::to_string);
                 let lock_reason_matches = payload.get("lockReason").is_none()
                     || current_task.agent_lock_reason
-                        == payload.get("lockReason").and_then(Value::as_str).map(ToString::to_string);
+                        == payload
+                            .get("lockReason")
+                            .and_then(Value::as_str)
+                            .map(ToString::to_string);
                 let lock_until_matches = if payload.get("lockMinutes").is_none() {
                     true
                 } else {
-                    let lock_minutes = payload.get("lockMinutes").and_then(Value::as_f64).unwrap_or(0.0);
+                    let lock_minutes = payload
+                        .get("lockMinutes")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.0);
                     if lock_minutes <= 0.0 {
                         current_task.agent_lock_until.is_none()
                     } else {
@@ -388,7 +404,10 @@ impl ToolService {
             .ok_or_else(|| anyhow!("content must be a string"))?;
 
         self.bridge
-            .post_json::<Value, Value>(&format!("/tasks/{task_id}/plan"), &json!({ "content": content }))
+            .post_json::<Value, Value>(
+                &format!("/tasks/{task_id}/plan"),
+                &json!({ "content": content }),
+            )
             .await
     }
 
@@ -473,15 +492,19 @@ impl ToolService {
             }
         }
 
-        let ordered_tasks = if let Some(task_ids) = payload.get("taskIds").and_then(Value::as_array) {
+        let ordered_tasks = if let Some(task_ids) = payload.get("taskIds").and_then(Value::as_array)
+        {
             let mut selected = Vec::new();
             for task_id in task_ids {
                 let task_id = task_id
                     .as_str()
                     .ok_or_else(|| anyhow!("taskIds must be an array of strings"))?;
-                let task = tasks_by_id
-                    .get(task_id)
-                    .ok_or_else(|| anyhow!("Task {} was not found in the selected project context", task_id))?;
+                let task = tasks_by_id.get(task_id).ok_or_else(|| {
+                    anyhow!(
+                        "Task {} was not found in the selected project context",
+                        task_id
+                    )
+                })?;
                 selected.push(task.clone());
             }
             selected
@@ -663,13 +686,18 @@ fn parse_export_instructions(value: Option<&Value>) -> Result<Vec<ExportInstruct
     };
 
     let Some(entries) = value.as_array() else {
-        return Err(anyhow!("additionalInstructions must be an array if provided"));
+        return Err(anyhow!(
+            "additionalInstructions must be an array if provided"
+        ));
     };
 
     let mut instructions = Vec::new();
     for (index, entry) in entries.iter().enumerate() {
         let Some(object) = entry.as_object() else {
-            return Err(anyhow!("additionalInstructions[{}] must be an object", index));
+            return Err(anyhow!(
+                "additionalInstructions[{}] must be an object",
+                index
+            ));
         };
 
         let title = object

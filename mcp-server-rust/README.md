@@ -14,6 +14,8 @@ Rust runtime implementation of the Pink Sundew MCP stdio server.
 
 - `PINKSUNDEW_MCP_LOG_LEVEL` (default: `info`)
 - `PINKSUNDEW_MCP_PANIC_POLICY` (`graceful_exit` or `supervise`)
+- `PINKSUNDEW_MCP_UPDATE_CHECK_TTL_HOURS` (default: `24`)
+- `PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL` (optional override: `brew`, `npm-wrapper`, `direct`, `unknown`)
 
 ## Development
 
@@ -27,3 +29,4 @@ cargo run --bin pinksundew-mcp
 - Logging is routed to stderr only.
 - Request-level panics are converted to JSON-RPC errors.
 - Background sync panics are supervised according to panic policy.
+- Update checks are passive, cached on disk, and never auto-update binaries.

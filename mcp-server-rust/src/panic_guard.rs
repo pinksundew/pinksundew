@@ -1,10 +1,7 @@
 use futures::FutureExt;
 use rmcp::ErrorData as McpError;
 
-pub async fn guard_request_panic<F, T>(
-    label: &'static str,
-    future: F,
-) -> Result<T, McpError>
+pub async fn guard_request_panic<F, T>(label: &'static str, future: F) -> Result<T, McpError>
 where
     F: std::future::Future<Output = Result<T, McpError>>,
 {

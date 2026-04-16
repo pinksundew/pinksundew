@@ -23,11 +23,19 @@ impl BridgeClient {
         self.request_json::<(), T>(Method::GET, path, None).await
     }
 
-    pub async fn post_json<B: Serialize, T: DeserializeOwned>(&self, path: &str, body: &B) -> Result<T> {
+    pub async fn post_json<B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T> {
         self.request_json(Method::POST, path, Some(body)).await
     }
 
-    pub async fn patch_json<B: Serialize, T: DeserializeOwned>(&self, path: &str, body: &B) -> Result<T> {
+    pub async fn patch_json<B: Serialize, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T> {
         self.request_json(Method::PATCH, path, Some(body)).await
     }
 
@@ -59,7 +67,10 @@ impl BridgeClient {
 
         if !response.status().is_success() {
             let status = response.status();
-            let body = response.text().await.unwrap_or_else(|_| "<unreadable body>".to_string());
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "<unreadable body>".to_string());
             return Err(anyhow!("Bridge API error {}: {}", status.as_u16(), body));
         }
 

@@ -7,12 +7,14 @@ on:
     paths:
       - mcp-server-rust/**
       - .github/workflows/mcp-rust-ci.yml
+      - .github/workflows/mcp-release.yml
   pull_request:
     branches:
       - main
     paths:
       - mcp-server-rust/**
       - .github/workflows/mcp-rust-ci.yml
+      - .github/workflows/mcp-release.yml
 
 jobs:
   rust-checks:
@@ -43,3 +45,10 @@ jobs:
 
       - name: Test
         run: cargo test --all-targets --all-features
+
+      - name: Install cargo-dist
+        run: cargo install cargo-dist --locked
+
+      - name: Dist config check
+        run: |
+          dist plan --allow-dirty --output-format=json >/dev/null

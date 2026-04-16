@@ -91,7 +91,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'VS Code',
       title: 'Connect In VS Code',
       description:
-        'Add the Pink Sundew MCP server to your workspace settings. Native `pinksundew-mcp` binary is recommended; npm wrapper fallback is available.',
+        'Add the Pink Sundew MCP server to your workspace settings. Install `pinksundew-mcp` via Homebrew first (`brew install pinksundew/tap/pinksundew-mcp`); npm wrapper remains a fallback.',
       steps: [
         'Generate an API key (or use an existing one).',
         'Copy the mcp.json snippet and paste it into .vscode/mcp.json in your project.',
@@ -129,7 +129,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Cursor',
       title: 'Connect In Cursor',
       description:
-        'Add the MCP server to Cursor workspace settings. Native `pinksundew-mcp` binary is recommended; npm wrapper fallback is available.',
+        'Add the MCP server to Cursor workspace settings. Install `pinksundew-mcp` via Homebrew first (`brew install pinksundew/tap/pinksundew-mcp`); npm wrapper remains a fallback.',
       steps: [
         'Generate an API key (or use an existing one).',
         'Copy the mcp.json snippet and paste it into .cursor/mcp.json in your project.',
@@ -167,7 +167,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Claude Code',
       title: 'Connect In Claude Code',
       description:
-        'Add via CLI or paste the JSON into your project .mcp.json config file. Native `pinksundew-mcp` binary is recommended; npm wrapper fallback is available.',
+        'Add via CLI or paste the JSON into your project .mcp.json config file. Install `pinksundew-mcp` via Homebrew first (`brew install pinksundew/tap/pinksundew-mcp`); npm wrapper remains a fallback.',
       steps: [
         'Generate an API key.',
         'Run the CLI command from your project root, OR paste the JSON into .mcp.json.',
@@ -267,7 +267,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Antigravity',
       title: 'Connect In Antigravity',
       description:
-        'Use a project .mcp.json config (recommended) or add a single local stdio server manually. Native `pinksundew-mcp` binary is recommended; npm wrapper fallback is available.',
+        'Use a project .mcp.json config (recommended) or add a single local stdio server manually. Install `pinksundew-mcp` via Homebrew first (`brew install pinksundew/tap/pinksundew-mcp`); npm wrapper remains a fallback.',
       steps: [
         'Generate an API key.',
         'Preferred: copy the `.mcp.json` snippet below into your project root.',

@@ -12,4 +12,12 @@ if (!wrapper.includes('spawn(binaryPath')) {
   throw new Error('Wrapper validation failed: expected native spawn flow.')
 }
 
+if (!wrapper.includes('.tar.xz') || !wrapper.includes('.zip')) {
+  throw new Error('Wrapper validation failed: expected cargo-dist archive mapping (.tar.xz/.zip).')
+}
+
+if (!wrapper.includes('PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL')) {
+  throw new Error('Wrapper validation failed: expected distribution channel propagation.')
+}
+
 process.stderr.write('[verify-wrapper] launcher checks passed\n')

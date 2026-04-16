@@ -64,3 +64,10 @@ npm --prefix mcp-server run build
 ```
 
 The workspace MCP config is in `.vscode/mcp.json`.
+
+Preferred install/upgrade channel for users:
+
+```bash
+brew install pinksundew/tap/pinksundew-mcp
+brew upgrade pinksundew/tap/pinksundew-mcp
+```

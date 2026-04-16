@@ -5,6 +5,7 @@ use crate::panic_guard::guard_request_panic;
 use crate::resources::ResourceService;
 use crate::sync::SyncService;
 use crate::tools::ToolService;
+use crate::update::UpdateService;
 use rmcp::{
     model::{
         Annotated, CallToolRequestParams, CallToolResult, Content, ListResourcesResult,
@@ -19,13 +20,14 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 const SERVER_NAME: &str = "pinksundew-mcp";
-const SERVER_VERSION: &str = "2.0.0";
+const SERVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Clone)]
 pub struct PinkSundewServer {
     pub resources: ResourceService,
     pub tools: ToolService,
     pub sync: Arc<SyncService>,
+    pub updates: Arc<UpdateService>,
     pub scope: ProjectScope,
     tool_defs: Arc<Vec<ToolDefinition>>,
     project_scoped_tools: Arc<HashSet<&'static str>>,
@@ -43,12 +45,14 @@ impl PinkSundewServer {
         resources: ResourceService,
         tools: ToolService,
         sync: Arc<SyncService>,
+        updates: Arc<UpdateService>,
         scope: ProjectScope,
     ) -> Self {
         Self {
             resources,
             tools,
             sync,
+            updates,
             scope,
             tool_defs: Arc::new(tool_definitions()),
             project_scoped_tools: Arc::new(project_scoped_tool_names()),
@@ -107,9 +111,7 @@ impl PinkSundewServer {
                     .and_then(Value::as_str)
                     .map(ToString::to_string);
 
-                if requested_status.as_deref() == Some("done")
-                    && !controls.allow_task_completion
-                {
+                if requested_status.as_deref() == Some("done") && !controls.allow_task_completion {
                     return Ok(CallToolResult::error(vec![Content::text(
                         "Error: Task completion is disabled for this project. Enable \"Allow Task Completion\" in Agent Controls to create done tasks.".to_string(),
                     )]));
@@ -117,10 +119,11 @@ impl PinkSundewServer {
             }
         }
 
-        let tool_result = match tool_name.as_str() {
+        let tool_result: anyhow::Result<Value> = match tool_name.as_str() {
             "list_projects" => self.tools.list_projects().await,
             "get_project_board" => {
-                let project_id = required_str_arg(&args, "projectId").map_err(invalid_params_error)?;
+                let project_id =
+                    required_str_arg(&args, "projectId").map_err(invalid_params_error)?;
                 self.tools.get_project_board(project_id).await
             }
             "get_task_details" => {
@@ -128,11 +131,13 @@ impl PinkSundewServer {
                 self.tools.get_task(task_id).await
             }
             "list_abyss_tasks" => {
-                let project_id = required_str_arg(&args, "projectId").map_err(invalid_params_error)?;
+                let project_id =
+                    required_str_arg(&args, "projectId").map_err(invalid_params_error)?;
                 self.tools.list_abyss_tasks(project_id).await
             }
             "list_project_tags" => {
-                let project_id = required_str_arg(&args, "projectId").map_err(invalid_params_error)?;
+                let project_id =
+                    required_str_arg(&args, "projectId").map_err(invalid_params_error)?;
                 self.tools.list_tags(project_id).await
             }
             "create_task" => self.tools.create_task(args.clone()).await,
@@ -150,8 +155,14 @@ impl PinkSundewServer {
             "sync_global_instructions" => {
                 let result = self.sync.sync_global_instructions(None, false).await;
                 if result.success {
-                    serde_json::to_value(result)
-                        .map_err(|error| anyhow::anyhow!(error.to_string()))
+                    let mut value = json!(result);
+
+                    let update_status = self.updates.current_status().await;
+                    if let Some(map) = value.as_object_mut() {
+                        map.insert("updateStatus".to_string(), json!(update_status));
+                    }
+
+                    Ok(value)
                 } else {
                     Err(anyhow::anyhow!(
                         "{}",
@@ -160,6 +171,11 @@ impl PinkSundewServer {
                             .unwrap_or_else(|| "Failed to sync instructions".to_string())
                     ))
                 }
+            }
+            "get_update_status" => {
+                let _ = self.updates.refresh_if_stale().await;
+                let status = self.updates.current_status().await;
+                serde_json::to_value(status).map_err(Into::into)
             }
             _ => {
                 return Ok(CallToolResult::error(vec![Content::text(format!(
@@ -171,8 +187,8 @@ impl PinkSundewServer {
 
         match tool_result {
             Ok(value) => {
-                let text = serde_json::to_string_pretty(&value)
-                    .unwrap_or_else(|_| value.to_string());
+                let text =
+                    serde_json::to_string_pretty(&value).unwrap_or_else(|_| value.to_string());
                 Ok(CallToolResult::success(vec![Content::text(text)]))
             }
             Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
@@ -188,20 +204,10 @@ impl PinkSundewServer {
         args: &Value,
     ) -> anyhow::Result<String> {
         match tool_name {
-            "get_project_board"
-            | "list_abyss_tasks"
-            | "list_project_tags"
-            | "create_task"
-            | "create_tag"
-            | "export_tasks" => Ok(required_str_arg(args, "projectId")?.to_string()),
-            "get_task_details"
-            | "update_task"
-            | "move_task"
-            | "set_task_signal"
-            | "list_task_messages"
-            | "add_task_message"
-            | "move_task_to_abyss"
-            | "restore_task"
+            "get_project_board" | "list_abyss_tasks" | "list_project_tags" | "create_task"
+            | "create_tag" | "export_tasks" => Ok(required_str_arg(args, "projectId")?.to_string()),
+            "get_task_details" | "update_task" | "move_task" | "set_task_signal"
+            | "list_task_messages" | "add_task_message" | "move_task_to_abyss" | "restore_task"
             | "add_plan_to_task" => {
                 let task_id = required_str_arg(args, "taskId")?;
                 let task = self.resources.get_task_details(task_id).await?;
@@ -244,7 +250,11 @@ impl ServerHandler for PinkSundewServer {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         guard_request_panic("resources/list", async {
-            let projects = self.resources.get_projects().await.map_err(internal_error)?;
+            let projects = self
+                .resources
+                .get_projects()
+                .await
+                .map_err(internal_error)?;
             let resources = projects
                 .into_iter()
                 .flat_map(|project| {
@@ -257,8 +267,7 @@ impl ServerHandler for PinkSundewServer {
                             .with_mime_type("application/json")
                             .with_description(format!("Visible board state for {}", project.name)),
                             None,
-                        )
-                        ,
+                        ),
                         Annotated::new(
                             RawResource::new(
                                 format!("pinksundew://abyss/{}", project.id),
@@ -270,8 +279,7 @@ impl ServerHandler for PinkSundewServer {
                                 project.name
                             )),
                             None,
-                        )
-                        ,
+                        ),
                     ]
                 })
                 .collect::<Vec<_>>();
@@ -318,10 +326,11 @@ impl ServerHandler for PinkSundewServer {
                     }
 
                     let text = serde_json::to_string_pretty(&board).map_err(internal_error)?;
-                    Ok(ReadResourceResult::new(vec![
-                        ResourceContents::text(text, request.uri.clone())
-                            .with_mime_type("application/json"),
-                    ]))
+                    Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                        text,
+                        request.uri.clone(),
+                    )
+                    .with_mime_type("application/json")]))
                 }
                 "abyss" => {
                     self.scope
@@ -335,10 +344,11 @@ impl ServerHandler for PinkSundewServer {
                         .map_err(internal_error)?;
                     let text = serde_json::to_string_pretty(&abyss).map_err(internal_error)?;
 
-                    Ok(ReadResourceResult::new(vec![
-                        ResourceContents::text(text, request.uri.clone())
-                            .with_mime_type("application/json"),
-                    ]))
+                    Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                        text,
+                        request.uri.clone(),
+                    )
+                    .with_mime_type("application/json")]))
                 }
                 "task" => {
                     let task = self
@@ -348,10 +358,11 @@ impl ServerHandler for PinkSundewServer {
                         .map_err(internal_error)?;
                     let text = serde_json::to_string_pretty(&task).map_err(internal_error)?;
 
-                    Ok(ReadResourceResult::new(vec![
-                        ResourceContents::text(text, request.uri.clone())
-                            .with_mime_type("application/json"),
-                    ]))
+                    Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                        text,
+                        request.uri.clone(),
+                    )
+                    .with_mime_type("application/json")]))
                 }
                 _ => Err(invalid_params_error(anyhow::anyhow!(
                     "Unknown resource uri: {}",
@@ -549,6 +560,11 @@ fn tool_definitions() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "get_update_status",
+            description: "Returns MCP release update status with installed/latest version, update availability, and recommended upgrade command.",
+            input_schema: json!({"type":"object","properties":{}}),
+        },
+        ToolDefinition {
             name: "sync_global_instructions",
             description: "Triggers a background sync of the latest global agent instructions from the Pink Sundew server and writes them to local IDE instruction files (.cursorrules, CLAUDE.md, AGENTS.md, antigravity.md, .github/copilot-instructions.md). Call this to refresh instructions mid-session without restarting the MCP server.",
             input_schema: json!({"type":"object","properties":{}}),
@@ -578,7 +594,11 @@ fn project_scoped_tool_names() -> HashSet<&'static str> {
 }
 
 fn is_tool_enabled(controls: &AgentControls, tool_name: &str) -> bool {
-    controls.tool_toggles.get(tool_name).copied().unwrap_or(true)
+    controls
+        .tool_toggles
+        .get(tool_name)
+        .copied()
+        .unwrap_or(true)
 }
 
 fn required_str_arg<'a>(args: &'a Value, key: &str) -> anyhow::Result<&'a str> {

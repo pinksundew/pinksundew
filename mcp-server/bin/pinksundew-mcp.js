@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 import { chmodSync, createWriteStream, existsSync, mkdirSync } from 'node:fs'
-import { rename, stat } from 'node:fs/promises'
+import { readdir, rename, stat } from 'node:fs/promises'
 import { homedir, platform, arch, tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { request as httpsRequest } from 'node:https'
 import { pipeline } from 'node:stream/promises'
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
 
@@ -20,11 +20,11 @@ function platformTarget() {
   const key = `${platform()}-${arch()}`
 
   const map = {
-    'darwin-arm64': { target: 'aarch64-apple-darwin', ext: '' },
-    'darwin-x64': { target: 'x86_64-apple-darwin', ext: '' },
-    'linux-x64': { target: 'x86_64-unknown-linux-gnu', ext: '' },
-    'linux-arm64': { target: 'aarch64-unknown-linux-gnu', ext: '' },
-    'win32-x64': { target: 'x86_64-pc-windows-msvc', ext: '.exe' },
+    'darwin-arm64': { target: 'aarch64-apple-darwin', binaryName: 'pinksundew-mcp', archiveExt: '.tar.xz' },
+    'darwin-x64': { target: 'x86_64-apple-darwin', binaryName: 'pinksundew-mcp', archiveExt: '.tar.xz' },
+    'linux-x64': { target: 'x86_64-unknown-linux-gnu', binaryName: 'pinksundew-mcp', archiveExt: '.tar.xz' },
+    'linux-arm64': { target: 'aarch64-unknown-linux-gnu', binaryName: 'pinksundew-mcp', archiveExt: '.tar.xz' },
+    'win32-x64': { target: 'x86_64-pc-windows-msvc', binaryName: 'pinksundew-mcp.exe', archiveExt: '.zip' },
   }
 
   return map[key] ?? null
@@ -87,9 +87,9 @@ async function ensureBinary() {
     )
   }
 
-  const binName = `pinksundew-mcp-${target.target}${target.ext}`
+  const archiveName = `pinksundew-mcp-${target.target}${target.archiveExt}`
   const root = cacheRoot()
-  const finalPath = join(root, binName)
+  const finalPath = join(root, target.binaryName)
 
   if (existsSync(finalPath)) {
     return finalPath
@@ -97,13 +97,22 @@ async function ensureBinary() {
 
   mkdirSync(root, { recursive: true })
 
-  const tmpPath = join(tmpdir(), `${basename(binName)}.${randomUUID()}.tmp`)
-  const url = `${resolvedBaseUrl()}/${binName}`
+  const tmpPath = join(tmpdir(), `${basename(archiveName)}.${randomUUID()}.tmp`)
+  const extractDir = join(tmpdir(), `pinksundew-mcp-extract-${randomUUID()}`)
+  mkdirSync(extractDir, { recursive: true })
+  const url = `${resolvedBaseUrl()}/${archiveName}`
   process.stderr.write(`[pinksundew-mcp] Downloading ${url}\n`)
   await download(url, tmpPath)
-  await rename(tmpPath, finalPath)
+  await extractArchive(tmpPath, extractDir, target.archiveExt)
 
-  if (target.ext !== '.exe') {
+  const extracted = await findFileByName(extractDir, target.binaryName)
+  if (!extracted) {
+    throw new Error(`Archive ${archiveName} did not contain ${target.binaryName}`)
+  }
+
+  await rename(extracted, finalPath)
+
+  if (!target.binaryName.endsWith('.exe')) {
     chmodSync(finalPath, 0o755)
   }
 
@@ -113,6 +122,63 @@ async function ensureBinary() {
   }
 
   return finalPath
+}
+
+async function extractArchive(archivePath, outputDir, archiveExt) {
+  if (archiveExt === '.tar.xz') {
+    const tar = spawnSync('tar', ['-xJf', archivePath, '-C', outputDir], { stdio: 'pipe' })
+    if (tar.status !== 0) {
+      const stderr = tar.stderr?.toString() || 'unknown tar failure'
+      throw new Error(`Failed to extract tar.xz archive: ${stderr.trim()}`)
+    }
+    return
+  }
+
+  if (archiveExt === '.zip') {
+    if (platform() === 'win32') {
+      const ps = spawnSync(
+        'powershell',
+        [
+          '-NoProfile',
+          '-Command',
+          `Expand-Archive -Path "${archivePath}" -DestinationPath "${outputDir}" -Force`,
+        ],
+        { stdio: 'pipe' }
+      )
+      if (ps.status !== 0) {
+        const stderr = ps.stderr?.toString() || 'unknown powershell failure'
+        throw new Error(`Failed to extract zip archive: ${stderr.trim()}`)
+      }
+      return
+    }
+
+    const unzip = spawnSync('unzip', ['-o', archivePath, '-d', outputDir], { stdio: 'pipe' })
+    if (unzip.status !== 0) {
+      const stderr = unzip.stderr?.toString() || 'unknown unzip failure'
+      throw new Error(`Failed to extract zip archive: ${stderr.trim()}`)
+    }
+    return
+  }
+
+  throw new Error(`Unsupported archive extension: ${archiveExt}`)
+}
+
+async function findFileByName(rootDir, fileName) {
+  const entries = await readdir(rootDir, { withFileTypes: true })
+  for (const entry of entries) {
+    const candidate = join(rootDir, entry.name)
+    if (entry.isFile() && entry.name === fileName) {
+      return candidate
+    }
+    if (entry.isDirectory()) {
+      const nested = await findFileByName(candidate, fileName)
+      if (nested) {
+        return nested
+      }
+    }
+  }
+
+  return null
 }
 
 async function main() {
@@ -131,7 +197,11 @@ async function main() {
 
   const child = spawn(binaryPath, process.argv.slice(2), {
     stdio: 'inherit',
-    env: process.env,
+    env: {
+      ...process.env,
+      PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL:
+        process.env.PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL || 'npm-wrapper',
+    },
     cwd: process.cwd(),
   })
 

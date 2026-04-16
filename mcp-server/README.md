@@ -4,7 +4,19 @@ Model Context Protocol server for Pink Sundew's Kanban bridge API.
 
 This package now acts as a launcher for the native Rust runtime binary.
 
-## Install (preferred)
+## Install (preferred on macOS)
+
+```bash
+brew install pinksundew/tap/pinksundew-mcp
+```
+
+Upgrade:
+
+```bash
+brew upgrade pinksundew/tap/pinksundew-mcp
+```
+
+## Install (direct binary fallback)
 
 Install the native binary from GitHub Releases and put it on PATH as `pinksundew-mcp`.
 

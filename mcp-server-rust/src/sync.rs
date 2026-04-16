@@ -34,10 +34,12 @@ impl SyncService {
         workspace_root: Option<PathBuf>,
         verbose: bool,
     ) -> SyncResult {
-        let workspace_root = workspace_root.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        let workspace_root = workspace_root
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
         if !self.scope.is_enabled() {
-            let error = "No AGENTPLANNER_PROJECT_ID configured. Cannot sync instructions.".to_string();
+            let error =
+                "No AGENTPLANNER_PROJECT_ID configured. Cannot sync instructions.".to_string();
             if verbose {
                 warn!(target: "pinksundew::sync", "{}", error);
             }
@@ -70,7 +72,8 @@ impl SyncService {
             }
         }
 
-        let fetched = fetch_active_instructions(&self.resources, &project_id, client_env.as_deref()).await;
+        let fetched =
+            fetch_active_instructions(&self.resources, &project_id, client_env.as_deref()).await;
         let (project_name, instructions) = match fetched {
             Ok(value) => value,
             Err(err) => {
@@ -163,7 +166,8 @@ impl SyncService {
     }
 
     pub async fn read_local_hash(&self, workspace_root: Option<PathBuf>) -> Option<String> {
-        let root = workspace_root.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        let root = workspace_root
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         let hash_path = root.join(HASH_FILE);
 
         match fs::read_to_string(hash_path).await {
@@ -180,7 +184,8 @@ impl SyncService {
     }
 
     pub async fn save_local_hash(&self, hash: &str, workspace_root: Option<PathBuf>) {
-        let root = workspace_root.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+        let root = workspace_root
+            .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
         let hash_path = root.join(HASH_FILE);
         if let Some(parent) = hash_path.parent() {
             let _ = fs::create_dir_all(parent).await;
@@ -280,7 +285,10 @@ pub fn start_background_sync_supervisor(
     }
 }
 
-async fn run_poll_cycle(sync_service: Arc<SyncService>, options: &BackgroundSyncOptions) -> Result<()> {
+async fn run_poll_cycle(
+    sync_service: Arc<SyncService>,
+    options: &BackgroundSyncOptions,
+) -> Result<()> {
     let local_hash = sync_service
         .read_local_hash(Some(options.workspace_root.clone()))
         .await;
@@ -302,13 +310,13 @@ async fn run_poll_cycle(sync_service: Arc<SyncService>, options: &BackgroundSync
         .sync_global_instructions(Some(options.workspace_root.clone()), options.verbose)
         .await;
 
-        if result.success {
-            sync_service
-                .save_local_hash(cloud_hash.as_str(), Some(options.workspace_root.clone()))
-                .await;
-            if options.verbose {
-                info!(target: "pinksundew::sync", "[sync] Background sync complete: {} instruction(s)", result.instruction_count);
-            }
+    if result.success {
+        sync_service
+            .save_local_hash(cloud_hash.as_str(), Some(options.workspace_root.clone()))
+            .await;
+        if options.verbose {
+            info!(target: "pinksundew::sync", "[sync] Background sync complete: {} instruction(s)", result.instruction_count);
+        }
     } else if options.verbose {
         warn!(target: "pinksundew::sync", "[sync] Background sync failed: {}", result.error.unwrap_or_else(|| "Unknown error".to_string()));
     }
@@ -501,13 +509,17 @@ fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
     "Unknown panic payload".to_string()
 }
 
-#[expect(dead_code, reason = "cleanup path is part of the MCP migration surface but not wired yet")]
+#[expect(
+    dead_code,
+    reason = "cleanup path is part of the MCP migration surface but not wired yet"
+)]
 pub async fn cleanup_instruction_files(
     scope: &ProjectScope,
     workspace_root: Option<PathBuf>,
     verbose: bool,
 ) -> Vec<String> {
-    let workspace_root = workspace_root.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let workspace_root = workspace_root
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let mut files_cleaned = Vec::new();
 
     let mut all_files = vec![
@@ -553,7 +565,10 @@ pub async fn cleanup_instruction_files(
                     info!(target: "pinksundew::sync", "[sync] Deleted {} (was only sync block)", relative_path);
                 }
             }
-        } else if fs::write(&full_path, format!("{}\n", cleaned)).await.is_ok() {
+        } else if fs::write(&full_path, format!("{}\n", cleaned))
+            .await
+            .is_ok()
+        {
             files_cleaned.push(relative_path.clone());
             if verbose {
                 info!(target: "pinksundew::sync", "[sync] Removed sync block from {}", relative_path);
@@ -573,7 +588,11 @@ mod tests {
     fn output_file_precedence_prefers_explicit_targets() {
         let result = get_output_file_paths(
             &["vscode".to_string(), "codex".to_string()],
-            &["AGENTS.md".to_string(), "AGENTS.md".to_string(), ".custom".to_string()],
+            &[
+                "AGENTS.md".to_string(),
+                "AGENTS.md".to_string(),
+                ".custom".to_string(),
+            ],
         );
         assert_eq!(result, vec!["AGENTS.md".to_string(), ".custom".to_string()]);
     }
@@ -601,10 +620,14 @@ mod tests {
 
     #[test]
     fn replace_sync_block_replaces_existing_region_only() {
-        let existing = "before\n<!-- BEGIN:pinksundew-sync -->\nold\n<!-- END:pinksundew-sync -->\nafter\n";
+        let existing =
+            "before\n<!-- BEGIN:pinksundew-sync -->\nold\n<!-- END:pinksundew-sync -->\nafter\n";
         let sync = "<!-- BEGIN:pinksundew-sync -->\nnew\n<!-- END:pinksundew-sync -->";
         let result = replace_sync_block(existing, sync);
-        assert_eq!(result, "before\n<!-- BEGIN:pinksundew-sync -->\nnew\n<!-- END:pinksundew-sync -->\nafter\n");
+        assert_eq!(
+            result,
+            "before\n<!-- BEGIN:pinksundew-sync -->\nnew\n<!-- END:pinksundew-sync -->\nafter\n"
+        );
     }
 
     #[tokio::test]
@@ -616,7 +639,9 @@ mod tests {
             .await
             .expect("write should succeed");
 
-        let content = fs::read_to_string(nested).await.expect("content should exist");
+        let content = fs::read_to_string(nested)
+            .await
+            .expect("content should exist");
         assert!(content.contains(sync));
     }
 }

@@ -8,14 +8,16 @@ mod resources;
 mod server;
 mod sync;
 mod tools;
+mod update;
 
-use anyhow::Result;
 use crate::bridge::BridgeClient;
 use crate::config::{AppConfig, PanicPolicy};
 use crate::resources::ResourceService;
 use crate::server::PinkSundewServer;
 use crate::sync::{start_background_sync_supervisor, BackgroundSyncOptions, SyncService};
 use crate::tools::ToolService;
+use crate::update::UpdateService;
+use anyhow::Result;
 use rmcp::{transport::stdio, ServiceExt};
 use std::sync::Arc;
 use std::time::Duration;
@@ -84,13 +86,23 @@ async fn main() -> Result<()> {
 
     let bridge = BridgeClient::new(config.base_url.clone(), config.api_key.clone());
     let resources = ResourceService::new(bridge.clone(), config.project_scope.clone());
-    let tools = ToolService::new(bridge.clone(), resources.clone(), config.project_scope.clone());
-    let sync_service = Arc::new(SyncService::new(resources.clone(), config.project_scope.clone()));
+    let tools = ToolService::new(
+        bridge.clone(),
+        resources.clone(),
+        config.project_scope.clone(),
+    );
+    let sync_service = Arc::new(SyncService::new(
+        resources.clone(),
+        config.project_scope.clone(),
+    ));
+    let update_service = Arc::new(UpdateService::new());
+    update_service.spawn_background_refresh();
 
     let server = PinkSundewServer::new(
         resources.clone(),
         tools,
         sync_service.clone(),
+        update_service.clone(),
         config.project_scope.clone(),
     );
 
@@ -106,8 +118,7 @@ async fn main() -> Result<()> {
             };
             info!(
                 "[pinksundew-mcp] Startup sync: {} instruction(s) written to {}",
-                startup_sync.instruction_count,
-                files
+                startup_sync.instruction_count, files
             );
 
             if let Some(hash) = sync_service.fetch_cloud_hash(project_id.as_str()).await {
@@ -126,7 +137,8 @@ async fn main() -> Result<()> {
             sync_service.clone(),
             BackgroundSyncOptions {
                 project_id,
-                workspace_root: std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+                workspace_root: std::env::current_dir()
+                    .unwrap_or_else(|_| std::path::PathBuf::from(".")),
                 interval: Duration::from_secs(60),
                 verbose: true,
                 panic_policy: config.panic_policy,

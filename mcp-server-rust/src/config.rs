@@ -2,8 +2,16 @@ use anyhow::{anyhow, Result};
 use std::collections::HashSet;
 
 const DEFAULT_URL: &str = "https://pinksundew.com";
-const UUID_REGEX: &str = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
-const CLIENT_ENV_VALUES: [&str; 6] = ["cursor", "claude", "windsurf", "vscode", "codex", "antigravity"];
+const UUID_REGEX: &str =
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+const CLIENT_ENV_VALUES: [&str; 6] = [
+    "cursor",
+    "claude",
+    "windsurf",
+    "vscode",
+    "codex",
+    "antigravity",
+];
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -48,7 +56,8 @@ impl AppConfig {
             _ => PanicPolicy::GracefulExit,
         };
 
-        let log_level = std::env::var("PINKSUNDEW_MCP_LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
+        let log_level =
+            std::env::var("PINKSUNDEW_MCP_LOG_LEVEL").unwrap_or_else(|_| "info".to_string());
 
         Ok(Self {
             api_key,

@@ -43,7 +43,7 @@ mod tests {
         .await;
 
         assert!(result.is_err());
-        let error = result.err().expect("error expected");
+        let error = result.expect_err("error expected");
         assert!(error.message.contains("test panic"));
     }
 }

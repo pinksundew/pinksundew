@@ -237,11 +237,9 @@ pub fn start_background_sync_supervisor(
         loop {
             tokio::select! {
                 changed = shutdown_rx.changed() => {
-                    if changed.is_ok() {
-                        if *shutdown_rx.borrow() {
-                            info!(target: "pinksundew::sync", "[sync] Background sync stopped");
-                            break;
-                        }
+                    if changed.is_ok() && *shutdown_rx.borrow() {
+                        info!(target: "pinksundew::sync", "[sync] Background sync stopped");
+                        break;
                     }
                 }
                 _ = tokio::time::sleep(options.interval) => {
@@ -503,6 +501,7 @@ fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
     "Unknown panic payload".to_string()
 }
 
+#[expect(dead_code, reason = "cleanup path is part of the MCP migration surface but not wired yet")]
 pub async fn cleanup_instruction_files(
     scope: &ProjectScope,
     workspace_root: Option<PathBuf>,
@@ -573,51 +572,51 @@ mod tests {
     #[test]
     fn output_file_precedence_prefers_explicit_targets() {
         let result = get_output_file_paths(
-            &[\"vscode\".to_string(), \"codex\".to_string()],
-            &[\"AGENTS.md\".to_string(), \"AGENTS.md\".to_string(), \".custom\".to_string()],
+            &["vscode".to_string(), "codex".to_string()],
+            &["AGENTS.md".to_string(), "AGENTS.md".to_string(), ".custom".to_string()],
         );
-        assert_eq!(result, vec![\"AGENTS.md\".to_string(), \".custom\".to_string()]);
+        assert_eq!(result, vec!["AGENTS.md".to_string(), ".custom".to_string()]);
     }
 
     #[test]
     fn output_file_precedence_uses_client_env_mapping() {
-        let result = get_output_file_paths(&[\"codex\".to_string(), \"vscode\".to_string()], &[]);
+        let result = get_output_file_paths(&["codex".to_string(), "vscode".to_string()], &[]);
         assert_eq!(
             result,
             vec![
-                \"AGENTS.md\".to_string(),
-                \".github/copilot-instructions.md\".to_string()
+                "AGENTS.md".to_string(),
+                ".github/copilot-instructions.md".to_string()
             ]
         );
     }
 
     #[test]
     fn replace_sync_block_appends_when_missing() {
-        let existing = \"# User instructions\\n\\nStay concise.\\n\";
-        let sync = \"<!-- BEGIN:pinksundew-sync -->\\nhello\\n<!-- END:pinksundew-sync -->\";
+        let existing = "# User instructions\n\nStay concise.\n";
+        let sync = "<!-- BEGIN:pinksundew-sync -->\nhello\n<!-- END:pinksundew-sync -->";
         let result = replace_sync_block(existing, sync);
         assert!(result.contains(sync));
-        assert!(result.starts_with(\"# User instructions\"));
+        assert!(result.starts_with("# User instructions"));
     }
 
     #[test]
     fn replace_sync_block_replaces_existing_region_only() {
-        let existing = \"before\\n<!-- BEGIN:pinksundew-sync -->\\nold\\n<!-- END:pinksundew-sync -->\\nafter\\n\";
-        let sync = \"<!-- BEGIN:pinksundew-sync -->\\nnew\\n<!-- END:pinksundew-sync -->\";
+        let existing = "before\n<!-- BEGIN:pinksundew-sync -->\nold\n<!-- END:pinksundew-sync -->\nafter\n";
+        let sync = "<!-- BEGIN:pinksundew-sync -->\nnew\n<!-- END:pinksundew-sync -->";
         let result = replace_sync_block(existing, sync);
-        assert_eq!(result, \"before\\n<!-- BEGIN:pinksundew-sync -->\\nnew\\n<!-- END:pinksundew-sync -->\\nafter\\n\");
+        assert_eq!(result, "before\n<!-- BEGIN:pinksundew-sync -->\nnew\n<!-- END:pinksundew-sync -->\nafter\n");
     }
 
     #[tokio::test]
     async fn write_instruction_file_creates_file_and_directories() {
-        let temp = tempfile::tempdir().expect(\"tempdir\");
-        let nested = temp.path().join(\".github/copilot-instructions.md\");
-        let sync = \"<!-- BEGIN:pinksundew-sync -->\\nblock\\n<!-- END:pinksundew-sync -->\";
+        let temp = tempfile::tempdir().expect("tempdir");
+        let nested = temp.path().join(".github/copilot-instructions.md");
+        let sync = "<!-- BEGIN:pinksundew-sync -->\nblock\n<!-- END:pinksundew-sync -->";
         write_instruction_file(nested.as_path(), sync)
             .await
-            .expect(\"write should succeed\");
+            .expect("write should succeed");
 
-        let content = fs::read_to_string(nested).await.expect(\"content should exist\");
+        let content = fs::read_to_string(nested).await.expect("content should exist");
         assert!(content.contains(sync));
     }
 }

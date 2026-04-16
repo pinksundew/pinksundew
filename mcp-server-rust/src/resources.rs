@@ -56,14 +56,6 @@ impl ResourceService {
             .await
     }
 
-    pub async fn get_project_tags(&self, project_id: &str) -> Result<Vec<Tag>> {
-        self.scope
-            .assert_project_allowed(project_id, Some("getProjectTags"))?;
-        self.bridge
-            .get_json::<Vec<Tag>>(&format!("/tags?projectId={}", urlencoding::encode(project_id)))
-            .await
-    }
-
     pub async fn get_tag_details(&self, tag_id: &str) -> Result<Tag> {
         let tag = self.bridge.get_json::<Tag>(&format!("/tags/{tag_id}")).await?;
         self.scope

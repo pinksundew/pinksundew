@@ -7,9 +7,9 @@ use crate::sync::SyncService;
 use crate::tools::ToolService;
 use rmcp::{
     model::{
-        CallToolRequestParams, CallToolResult, Content, ListResourcesResult, ListToolsResult,
-        RawResource, ReadResourceRequestParams, ReadResourceResult, ResourceContents,
-        ServerCapabilities, ServerInfo, Tool,
+        Annotated, CallToolRequestParams, CallToolResult, Content, ListResourcesResult,
+        ListToolsResult, RawResource, ReadResourceRequestParams, ReadResourceResult,
+        ResourceContents, ServerCapabilities, ServerInfo, Tool,
     },
     service::{RequestContext, RoleServer},
     ErrorData as McpError, ServerHandler,
@@ -222,17 +222,20 @@ impl PinkSundewServer {
 
 impl ServerHandler for PinkSundewServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            instructions: Some(format!(
-                "Pink Sundew MCP server for project-first Kanban operations. Runtime: {} {}",
-                SERVER_NAME, SERVER_VERSION
-            )),
-            capabilities: ServerCapabilities::builder()
+        ServerInfo::new(
+            ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
                 .build(),
-            ..Default::default()
-        }
+        )
+        .with_server_info(rmcp::model::Implementation::new(
+            SERVER_NAME,
+            SERVER_VERSION,
+        ))
+        .with_instructions(format!(
+            "Pink Sundew MCP server for project-first Kanban operations. Runtime: {} {}",
+            SERVER_NAME, SERVER_VERSION
+        ))
     }
 
     async fn list_resources(
@@ -246,21 +249,29 @@ impl ServerHandler for PinkSundewServer {
                 .into_iter()
                 .flat_map(|project| {
                     vec![
-                        RawResource::new(
-                            format!("pinksundew://board/{}", project.id),
-                            format!("Board: {}", project.name),
+                        Annotated::new(
+                            RawResource::new(
+                                format!("pinksundew://board/{}", project.id),
+                                format!("Board: {}", project.name),
+                            )
+                            .with_mime_type("application/json")
+                            .with_description(format!("Visible board state for {}", project.name)),
+                            None,
                         )
-                        .with_mime_type("application/json")
-                        .with_description(format!("Visible board state for {}", project.name)),
-                        RawResource::new(
-                            format!("pinksundew://abyss/{}", project.id),
-                            format!("Abyss: {}", project.name),
+                        ,
+                        Annotated::new(
+                            RawResource::new(
+                                format!("pinksundew://abyss/{}", project.id),
+                                format!("Abyss: {}", project.name),
+                            )
+                            .with_mime_type("application/json")
+                            .with_description(format!(
+                                "Deleted and archived tasks for {}",
+                                project.name
+                            )),
+                            None,
                         )
-                        .with_mime_type("application/json")
-                        .with_description(format!(
-                            "Deleted and archived tasks for {}",
-                            project.name
-                        )),
+                        ,
                     ]
                 })
                 .collect::<Vec<_>>();
@@ -307,13 +318,10 @@ impl ServerHandler for PinkSundewServer {
                     }
 
                     let text = serde_json::to_string_pretty(&board).map_err(internal_error)?;
-                    Ok(ReadResourceResult {
-                        contents: vec![
-                            ResourceContents::text(text, request.uri.clone())
-                                .with_mime_type("application/json"),
-                        ],
-                        ..Default::default()
-                    })
+                    Ok(ReadResourceResult::new(vec![
+                        ResourceContents::text(text, request.uri.clone())
+                            .with_mime_type("application/json"),
+                    ]))
                 }
                 "abyss" => {
                     self.scope
@@ -327,13 +335,10 @@ impl ServerHandler for PinkSundewServer {
                         .map_err(internal_error)?;
                     let text = serde_json::to_string_pretty(&abyss).map_err(internal_error)?;
 
-                    Ok(ReadResourceResult {
-                        contents: vec![
-                            ResourceContents::text(text, request.uri.clone())
-                                .with_mime_type("application/json"),
-                        ],
-                        ..Default::default()
-                    })
+                    Ok(ReadResourceResult::new(vec![
+                        ResourceContents::text(text, request.uri.clone())
+                            .with_mime_type("application/json"),
+                    ]))
                 }
                 "task" => {
                     let task = self
@@ -343,13 +348,10 @@ impl ServerHandler for PinkSundewServer {
                         .map_err(internal_error)?;
                     let text = serde_json::to_string_pretty(&task).map_err(internal_error)?;
 
-                    Ok(ReadResourceResult {
-                        contents: vec![
-                            ResourceContents::text(text, request.uri.clone())
-                                .with_mime_type("application/json"),
-                        ],
-                        ..Default::default()
-                    })
+                    Ok(ReadResourceResult::new(vec![
+                        ResourceContents::text(text, request.uri.clone())
+                            .with_mime_type("application/json"),
+                    ]))
                 }
                 _ => Err(invalid_params_error(anyhow::anyhow!(
                     "Unknown resource uri: {}",

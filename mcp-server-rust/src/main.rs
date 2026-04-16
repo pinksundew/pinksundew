@@ -9,6 +9,7 @@ mod server;
 mod sync;
 mod tools;
 
+use anyhow::Result;
 use crate::bridge::BridgeClient;
 use crate::config::{AppConfig, PanicPolicy};
 use crate::resources::ResourceService;
@@ -22,7 +23,7 @@ use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<()> {
     let panic_policy = std::env::var("PINKSUNDEW_MCP_PANIC_POLICY")
         .unwrap_or_else(|_| "graceful_exit".to_string());
 
@@ -143,9 +144,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         background_sync.shutdown().await;
     }
 
-    if let Err(error) = waiting_result {
-        return Err(Box::new(error));
-    }
+    waiting_result?;
 
     if config.panic_policy == PanicPolicy::GracefulExit {
         info!("[pinksundew-mcp] Shutdown complete.");

@@ -226,6 +226,18 @@ export function KanbanBoard({
   const dragPreviewFrameRef = useRef<number | null>(null)
   const pendingDragPreviewRef = useRef<TaskWithTags[] | null>(null)
 
+  const isAnyModalOpen =
+    isCreateModalOpen ||
+    isDetailsModalOpen ||
+    isTagModalOpen ||
+    isAgentInstructionsOpen ||
+    isExportModalOpen ||
+    isAbyssModalOpen ||
+    isConnectModalOpen ||
+    isProjectSettingsOpen ||
+    taskToDelete !== null ||
+    authPromptMessage !== null
+
   const persistGuestTasks = (taskList: TaskWithTags[]) => {
     saveGuestDraft(projectName, taskList)
     hasGuestDraftRef.current = taskList.length > 0
@@ -393,7 +405,7 @@ export function KanbanBoard({
   }, [isGuestMode])
 
   useEffect(() => {
-    if (!activeTask || typeof document === 'undefined') {
+    if (!isAnyModalOpen || typeof document === 'undefined') {
       return
     }
 
@@ -401,18 +413,24 @@ export function KanbanBoard({
     const html = document.documentElement
     const previousBodyOverflow = body.style.overflow
     const previousBodyTouchAction = body.style.touchAction
+    const previousBodyOverscrollY = body.style.overscrollBehaviorY
+    const previousHtmlOverflow = html.style.overflow
     const previousHtmlOverscrollY = html.style.overscrollBehaviorY
 
     body.style.overflow = 'hidden'
     body.style.touchAction = 'none'
+    body.style.overscrollBehaviorY = 'none'
+    html.style.overflow = 'hidden'
     html.style.overscrollBehaviorY = 'none'
 
     return () => {
       body.style.overflow = previousBodyOverflow
       body.style.touchAction = previousBodyTouchAction
+      body.style.overscrollBehaviorY = previousBodyOverscrollY
+      html.style.overflow = previousHtmlOverflow
       html.style.overscrollBehaviorY = previousHtmlOverscrollY
     }
-  }, [activeTask])
+  }, [isAnyModalOpen])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -1066,18 +1084,6 @@ export function KanbanBoard({
 
   const guestTaskLimitReached =
     isGuestMode && countActiveGuestTasks(tasks) >= GUEST_ACTIVE_TASK_LIMIT
-
-  const isAnyModalOpen =
-    isCreateModalOpen ||
-    isDetailsModalOpen ||
-    isTagModalOpen ||
-    isAgentInstructionsOpen ||
-    isExportModalOpen ||
-    isAbyssModalOpen ||
-    isConnectModalOpen ||
-    isProjectSettingsOpen ||
-    taskToDelete !== null ||
-    authPromptMessage !== null
 
   const shouldShowActionPill = !isSelectionMode && !isAnyModalOpen
   const shouldShowSelectionPill = isSelectionMode && !isAnyModalOpen

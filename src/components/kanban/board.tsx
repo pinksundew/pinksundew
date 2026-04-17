@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   DndContext, 
@@ -16,7 +15,6 @@ import {
   PointerSensor, 
   useSensor, 
   useSensors, 
-  DragCancelEvent,
   DragStartEvent,
   DragOverEvent,
   DragEndEvent
@@ -894,7 +892,7 @@ export function KanbanBoard({
     setActiveTask(tasksRef.current.find((task) => task.id === activeId) || null)
   }
 
-  const handleDragCancel = (_event: DragCancelEvent) => {
+  const handleDragCancel = () => {
     cancelScheduledDragPreview()
     setActiveTask(null)
     setDeleteArmedIfChanged(false)

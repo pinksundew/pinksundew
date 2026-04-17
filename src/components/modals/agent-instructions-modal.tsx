@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { FileText, Save, Shield, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -100,6 +100,86 @@ export function AgentInstructionsModal({
     [selectedSet, selectedFileId]
   )
 
+  const fetchInstructionSets = useCallback(async (options?: { selectedSetId?: string | null; selectedFileId?: string | null }) => {
+    setInstructionErrorMessage(null)
+
+    try {
+      const loadInstructionSets = async (
+        nextOptions?: { selectedSetId?: string | null; selectedFileId?: string | null }
+      ): Promise<void> => {
+        let nextSets = sortInstructionSets(
+          await getProjectInstructionSets(supabase, projectId)
+        )
+
+        if (nextSets.length === 0) {
+          const createdSet = await createInstructionSet(supabase, {
+            project_id: projectId,
+            name: 'Workspace Standard',
+            code: buildInstructionSetCode('workspace-standard'),
+            scope: 'global' as InstructionSetScope,
+          })
+
+          nextSets = [{ ...createdSet, files: [] }]
+        }
+
+        setInstructionSets(nextSets)
+
+        const nextSelectedSetId =
+          nextOptions?.selectedSetId && nextSets.some((set) => set.id === nextOptions.selectedSetId)
+            ? nextOptions.selectedSetId
+            : nextSets[0]?.id ?? null
+        setSelectedSetId(nextSelectedSetId)
+
+        const nextSelectedSet = nextSets.find((set) => set.id === nextSelectedSetId) ?? null
+        if (!nextSelectedSet) {
+          setSelectedFileId(null)
+          return
+        }
+
+        if (nextSelectedSet.files.length === 0) {
+          const createdFile = await createInstructionFile(supabase, {
+            set_id: nextSelectedSet.id,
+            file_name: DEFAULT_INSTRUCTION_FILE_NAME,
+            content: '',
+          })
+
+          await loadInstructionSets({
+            selectedSetId: nextSelectedSet.id,
+            selectedFileId: createdFile.id,
+          })
+          return
+        }
+
+        const nextSelectedFileId =
+          nextOptions?.selectedFileId &&
+          nextSelectedSet.files.some((file) => file.id === nextOptions.selectedFileId)
+            ? nextOptions.selectedFileId
+            : nextSelectedSet.files[0]?.id ?? null
+
+        setSelectedFileId(nextSelectedFileId)
+      }
+
+      await loadInstructionSets(options)
+    } catch (error) {
+      console.error('Error loading instruction sets:', error)
+      setInstructionErrorMessage('Unable to load instruction files right now.')
+    }
+  }, [projectId, supabase])
+
+  const fetchAgentControls = useCallback(async () => {
+    setControlsErrorMessage(null)
+
+    try {
+      const controls = await getProjectAgentControls(supabase, projectId)
+      setAllowTaskCompletion(controls.allow_task_completion)
+      setToolToggles(controls.tool_toggles)
+      setControlsDirty(false)
+    } catch (error) {
+      console.error('Error loading project agent controls:', error)
+      setControlsErrorMessage('Unable to load agent controls right now.')
+    }
+  }, [projectId, supabase])
+
   useEffect(() => {
     if (!isOpen) {
       setInstructionErrorMessage(null)
@@ -110,7 +190,7 @@ export function AgentInstructionsModal({
 
     void fetchInstructionSets()
     void fetchAgentControls()
-  }, [isOpen, projectId])
+  }, [fetchAgentControls, fetchInstructionSets, isOpen])
 
   useEffect(() => {
     if (!selectedSet) {
@@ -138,80 +218,6 @@ export function AgentInstructionsModal({
 
     setDraftContent(selectedFile.content)
   }, [selectedFile])
-
-  const fetchInstructionSets = async (options?: { selectedSetId?: string | null; selectedFileId?: string | null }) => {
-    setInstructionErrorMessage(null)
-
-    try {
-      let nextSets = sortInstructionSets(
-        await getProjectInstructionSets(supabase, projectId)
-      )
-
-      if (nextSets.length === 0) {
-        const createdSet = await createInstructionSet(supabase, {
-          project_id: projectId,
-          name: 'Workspace Standard',
-          code: buildInstructionSetCode('workspace-standard'),
-          scope: 'global' as InstructionSetScope,
-        })
-
-        nextSets = [{ ...createdSet, files: [] }]
-      }
-
-      setInstructionSets(nextSets)
-
-      const nextSelectedSetId =
-        options?.selectedSetId && nextSets.some((set) => set.id === options.selectedSetId)
-          ? options.selectedSetId
-          : nextSets[0]?.id ?? null
-      setSelectedSetId(nextSelectedSetId)
-
-      const nextSelectedSet = nextSets.find((set) => set.id === nextSelectedSetId) ?? null
-      if (!nextSelectedSet) {
-        setSelectedFileId(null)
-        return
-      }
-
-      if (nextSelectedSet.files.length === 0) {
-        const createdFile = await createInstructionFile(supabase, {
-          set_id: nextSelectedSet.id,
-          file_name: DEFAULT_INSTRUCTION_FILE_NAME,
-          content: '',
-        })
-
-        await fetchInstructionSets({
-          selectedSetId: nextSelectedSet.id,
-          selectedFileId: createdFile.id,
-        })
-        return
-      }
-
-      const nextSelectedFileId =
-        options?.selectedFileId &&
-        nextSelectedSet.files.some((file) => file.id === options.selectedFileId)
-          ? options.selectedFileId
-          : nextSelectedSet.files[0]?.id ?? null
-
-      setSelectedFileId(nextSelectedFileId)
-    } catch (error) {
-      console.error('Error loading instruction sets:', error)
-      setInstructionErrorMessage('Unable to load instruction files right now.')
-    }
-  }
-
-  const fetchAgentControls = async () => {
-    setControlsErrorMessage(null)
-
-    try {
-      const controls = await getProjectAgentControls(supabase, projectId)
-      setAllowTaskCompletion(controls.allow_task_completion)
-      setToolToggles(controls.tool_toggles)
-      setControlsDirty(false)
-    } catch (error) {
-      console.error('Error loading project agent controls:', error)
-      setControlsErrorMessage('Unable to load agent controls right now.')
-    }
-  }
 
   const handleToggleTool = (toolId: CoreMcpToolId) => {
     setToolToggles((previous) => ({

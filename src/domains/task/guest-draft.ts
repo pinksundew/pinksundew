@@ -7,7 +7,7 @@ import {
 } from './types'
 import { isVisibleOnBoard, sortTasksByPosition } from './visibility'
 
-const GUEST_DRAFT_STORAGE_KEY = 'agentplanner.guest_board.v1'
+const GUEST_DRAFT_STORAGE_KEY = 'pinksundew.guest_board.v1'
 
 export const GUEST_ACTIVE_TASK_LIMIT = 10
 

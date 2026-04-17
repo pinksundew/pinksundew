@@ -33,7 +33,6 @@ const DRAFTING_PLACEHOLDER = 'Drafting...'
 export function InlineComposer({
   projectId,
   status,
-  isGuestMode = false,
   guestTaskLimitReached = false,
   onPromptAuth,
   onCreateTask,

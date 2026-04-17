@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.4](https://github.com/pinksundew/pinksundew/compare/v2.2.3...v2.2.4) - 2026-04-17
+
+### Changed
+
+- rename MCP configuration environment variables to the Pink Sundew prefix
+
 ## [2.2.3](https://github.com/pinksundew/pinksundew/compare/v2.2.2...v2.2.3) - 2026-04-17
 
 ### Fixed

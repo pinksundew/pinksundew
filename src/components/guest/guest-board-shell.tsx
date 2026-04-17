@@ -19,7 +19,7 @@ type AuthPromptState = {
   nextPath: string
 } | null
 
-const IMPORT_ID_STORAGE_KEY = 'agentplanner.guest_import.id'
+const IMPORT_ID_STORAGE_KEY = 'pinksundew.guest_import.id'
 const EMPTY_TASKS: TaskWithTags[] = []
 
 function AppLogo({ className }: { className?: string }) {

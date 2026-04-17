@@ -47,7 +47,7 @@ impl SyncService {
 
         if !self.scope.is_enabled() {
             let error =
-                "No AGENTPLANNER_PROJECT_ID configured. Cannot sync instructions.".to_string();
+                "No PINKSUNDEW_PROJECT_ID configured. Cannot sync instructions.".to_string();
             if verbose {
                 warn!(target: "pinksundew::sync", "{}", error);
             }

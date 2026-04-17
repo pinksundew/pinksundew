@@ -6,6 +6,8 @@ loadEnvConfig(process.cwd());
 export default $config({
   app(input) {
     return {
+      // This is a stable SST state namespace, not product copy. Renaming it
+      // creates a brand-new app with empty secrets and duplicate DNS resources.
       name: "agentplanner",
       removal: input?.stage === "production" ? "retain" : "remove",
       protect: ["production"].includes(input?.stage || ""),
@@ -21,6 +23,8 @@ export default $config({
     const geminiApiKey = new sst.Secret("GeminiApiKey");
 
     // Next.js app deployed via OpenNext → CloudFront + Lambda
+    // Keep the legacy construct ID so SST updates the existing stack instead
+    // of creating a second CloudFront/Cloudflare deployment for the same domain.
     new sst.aws.Nextjs("AgentPlanner", {
       domain: $app.stage === "production" ? {
         name: "pinksundew.com",

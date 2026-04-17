@@ -2,7 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowRight, Play } from 'lucide-react'
 
-const demoVideoSrc = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL ?? '/demo/introdemo.mp4'
+const demoVideoSrc = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL ?? '/demo/HeroVid.mp4'
 
 export function LandingPage() {
   return (
@@ -49,7 +49,7 @@ export function LandingPage() {
           </p>
         </div>
 
-        <div className="mx-auto mt-8 w-full max-w-6xl">
+        <div className="mx-auto mt-8 w-full max-w-5xl">
           <div className="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-950 shadow-2xl shadow-cyan-950/10">
             <video
               src={demoVideoSrc}

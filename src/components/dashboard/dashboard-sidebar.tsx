@@ -19,7 +19,7 @@ type DashboardSidebarProps = {
   onRequireAuth?: (message: string, nextPath?: string) => void
 }
 
-const PROJECT_TAB_OPEN_EVENT = 'agentplanner:open-project-tab'
+const PROJECT_TAB_OPEN_EVENT = 'pinksundew:open-project-tab'
 
 function getProjectIdFromPath(pathname: string) {
   const [firstSegment] = pathname.split('/').filter(Boolean)

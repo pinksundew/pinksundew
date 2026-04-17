@@ -73,7 +73,7 @@ export default async function ProfilePage() {
                 type="text"
                 defaultValue={profile?.full_name || ''}
                 className="w-full rounded-md border border-border bg-white px-3 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="John Doe"
+                placeholder="Pink Sundew"
               />
             </div>
 

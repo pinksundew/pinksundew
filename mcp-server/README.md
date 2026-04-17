@@ -22,6 +22,41 @@ Install the native binary from GitHub Releases and put it on PATH as `pinksundew
 
 Canonical MCP release tags now follow `vX.Y.Z` (for example `v2.2.0`).
 
+## Codex App quick setup (Rust binary)
+
+Use this exact flow in Codex/Cursor/VS Code MCP settings.
+
+1. Install the binary:
+
+```bash
+brew install pinksundew/tap/pinksundew-mcp
+```
+
+2. Add this MCP config (JSON):
+
+```json
+{
+  "servers": {
+    "pinksundew": {
+      "type": "stdio",
+      "command": "pinksundew-mcp",
+      "args": [],
+      "env": {
+        "AGENTPLANNER_API_KEY": "ap_...",
+        "AGENTPLANNER_PROJECT_ID": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "AGENTPLANNER_CLIENT_ENV": "codex"
+      }
+    }
+  }
+}
+```
+
+3. Restart the MCP connection (or restart the editor window).
+
+4. Verify by calling a Pink Sundew tool (for example `list_projects`).
+
+If you want instruction sync for multiple tools, set `AGENTPLANNER_CLIENT_ENV` to a CSV string such as `codex,vscode`.
+
 ## Install (compatibility npm wrapper)
 
 ```bash
@@ -88,11 +123,11 @@ Your custom instructions outside the markers are always preserved.
 ```bash
 AGENTPLANNER_API_KEY=your_api_key \
 AGENTPLANNER_PROJECT_ID=project-uuid \
-AGENTPLANNER_CLIENT_ENV=vscode,codex \
+AGENTPLANNER_CLIENT_ENV=codex \
 pinksundew-mcp
 ```
 
-## Example MCP client configuration (native binary)
+## Example MCP client configuration (native binary, `mcpServers` format)
 
 ```json
 {
@@ -109,7 +144,7 @@ pinksundew-mcp
 }
 ```
 
-## Example MCP client configuration (npm wrapper)
+## Example MCP client configuration (npm wrapper fallback)
 
 ```json
 {

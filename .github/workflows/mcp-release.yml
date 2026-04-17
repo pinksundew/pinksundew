@@ -39,6 +39,12 @@ permissions:
 # If there's a prerelease-style suffix to the version, then the release(s)
 # will be marked as a prerelease.
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, for example v2.2.0"
+        required: true
+        type: string
   pull_request:
   push:
     tags:
@@ -50,14 +56,16 @@ jobs:
     runs-on: "ubuntu-22.04"
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
-      tag: ${{ !github.event.pull_request && github.ref_name || '' }}
-      tag-flag: ${{ !github.event.pull_request && format('--tag={0}', github.ref_name) || '' }}
-      publishing: ${{ !github.event.pull_request }}
+      tag: ${{ steps.release-context.outputs.tag }}
+      tag-flag: ${{ steps.release-context.outputs.tag-flag }}
+      publishing: ${{ steps.release-context.outputs.publishing }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive
       - name: Install dist
@@ -70,6 +78,21 @@ jobs:
         with:
           name: cargo-dist-cache
           path: ~/.cargo/bin/dist
+      - id: release-context
+        shell: bash
+        env:
+          DISPATCH_TAG: ${{ github.event.inputs.tag || '' }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "tag-flag=" >> "$GITHUB_OUTPUT"
+            echo "publishing=false" >> "$GITHUB_OUTPUT"
+          else
+            tag="${DISPATCH_TAG:-$GITHUB_REF_NAME}"
+            echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+            echo "tag-flag=--tag=${tag}" >> "$GITHUB_OUTPUT"
+            echo "publishing=true" >> "$GITHUB_OUTPUT"
+          fi
       # sure would be cool if github gave us proper conditionals...
       # so here's a doubly-nested ternary-via-truthiness to try to provide the best possible
       # functionality based on whether this is a pull_request, and whether it's from a fork.
@@ -77,7 +100,11 @@ jobs:
       # but also really annoying to build CI around when it needs secrets to work right.)
       - id: plan
         run: |
-          dist ${{ (!github.event.pull_request && format('host --steps=create --tag={0}', github.ref_name)) || 'plan' }} --allow-dirty --output-format=json > plan-dist-manifest.json
+          if [[ "${{ steps.release-context.outputs.publishing }}" == "true" ]]; then
+            dist host --steps=create ${{ steps.release-context.outputs.tag-flag }} --allow-dirty --output-format=json > plan-dist-manifest.json
+          else
+            dist plan --allow-dirty --output-format=json > plan-dist-manifest.json
+          fi
           echo "dist ran successfully"
           cat plan-dist-manifest.json
           echo "manifest=$(jq -c "." plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
@@ -118,6 +145,8 @@ jobs:
           git config --global core.longpaths true
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive
       - name: Install Rust non-interactively if not already installed
@@ -177,6 +206,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive
       - name: Install cached dist
@@ -227,6 +258,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive
       - name: Install cached dist
@@ -271,12 +304,19 @@ jobs:
           PRERELEASE_FLAG: "${{ fromJson(steps.host.outputs.manifest).announcement_is_prerelease && '--prerelease' || '' }}"
           ANNOUNCEMENT_TITLE: "${{ fromJson(steps.host.outputs.manifest).announcement_title }}"
           ANNOUNCEMENT_BODY: "${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}"
-          RELEASE_COMMIT: "${{ github.sha }}"
         run: |
           # Write and read notes from a file to avoid quoting breaking things
           echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
 
-          gh release create "${{ needs.plan.outputs.tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+          git fetch --force --tags origin "refs/tags/${{ needs.plan.outputs.tag }}:refs/tags/${{ needs.plan.outputs.tag }}"
+          release_commit="$(git rev-list -n 1 "${{ needs.plan.outputs.tag }}")"
+
+          if gh release view "${{ needs.plan.outputs.tag }}" >/dev/null 2>&1; then
+            gh release upload "${{ needs.plan.outputs.tag }}" artifacts/* --clobber
+            gh release edit "${{ needs.plan.outputs.tag }}" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt"
+          else
+            gh release create "${{ needs.plan.outputs.tag }}" --target "$release_commit" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+          fi
 
   publish-homebrew-formula:
     needs:
@@ -339,5 +379,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
           persist-credentials: false
           submodules: recursive

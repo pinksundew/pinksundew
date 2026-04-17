@@ -17,7 +17,6 @@ const eslintConfig = defineConfig([
     // Generated OpenNext artifacts.
     ".open-next/**",
     // Built MCP output.
-    "mcp-server/dist/**",
   ]),
 ]);
 

@@ -15,7 +15,7 @@ Rust runtime implementation of the Pink Sundew MCP stdio server.
 - `PINKSUNDEW_MCP_LOG_LEVEL` (default: `info`)
 - `PINKSUNDEW_MCP_PANIC_POLICY` (`graceful_exit` or `supervise`)
 - `PINKSUNDEW_MCP_UPDATE_CHECK_TTL_HOURS` (default: `24`)
-- `PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL` (optional override: `brew`, `npm-wrapper`, `direct`, `unknown`)
+- `PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL` (optional override: `brew`, `direct`, `unknown`; `npm-wrapper` is legacy/deprecated)
 
 ## Development
 

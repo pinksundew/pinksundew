@@ -74,6 +74,16 @@ async fn run_server() -> Result<()> {
         .without_time()
         .init();
 
+    let distribution_channel = std::env::var("PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL")
+        .unwrap_or_default()
+        .trim()
+        .to_lowercase();
+    if distribution_channel == "npm-wrapper" {
+        warn!(
+            "[pinksundew-mcp] DEPRECATED: npm wrapper channel is deprecated. Uninstall @pinksundew/mcp and install the native binary instead: brew install pinksundew/tap/pinksundew-mcp"
+        );
+    }
+
     if config.project_scope.is_enabled() {
         info!(
             "[pinksundew-mcp] Project scoping enabled. Project ID: {}",

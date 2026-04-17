@@ -340,16 +340,7 @@ async fn fetch_active_instructions(
 
     let file_ids = active
         .iter()
-        .flat_map(|set| {
-            set.files.iter().filter_map(|file| {
-                let is_markdown = file.file_name.to_lowercase().ends_with(".md");
-                if is_markdown {
-                    Some(file.id.clone())
-                } else {
-                    None
-                }
-            })
-        })
+        .flat_map(|set| set.files.iter().map(|file| file.id.clone()))
         .collect::<Vec<_>>();
 
     if !file_ids.is_empty() {

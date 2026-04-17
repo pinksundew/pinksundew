@@ -148,6 +148,7 @@ function createGuides(): Record<GuideId, Guide> {
                   type: 'stdio',
                   command: 'pinksundew-mcp',
                   args: [],
+                  cwd: '${workspaceFolder}',
                   env: {
                     AGENTPLANNER_API_KEY: config.apiKey,
                     AGENTPLANNER_PROJECT_ID: config.projectId,

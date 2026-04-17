@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "pinksundew": {
+      "args": [],
+      "command": "/opt/homebrew/Cellar/pinksundew-mcp/2.1.6/bin/pinksundew-mcp",
+      "env": {
+        "AGENTPLANNER_API_KEY": "ap_3cfaf596320d459fc55e727930987ff9d09a5acd42b671b9888fd66e062b6279",
+        "AGENTPLANNER_CLIENT_ENV": "antigravity",
+        "AGENTPLANNER_PROJECT_ID": "8cd4fe92-63ad-49af-ae3a-c404f4576cc7"
+      },
+      "type": "stdio"
+    }
+  }
+}

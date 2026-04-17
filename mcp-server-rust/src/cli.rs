@@ -165,12 +165,8 @@ fn resolve_codex_config_path() -> Result<PathBuf> {
         }
     }
 
-    if let Some(home) = std::env::var_os("HOME") {
-        return Ok(PathBuf::from(home).join(".codex").join("config.toml"));
-    }
-
-    if let Some(profile) = std::env::var_os("USERPROFILE") {
-        return Ok(PathBuf::from(profile).join(".codex").join("config.toml"));
+    if let Some(home) = dirs::home_dir() {
+        return Ok(home.join(".codex").join("config.toml"));
     }
 
     bail!("Unable to determine codex config location. Provide --file explicitly.")

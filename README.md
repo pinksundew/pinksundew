@@ -71,3 +71,5 @@ Preferred install/upgrade channel for users:
 brew install pinksundew/tap/pinksundew-mcp
 brew upgrade pinksundew/tap/pinksundew-mcp
 ```
+
+MCP release tags are canonicalized as `vX.Y.Z`.

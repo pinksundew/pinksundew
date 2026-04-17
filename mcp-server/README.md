@@ -20,6 +20,8 @@ brew upgrade pinksundew/tap/pinksundew-mcp
 
 Install the native binary from GitHub Releases and put it on PATH as `pinksundew-mcp`.
 
+Canonical MCP release tags now follow `vX.Y.Z` (for example `v2.2.0`).
+
 ## Install (compatibility npm wrapper)
 
 ```bash

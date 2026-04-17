@@ -1,0 +1,16 @@
+[workspace]
+release_always = false
+pr_name = "chore(release): bump pinksundew-mcp"
+pr_labels = ["release"]
+git_release_enable = true
+git_tag_enable = true
+git_tag_name = "v{{ version }}"
+publish = false
+changelog_update = true
+changelog_path = "mcp-server-rust/CHANGELOG.md"
+
+[[package]]
+name = "pinksundew-mcp"
+release = true
+publish = false
+changelog_path = "mcp-server-rust/CHANGELOG.md"

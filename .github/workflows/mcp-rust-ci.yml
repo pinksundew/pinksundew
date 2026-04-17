@@ -6,15 +6,19 @@ on:
       - main
     paths:
       - mcp-server-rust/**
+      - release-plz.toml
       - .github/workflows/mcp-rust-ci.yml
       - .github/workflows/mcp-release.yml
+      - .github/workflows/release-plz.yml
   pull_request:
     branches:
       - main
     paths:
       - mcp-server-rust/**
+      - release-plz.toml
       - .github/workflows/mcp-rust-ci.yml
       - .github/workflows/mcp-release.yml
+      - .github/workflows/release-plz.yml
 
 jobs:
   rust-checks:

@@ -288,6 +288,13 @@ export function AgentInstructionsModal({
     }
   }
 
+  const handleSaveAll = async () => {
+    const promises = []
+    if (selectedFile) promises.push(handleSaveFile())
+    if (controlsDirty) promises.push(handleSaveControls())
+    await Promise.all(promises)
+  }
+
   if (!isOpen) return null
 
   return (
@@ -343,50 +350,103 @@ export function AgentInstructionsModal({
           </div>
 
           {activeTab === 'instructions' ? (
-            <div className="m-3 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-slate-50/60 px-4 py-3">
-                <div className="flex items-start gap-2 text-foreground">
-                  <FileText className="mt-0.5 h-5 w-5 text-primary" />
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-[0.08em]">Instruction File</h3>
-                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      These instructions are synced into the file targets enabled in Agent Controls
-                      (for example `AGENTS.md`, `.github/copilot-instructions.md`, or `.cursorrules`).
-                    </p>
-                  </div>
+            <div className="m-3 flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-inner">
+              {/* Sidebar for Files Config */}
+              <div className="w-80 border-r border-slate-200 bg-slate-50/50 p-5 overflow-y-auto flex flex-col shrink-0">
+                <div className="mb-5">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">Sync Targets</h3>
+                  <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                    Toggle the target files for MCP clients to synchronize these instructions into.
+                  </p>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={handleSaveFile}
-                  disabled={isInstructionLoading || !selectedFile}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Save className="h-4 w-4" /> {isInstructionLoading ? 'Saving...' : 'Save Instructions'}
-                </button>
+                <div className="space-y-3 flex-1 min-h-0">
+                  {INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => (
+                    <div
+                      key={target.id}
+                      className={`group cursor-pointer rounded-xl border p-4 transition-all duration-300 ${
+                        toolToggles[target.id]
+                          ? 'border-primary/40 bg-zinc-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-primary/20 hover:shadow-sm'
+                      }`}
+                      onClick={() => handleToggleSyncTarget(target.id)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 overflow-hidden mt-0.5">
+                          <div className={`text-sm font-semibold ${toolToggles[target.id] ? 'text-primary' : 'text-slate-700'}`}>
+                            {target.name}
+                          </div>
+                          <div className="mt-1.5 font-mono truncate text-[11px] font-medium text-slate-600 bg-slate-100 rounded px-1.5 py-0.5 inline-block">
+                            {target.file_path}
+                          </div>
+                        </div>
+                        <div
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-300 ${
+                            toolToggles[target.id] ? 'bg-primary' : 'bg-slate-200 group-hover:bg-slate-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-300 ${
+                              toolToggles[target.id] ? 'translate-x-4' : 'translate-x-1'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3 text-xs leading-5 text-slate-500 line-clamp-2">
+                        {target.description}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-3">
-                {selectedFile ? (
-                  <div className="min-h-0 flex-1">
-                    <textarea
-                      value={draftContent}
-                      onChange={(event) => setDraftContent(event.target.value)}
-                      placeholder="## Agent Notes\n\n- Read linked review thread first\n- Prefer smallest safe code change"
-                      className="h-full min-h-0 w-full resize-none overflow-y-auto rounded-md border border-slate-200 px-3 py-3 font-mono text-sm leading-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
+              {/* Main Text Editor */}
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 shrink-0">
+                  <div className="flex items-center gap-2.5 text-foreground">
+                    <FileText className="h-5 w-5 text-primary" />
+                    <div>
+                      <h3 className="font-semibold text-slate-800">Global Agent Instructions</h3>
+                      <p className="text-xs text-slate-500 hidden sm:block">Rules and guidelines applied to connected AI sessions.</p>
+                    </div>
                   </div>
-                ) : (
-                  <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-muted/20 px-6 text-center text-sm text-muted-foreground">
-                    Preparing your instruction file...
-                  </div>
-                )}
 
-                {instructionErrorMessage ? (
-                  <div className="mt-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                    {instructionErrorMessage}
-                  </div>
-                ) : null}
+                  <button
+                    type="button"
+                    onClick={handleSaveAll}
+                    disabled={(!selectedFile && !controlsDirty) || isInstructionLoading || isControlsSaving}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none"
+                  >
+                    <Save className="h-4 w-4" /> {(isInstructionLoading || isControlsSaving) ? 'Saving...' : 'Save Settings'}
+                  </button>
+                </div>
+
+                <div className="flex min-h-0 flex-1 flex-col p-4 bg-slate-50">
+                  {selectedFile ? (
+                    <div className="min-h-0 flex-1 flex flex-col rounded-xl overflow-hidden shadow-sm border border-slate-200">
+                      <textarea
+                        value={draftContent}
+                        onChange={(event) => setDraftContent(event.target.value)}
+                        placeholder="## Agent Notes\n\n- Read linked review thread first\n- Prefer smallest safe code change"
+                        className="h-full min-h-0 w-full resize-none overflow-y-auto bg-white p-5 font-mono text-sm leading-loose text-slate-700 outline-none focus:ring-0"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/50 px-6 text-center text-sm text-slate-500">
+                      Preparing your instruction file...
+                    </div>
+                  )}
+
+                  {instructionErrorMessage ? (
+                    <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 shadow-sm">
+                      {instructionErrorMessage}
+                    </div>
+                  ) : null}
+                  {controlsErrorMessage && activeTab === 'instructions' ? (
+                    <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 shadow-sm">
+                      {controlsErrorMessage}
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
           ) : (
@@ -416,40 +476,6 @@ export function AgentInstructionsModal({
 
               <div className="min-h-0 overflow-y-auto p-4">
                 <div className="space-y-3">
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-                    <div className="text-sm font-semibold text-foreground">Instruction Sync Targets</div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Choose which files every connected MCP client should receive from this board.
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => (
-                        <div
-                          key={target.id}
-                          className="flex items-start justify-between gap-4 rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2"
-                        >
-                          <div>
-                            <div className="text-sm font-medium text-foreground">{target.name}</div>
-                            <div className="mt-0.5 text-xs text-muted-foreground">{target.description}</div>
-                            <div className="mt-1 font-mono text-[11px] text-muted-foreground">{target.file_path}</div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleSyncTarget(target.id)}
-                            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                              toolToggles[target.id] ? 'bg-primary' : 'bg-slate-300'
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                                toolToggles[target.id] ? 'translate-x-5' : 'translate-x-1'
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
                   <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
                       <div>

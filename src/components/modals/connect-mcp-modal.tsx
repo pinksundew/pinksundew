@@ -91,7 +91,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'VS Code',
       title: 'Connect In VS Code',
       description:
-        'Add the Pink Sundew MCP server to your workspace settings. Install `pinksundew-mcp` via Homebrew first (`brew install pinksundew/tap/pinksundew-mcp`); npm wrapper remains a fallback.',
+        'Add the Pink Sundew MCP server to your workspace settings with the native Rust binary.',
       steps: [
         'Generate an API key (or use an existing one).',
         'Copy the mcp.json snippet and paste it into .vscode/mcp.json in your project.',
@@ -129,7 +129,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Cursor',
       title: 'Connect In Cursor',
       description:
-        'Add the MCP server to Cursor workspace settings. Install `pinksundew-mcp` via Homebrew first (`brew install pinksundew/tap/pinksundew-mcp`); npm wrapper remains a fallback.',
+        'Add the MCP server to Cursor workspace settings with the native Rust binary.',
       steps: [
         'Generate an API key (or use an existing one).',
         'Copy the mcp.json snippet and paste it into .cursor/mcp.json in your project.',
@@ -167,7 +167,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Claude Code',
       title: 'Connect In Claude Code',
       description:
-        'Add via CLI or paste the JSON into your project .mcp.json config file. Install `pinksundew-mcp` via Homebrew first (`brew install pinksundew/tap/pinksundew-mcp`); npm wrapper remains a fallback.',
+        'Add via CLI or paste JSON into a project `.mcp.json` config file using the native Rust binary.',
       steps: [
         'Generate an API key.',
         'Run the CLI command from your project root, OR paste the JSON into .mcp.json.',
@@ -218,7 +218,6 @@ function createGuides(): Record<GuideId, Guide> {
       description:
         'Use the native Rust binary (`pinksundew-mcp`) with `codex mcp add`. This is the recommended path.',
       steps: [
-        'Install the Rust binary first: brew install pinksundew/tap/pinksundew-mcp',
         'Generate an API key.',
         'Run the command below from your project root.',
         'Verify with codex mcp list (or /mcp inside Codex).',
@@ -266,7 +265,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Antigravity',
       title: 'Connect In Antigravity',
       description:
-        'Use a project .mcp.json config (recommended) or add a single local stdio server manually. Install `pinksundew-mcp` via Homebrew first (`brew install pinksundew/tap/pinksundew-mcp`); npm wrapper remains a fallback.',
+        'Use a project `.mcp.json` config (recommended) or add a single local stdio server manually.',
       steps: [
         'Generate an API key.',
         'Preferred: copy the `.mcp.json` snippet below into your project root.',
@@ -352,6 +351,20 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
 
   const activeGuide = guides[activeGuideId]
   const snippets = activeGuide.getSnippets(snippetConfig)
+  const installSnippets = [
+    {
+      id: 'install-brew',
+      label: 'Option A: Homebrew',
+      language: 'bash',
+      code: 'brew install pinksundew/tap/pinksundew-mcp',
+    },
+    {
+      id: 'install-curl',
+      label: 'Option B: curl installer',
+      language: 'bash',
+      code: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/qadolphe/AgentPlanner/releases/latest/download/pinksundew-mcp-installer.sh | sh",
+    },
+  ] as const
 
   const generateApiKey = async () => {
     setIsGenerating(true)
@@ -528,9 +541,38 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
 
             {/* Right content - Config */}
             <div className="flex min-h-0 flex-col overflow-hidden bg-white">
-              {/* IDE Tabs */}
-              <div className="border-b border-slate-200 bg-slate-50/60 px-4 py-3">
-                <div className="overflow-x-auto">
+              {/* Guide Content */}
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                <div className="mb-3">
+                  <h3 className="text-base font-semibold text-foreground">Step 1: Install the MCP server</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Choose one install option below.</p>
+                </div>
+
+                <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                  {/* <p className="text-xs text-muted-foreground">Do this once on your machine, then continue to Step 2.</p> */}
+                  <div className="mt-3 space-y-3">
+                    {installSnippets.map((snippet) => (
+                      <CodeSnippetCard
+                        key={snippet.id}
+                        id={snippet.id}
+                        label={snippet.label}
+                        language={snippet.language}
+                        code={snippet.code}
+                        copiedSnippetId={copiedSnippetId}
+                        onCopy={copySnippet}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <h3 className="text-base font-semibold text-foreground">Step 2: Choose your IDE</h3>
+                  {/* <p className="mt-0.5 text-xs text-muted-foreground">
+                    Click your IDE tab, then copy the custom config snippet.
+                  </p> */}
+                </div>
+
+                <div className="mb-4 overflow-x-auto">
                   <div className="inline-flex min-w-max rounded-lg border border-border bg-muted/20 p-1">
                     {(Object.values(guides) as Guide[]).map((guide) => (
                       <button
@@ -548,10 +590,7 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
                     ))}
                   </div>
                 </div>
-              </div>
 
-              {/* Guide Content */}
-              <div className="min-h-0 flex-1 overflow-y-auto p-4">
                 <div className="mb-3">
                   <h3 className="text-base font-semibold text-foreground">{activeGuide.title}</h3>
                   <p className="mt-0.5 text-xs text-muted-foreground">{activeGuide.description}</p>

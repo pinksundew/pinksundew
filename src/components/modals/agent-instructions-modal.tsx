@@ -356,14 +356,16 @@ export function AgentInstructionsModal({
                 </button>
               </div>
 
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 pb-4 pt-3">
+              <div className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-3">
                 {selectedFile ? (
-                  <textarea
-                    value={draftContent}
-                    onChange={(event) => setDraftContent(event.target.value)}
-                    placeholder="## Agent Notes\n\n- Read linked review thread first\n- Prefer smallest safe code change"
-                    className="min-h-[420px] w-full flex-1 resize-none overflow-y-auto rounded-md border border-slate-200 px-3 py-3 font-mono text-sm leading-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
+                  <div className="min-h-0 flex-1">
+                    <textarea
+                      value={draftContent}
+                      onChange={(event) => setDraftContent(event.target.value)}
+                      placeholder="## Agent Notes\n\n- Read linked review thread first\n- Prefer smallest safe code change"
+                      className="h-full min-h-0 w-full resize-none overflow-y-auto rounded-md border border-slate-200 px-3 py-3 font-mono text-sm leading-6 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
                 ) : (
                   <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-muted/20 px-6 text-center text-sm text-muted-foreground">
                     Preparing your instruction file...

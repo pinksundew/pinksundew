@@ -214,9 +214,7 @@ fn command_tuple_for_known_channel(channel: &str) -> Option<CommandTuple> {
 }
 
 fn find_command_on_path(command: &str) -> Option<String> {
-    let Some(path_var) = std::env::var_os("PATH") else {
-        return None;
-    };
+    let path_var = std::env::var_os("PATH")?;
 
     find_command_in_paths(command, std::env::split_paths(&path_var))
 }

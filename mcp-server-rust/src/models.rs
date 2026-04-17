@@ -186,10 +186,6 @@ pub struct SyncResult {
     pub project_id: Option<String>,
     #[serde(rename = "projectName")]
     pub project_name: Option<String>,
-    #[serde(rename = "clientEnv")]
-    pub client_env: Option<String>,
-    #[serde(rename = "clientEnvs")]
-    pub client_envs: Vec<String>,
     #[serde(rename = "fileWritten")]
     pub file_written: Option<String>,
     #[serde(rename = "filesWritten")]

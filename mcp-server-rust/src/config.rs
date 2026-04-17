@@ -4,14 +4,6 @@ use std::collections::HashSet;
 const DEFAULT_URL: &str = "https://pinksundew.com";
 const UUID_REGEX: &str =
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
-const CLIENT_ENV_VALUES: [&str; 6] = [
-    "cursor",
-    "claude",
-    "windsurf",
-    "vscode",
-    "codex",
-    "antigravity",
-];
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -25,7 +17,6 @@ pub struct AppConfig {
 #[derive(Debug, Clone)]
 pub struct ProjectScope {
     project_id: Option<String>,
-    client_envs: Vec<String>,
     target_files: Vec<String>,
 }
 
@@ -72,26 +63,16 @@ impl AppConfig {
 impl ProjectScope {
     pub fn from_env() -> Result<Self> {
         let project_id = parse_project_id()?;
-        let client_envs = parse_client_envs()?;
         let target_files = parse_target_files()?;
 
         Ok(Self {
             project_id,
-            client_envs,
             target_files,
         })
     }
 
     pub fn project_id(&self) -> Option<&str> {
         self.project_id.as_deref()
-    }
-
-    pub fn client_envs(&self) -> &[String] {
-        &self.client_envs
-    }
-
-    pub fn client_env(&self) -> Option<&str> {
-        self.client_envs.first().map(|s| s.as_str())
     }
 
     pub fn target_files(&self) -> &[String] {
@@ -191,37 +172,6 @@ fn regex_like_uuid_check(value: &str) -> bool {
     }
 
     true
-}
-
-fn parse_client_envs() -> Result<Vec<String>> {
-    let raw = std::env::var("AGENTPLANNER_CLIENT_ENV").unwrap_or_default();
-    if raw.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let allowed: HashSet<&str> = CLIENT_ENV_VALUES.iter().copied().collect();
-    let mut seen = HashSet::new();
-    let mut unique = Vec::new();
-
-    for part in raw
-        .split(',')
-        .map(|entry| entry.trim().to_lowercase())
-        .filter(|entry| !entry.is_empty())
-    {
-        if !allowed.contains(part.as_str()) {
-            return Err(anyhow!(
-                "Invalid AGENTPLANNER_CLIENT_ENV value \"{}\". Valid values: {}",
-                part,
-                CLIENT_ENV_VALUES.join(", ")
-            ));
-        }
-
-        if seen.insert(part.clone()) {
-            unique.push(part);
-        }
-    }
-
-    Ok(unique)
 }
 
 fn parse_target_files() -> Result<Vec<String>> {

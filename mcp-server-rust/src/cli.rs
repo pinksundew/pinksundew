@@ -9,7 +9,6 @@ use toml_edit::{value, Array, DocumentMut, Item, Table};
 
 const API_KEY_ENV: &str = "AGENTPLANNER_API_KEY";
 const PROJECT_ID_ENV: &str = "AGENTPLANNER_PROJECT_ID";
-const CLIENT_ENV_ENV: &str = "AGENTPLANNER_CLIENT_ENV";
 const DISTRIBUTION_CHANNEL_ENV: &str = "PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL";
 const NATIVE_MCP_COMMAND: &str = "pinksundew-mcp";
 
@@ -44,10 +43,6 @@ pub struct RegisterArgs {
     #[arg(long)]
     project_id: Option<String>,
 
-    /// AGENTPLANNER_CLIENT_ENV override
-    #[arg(long)]
-    client_env: Option<String>,
-
     /// Custom config file path override
     #[arg(long)]
     file: Option<PathBuf>,
@@ -74,7 +69,6 @@ struct ResolvedRegisterConfig {
     client: RegisterClient,
     api_key: String,
     project_id: String,
-    client_env: String,
     target_file: PathBuf,
     command_tuple: CommandTuple,
 }
@@ -136,7 +130,6 @@ fn resolve_register_config(args: RegisterArgs, cwd: &Path) -> Result<ResolvedReg
     let file_values = DotenvValues::from_workspace(cwd);
     let api_key = resolve_required_value(API_KEY_ENV, args.api_key, &file_values)?;
     let project_id = resolve_required_value(PROJECT_ID_ENV, args.project_id, &file_values)?;
-    let client_env = resolve_client_env(args.client_env, args.client);
     let target_file = resolve_target_file(args.client, args.file, cwd)?;
     let command_tuple = resolve_command_tuple()?;
 
@@ -144,20 +137,9 @@ fn resolve_register_config(args: RegisterArgs, cwd: &Path) -> Result<ResolvedReg
         client: args.client,
         api_key,
         project_id,
-        client_env,
         target_file,
         command_tuple,
     })
-}
-
-fn resolve_client_env(flag_value: Option<String>, client: RegisterClient) -> String {
-    flag_value
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| match client {
-            RegisterClient::Codex => "codex".to_string(),
-            RegisterClient::Antigravity => "antigravity".to_string(),
-        })
 }
 
 fn resolve_target_file(
@@ -327,7 +309,6 @@ fn render_codex_config(
         .ok_or_else(|| anyhow!("`mcp_servers.pinksundew.env` could not be treated as a table"))?;
     env_table.insert(API_KEY_ENV, value(config.api_key.clone()));
     env_table.insert(PROJECT_ID_ENV, value(config.project_id.clone()));
-    env_table.insert(CLIENT_ENV_ENV, value(config.client_env.clone()));
 
     let preview = build_codex_preview(config);
     let content = doc.to_string();
@@ -338,12 +319,11 @@ fn render_codex_config(
 fn build_codex_preview(config: &ResolvedRegisterConfig) -> String {
     let args_preview = format!("{:?}", config.command_tuple.args);
     format!(
-        "[mcp_servers.pinksundew]\ncommand = {}\nargs = {}\n\n[mcp_servers.pinksundew.env]\nAGENTPLANNER_API_KEY = {}\nAGENTPLANNER_PROJECT_ID = {}\nAGENTPLANNER_CLIENT_ENV = {}",
+        "[mcp_servers.pinksundew]\ncommand = {}\nargs = {}\n\n[mcp_servers.pinksundew.env]\nAGENTPLANNER_API_KEY = {}\nAGENTPLANNER_PROJECT_ID = {}",
         quote_toml_string(&config.command_tuple.command),
         args_preview,
         quote_toml_string(&config.api_key),
-        quote_toml_string(&config.project_id),
-        quote_toml_string(&config.client_env)
+        quote_toml_string(&config.project_id)
     )
 }
 
@@ -392,7 +372,6 @@ fn build_antigravity_server_object(config: &ResolvedRegisterConfig) -> Value {
         "env": {
             API_KEY_ENV: config.api_key,
             PROJECT_ID_ENV: config.project_id,
-            CLIENT_ENV_ENV: config.client_env,
         }
     })
 }
@@ -681,7 +660,6 @@ name = "test"
             client: RegisterClient::Codex,
             api_key: "ap_abc".to_string(),
             project_id: "8cd4fe92-63ad-49af-ae3a-c404f4576cc7".to_string(),
-            client_env: "codex".to_string(),
             target_file: PathBuf::from("/tmp/config.toml"),
             command_tuple: CommandTuple {
                 command: "pinksundew-mcp".to_string(),
@@ -712,7 +690,6 @@ name = "test"
             client: RegisterClient::Antigravity,
             api_key: "ap_abc".to_string(),
             project_id: "8cd4fe92-63ad-49af-ae3a-c404f4576cc7".to_string(),
-            client_env: "antigravity".to_string(),
             target_file: PathBuf::from(".mcp.json"),
             command_tuple: CommandTuple {
                 command: "pinksundew-mcp".to_string(),

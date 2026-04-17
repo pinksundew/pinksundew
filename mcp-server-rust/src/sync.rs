@@ -4,7 +4,7 @@ use crate::resources::ResourceService;
 use anyhow::Result;
 use chrono::Utc;
 use futures::FutureExt;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,6 +17,14 @@ const SYNC_START: &str = "<!-- BEGIN:pinksundew-sync -->";
 const SYNC_END: &str = "<!-- END:pinksundew-sync -->";
 const HASH_FILE: &str = ".pinksundew-hash";
 const DEFAULT_OUTPUT_FILE: &str = ".agentrules";
+const SYNC_TARGET_TOGGLES: [(&str, &str); 6] = [
+    ("sync_target_cursor", ".cursorrules"),
+    ("sync_target_claude", "CLAUDE.md"),
+    ("sync_target_windsurf", ".windsurfrules"),
+    ("sync_target_vscode", ".github/copilot-instructions.md"),
+    ("sync_target_codex", "AGENTS.md"),
+    ("sync_target_antigravity", "antigravity.md"),
+];
 
 #[derive(Clone)]
 pub struct SyncService {
@@ -47,8 +55,6 @@ impl SyncService {
                 success: false,
                 project_id: None,
                 project_name: None,
-                client_env: None,
-                client_envs: Vec::new(),
                 file_written: None,
                 files_written: Vec::new(),
                 instruction_count: 0,
@@ -57,23 +63,29 @@ impl SyncService {
         }
 
         let project_id = self.scope.project_id().unwrap_or_default().to_string();
-        let client_envs = self.scope.client_envs().to_vec();
-        let client_env = self.scope.client_env().map(ToString::to_string);
         let explicit_targets = self.scope.target_files().to_vec();
-        let output_files = get_output_file_paths(&client_envs, &explicit_targets);
+        let board_targets = match self.resources.get_project_agent_controls(&project_id).await {
+            Ok(controls) => resolve_board_target_files(&controls.tool_toggles),
+            Err(err) => {
+                if verbose {
+                    warn!(target: "pinksundew::sync", "[sync] Failed to load board sync targets: {err}");
+                }
+                Vec::new()
+            }
+        };
+        let output_files = get_output_file_paths(&board_targets, &explicit_targets);
 
         if verbose {
             if !explicit_targets.is_empty() {
                 info!(target: "pinksundew::sync", "[sync] Using explicit output targets: {}", output_files.join(", "));
-            } else if !client_envs.is_empty() {
-                info!(target: "pinksundew::sync", "[sync] Client environments: {} -> {}", client_envs.join(", "), output_files.join(", "));
+            } else if !board_targets.is_empty() {
+                info!(target: "pinksundew::sync", "[sync] Board-configured sync targets: {}", output_files.join(", "));
             } else {
-                info!(target: "pinksundew::sync", "[sync] No client environment specified, using default: {}", output_files.join(", "));
+                info!(target: "pinksundew::sync", "[sync] No sync targets configured, using default: {}", output_files.join(", "));
             }
         }
 
-        let fetched =
-            fetch_active_instructions(&self.resources, &project_id, client_env.as_deref()).await;
+        let fetched = fetch_active_instructions(&self.resources, &project_id).await;
         let (project_name, instructions) = match fetched {
             Ok(value) => value,
             Err(err) => {
@@ -84,8 +96,6 @@ impl SyncService {
                     success: false,
                     project_id: Some(project_id),
                     project_name: None,
-                    client_env,
-                    client_envs,
                     file_written: None,
                     files_written: Vec::new(),
                     instruction_count: 0,
@@ -123,8 +133,6 @@ impl SyncService {
                 success: false,
                 project_id: Some(project_id),
                 project_name: Some(project_name),
-                client_env,
-                client_envs,
                 file_written: if files_written.is_empty() {
                     None
                 } else {
@@ -156,8 +164,6 @@ impl SyncService {
             success: true,
             project_id: Some(project_id),
             project_name: Some(project_name),
-            client_env,
-            client_envs,
             file_written: Some(files_written.join(", ")),
             files_written,
             instruction_count,
@@ -327,7 +333,6 @@ async fn run_poll_cycle(
 async fn fetch_active_instructions(
     resources: &ResourceService,
     project_id: &str,
-    env_name: Option<&str>,
 ) -> Result<(String, Vec<AgentInstructionSet>)> {
     let board_state = resources.get_board_state(project_id).await?;
     let mut active = board_state
@@ -345,7 +350,7 @@ async fn fetch_active_instructions(
 
     if !file_ids.is_empty() {
         let files_with_content = resources
-            .get_instruction_files_for_project(project_id, &file_ids, env_name)
+            .get_instruction_files_for_project(project_id, &file_ids)
             .await?;
 
         let mut content_map = std::collections::HashMap::new();
@@ -443,36 +448,28 @@ async fn write_instruction_file(file_path: &Path, sync_block: &str) -> Result<()
     Ok(())
 }
 
-pub fn get_output_file_paths(client_envs: &[String], explicit_targets: &[String]) -> Vec<String> {
+pub fn get_output_file_paths(board_targets: &[String], explicit_targets: &[String]) -> Vec<String> {
     if !explicit_targets.is_empty() {
         return dedupe(explicit_targets);
     }
 
-    if !client_envs.is_empty() {
-        let mapped = client_envs
-            .iter()
-            .filter_map(|client_env| map_client_env_to_file(client_env))
-            .map(ToString::to_string)
-            .collect::<Vec<_>>();
-
-        if !mapped.is_empty() {
-            return dedupe(&mapped);
-        }
+    if !board_targets.is_empty() {
+        return dedupe(board_targets);
     }
 
     vec![DEFAULT_OUTPUT_FILE.to_string()]
 }
 
-fn map_client_env_to_file(client_env: &str) -> Option<&'static str> {
-    match client_env {
-        "cursor" => Some(".cursorrules"),
-        "claude" => Some("CLAUDE.md"),
-        "windsurf" => Some(".windsurfrules"),
-        "vscode" => Some(".github/copilot-instructions.md"),
-        "codex" => Some("AGENTS.md"),
-        "antigravity" => Some("antigravity.md"),
-        _ => None,
+fn resolve_board_target_files(tool_toggles: &HashMap<String, bool>) -> Vec<String> {
+    let mut output = Vec::new();
+
+    for (toggle_id, file_path) in SYNC_TARGET_TOGGLES {
+        if tool_toggles.get(toggle_id).copied().unwrap_or(false) {
+            output.push(file_path.to_string());
+        }
     }
+
+    dedupe(&output)
 }
 
 fn dedupe(items: &[String]) -> Vec<String> {
@@ -578,7 +575,10 @@ mod tests {
     #[test]
     fn output_file_precedence_prefers_explicit_targets() {
         let result = get_output_file_paths(
-            &["vscode".to_string(), "codex".to_string()],
+            &[
+                ".github/copilot-instructions.md".to_string(),
+                "AGENTS.md".to_string(),
+            ],
             &[
                 "AGENTS.md".to_string(),
                 "AGENTS.md".to_string(),
@@ -589,13 +589,37 @@ mod tests {
     }
 
     #[test]
-    fn output_file_precedence_uses_client_env_mapping() {
-        let result = get_output_file_paths(&["codex".to_string(), "vscode".to_string()], &[]);
+    fn output_file_precedence_uses_board_targets() {
+        let result = get_output_file_paths(
+            &[
+                "AGENTS.md".to_string(),
+                ".github/copilot-instructions.md".to_string(),
+            ],
+            &[],
+        );
         assert_eq!(
             result,
             vec![
                 "AGENTS.md".to_string(),
                 ".github/copilot-instructions.md".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn resolve_board_target_files_uses_known_toggle_map() {
+        let toggles = HashMap::from([
+            ("sync_target_cursor".to_string(), true),
+            ("sync_target_vscode".to_string(), true),
+            ("sync_target_codex".to_string(), false),
+        ]);
+
+        let result = resolve_board_target_files(&toggles);
+        assert_eq!(
+            result,
+            vec![
+                ".cursorrules".to_string(),
+                ".github/copilot-instructions.md".to_string(),
             ]
         );
     }

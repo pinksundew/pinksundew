@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0](https://github.com/pinksundew/pinksundew/compare/v2.1.6...v2.2.0) - 2026-04-17
+
+### Added
+
+- implement instruction sync targets and refactor client environment handling
+
+### Other
+
+- Remove MCP server files and configurations
+
 ## [2.1.6](https://github.com/qadolphe/AgentPlanner/releases/tag/v2.1.6) - 2026-04-17
 
 ### Added

@@ -90,13 +90,6 @@ async fn run_server() -> Result<()> {
             config.project_scope.project_id().unwrap_or("unknown")
         );
 
-        if !config.project_scope.client_envs().is_empty() {
-            info!(
-                "[pinksundew-mcp] Client environments: {}",
-                config.project_scope.client_envs().join(", ")
-            );
-        }
-
         if !config.project_scope.target_files().is_empty() {
             info!(
                 "[pinksundew-mcp] Explicit instruction target files: {}",

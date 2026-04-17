@@ -617,7 +617,7 @@ impl ToolService {
         if !file_ids_to_fetch.is_empty() {
             let files = self
                 .resources
-                .get_instruction_files_for_project(project_id.as_str(), &file_ids_to_fetch, None)
+                .get_instruction_files_for_project(project_id.as_str(), &file_ids_to_fetch)
                 .await?;
 
             let mut cache = self.instruction_file_cache.write().await;

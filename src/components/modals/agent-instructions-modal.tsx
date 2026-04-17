@@ -19,6 +19,8 @@ import { getProjectAgentControls } from '@/domains/agent-control/queries'
 import {
   CORE_MCP_TOOL_CATALOG,
   CoreMcpToolId,
+  INSTRUCTION_SYNC_TARGET_CATALOG,
+  InstructionSyncTargetId,
   ToolToggleMap,
   getDefaultToolToggles,
 } from '@/domains/agent-control/types'
@@ -220,6 +222,15 @@ export function AgentInstructionsModal({
     setControlsErrorMessage(null)
   }
 
+  const handleToggleSyncTarget = (targetId: InstructionSyncTargetId) => {
+    setToolToggles((previous) => ({
+      ...previous,
+      [targetId]: !previous[targetId],
+    }))
+    setControlsDirty(true)
+    setControlsErrorMessage(null)
+  }
+
   const handleToggleTaskCompletion = () => {
     setAllowTaskCompletion((previous) => !previous)
     setControlsDirty(true)
@@ -339,9 +350,8 @@ export function AgentInstructionsModal({
                   <div>
                     <h3 className="text-sm font-semibold uppercase tracking-[0.08em]">Instruction File</h3>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      These instructions are synced into your workspace&apos;s agent instruction file
-                      based on your IDE/environment (for example `AGENTS.md`,
-                      `.github/copilot-instructions.md`, `.cursorrules`, or similar).
+                      These instructions are synced into the file targets enabled in Agent Controls
+                      (for example `AGENTS.md`, `.github/copilot-instructions.md`, or `.cursorrules`).
                     </p>
                   </div>
                 </div>
@@ -406,6 +416,40 @@ export function AgentInstructionsModal({
 
               <div className="min-h-0 overflow-y-auto p-4">
                 <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+                    <div className="text-sm font-semibold text-foreground">Instruction Sync Targets</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Choose which files every connected MCP client should receive from this board.
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => (
+                        <div
+                          key={target.id}
+                          className="flex items-start justify-between gap-4 rounded-lg border border-slate-100 bg-slate-50/40 px-3 py-2"
+                        >
+                          <div>
+                            <div className="text-sm font-medium text-foreground">{target.name}</div>
+                            <div className="mt-0.5 text-xs text-muted-foreground">{target.description}</div>
+                            <div className="mt-1 font-mono text-[11px] text-muted-foreground">{target.file_path}</div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSyncTarget(target.id)}
+                            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                              toolToggles[target.id] ? 'bg-primary' : 'bg-slate-300'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                                toolToggles[target.id] ? 'translate-x-5' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
                     <div className="flex items-start justify-between gap-4">
                       <div>

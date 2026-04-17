@@ -6,8 +6,7 @@ Rust runtime implementation of the Pink Sundew MCP stdio server.
 
 - `AGENTPLANNER_API_KEY`
 - `AGENTPLANNER_PROJECT_ID` (strict single UUID per workspace)
-- `AGENTPLANNER_CLIENT_ENV` (optional)
-- `AGENTPLANNER_TARGET_FILES` (optional)
+- `AGENTPLANNER_TARGET_FILES` (optional manual override; otherwise file targets come from board Agent Controls)
 - `AGENTPLANNER_URL` (optional)
 
 ## Optional runtime env vars

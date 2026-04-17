@@ -72,22 +72,15 @@ impl ResourceService {
         &self,
         project_id: &str,
         file_ids: &[String],
-        env_name: Option<&str>,
     ) -> Result<Vec<AgentInstructionFile>> {
         if file_ids.is_empty() {
             return Ok(Vec::new());
         }
 
-        let mut body = json!({
+        let body = json!({
             "projectId": project_id,
             "fileIds": file_ids,
         });
-
-        if let Some(env_name) = env_name {
-            if let Some(map) = body.as_object_mut() {
-                map.insert("envName".to_string(), Value::String(env_name.to_string()));
-            }
-        }
 
         self.bridge
             .post_json::<Value, Vec<AgentInstructionFile>>("/instructions/files", &body)

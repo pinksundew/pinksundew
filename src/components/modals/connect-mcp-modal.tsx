@@ -96,6 +96,7 @@ function createGuides(): Record<GuideId, Guide> {
         'Generate an API key (or use an existing one).',
         'Copy the mcp.json snippet and paste it into .vscode/mcp.json in your project.',
         'Add .vscode/mcp.json to your .gitignore to keep your API key private.',
+        'In Agent Controls, enable the instruction sync targets you want (for example VS Code + Cursor).',
         'Reload VS Code window, then open Copilot Chat and confirm MCP tools appear.',
       ],
       getSnippets: (config) => [
@@ -113,7 +114,6 @@ function createGuides(): Record<GuideId, Guide> {
                   env: {
                     AGENTPLANNER_API_KEY: config.apiKey,
                     AGENTPLANNER_PROJECT_ID: config.projectId,
-                    AGENTPLANNER_CLIENT_ENV: 'vscode',
                   },
                 },
               },
@@ -134,6 +134,7 @@ function createGuides(): Record<GuideId, Guide> {
         'Generate an API key (or use an existing one).',
         'Copy the mcp.json snippet and paste it into .cursor/mcp.json in your project.',
         'Add .cursor/mcp.json to your .gitignore to keep your API key private.',
+        'In Agent Controls, enable the instruction sync targets you want (for example Cursor + Codex).',
         'Restart Cursor or reconnect MCP, then confirm Pink Sundew tools appear.',
       ],
       getSnippets: (config) => [
@@ -152,7 +153,6 @@ function createGuides(): Record<GuideId, Guide> {
                   env: {
                     AGENTPLANNER_API_KEY: config.apiKey,
                     AGENTPLANNER_PROJECT_ID: config.projectId,
-                    AGENTPLANNER_CLIENT_ENV: 'cursor',
                   },
                 },
               },
@@ -172,6 +172,7 @@ function createGuides(): Record<GuideId, Guide> {
       steps: [
         'Generate an API key.',
         'Run the CLI command from your project root, OR paste the JSON into .mcp.json.',
+        'In Agent Controls, enable the instruction sync targets you want for this project.',
         'In Claude Code, run /mcp to verify the server is connected.',
       ],
       getSnippets: (config) => [
@@ -183,7 +184,6 @@ function createGuides(): Record<GuideId, Guide> {
             'claude mcp add --transport stdio --scope project \\',
             `  --env AGENTPLANNER_API_KEY=${config.apiKey} \\`,
             `  --env AGENTPLANNER_PROJECT_ID=${config.projectId} \\`,
-            '  --env AGENTPLANNER_CLIENT_ENV=claude \\',
             '  pinksundew -- pinksundew-mcp',
           ].join('\n'),
         },
@@ -201,7 +201,6 @@ function createGuides(): Record<GuideId, Guide> {
                   env: {
                     AGENTPLANNER_API_KEY: config.apiKey,
                     AGENTPLANNER_PROJECT_ID: config.projectId,
-                    AGENTPLANNER_CLIENT_ENV: 'claude',
                   },
                 },
               },
@@ -221,6 +220,7 @@ function createGuides(): Record<GuideId, Guide> {
       steps: [
         'Generate an API key.',
         'Run the register command from your project root.',
+        'In Agent Controls, enable the instruction sync targets you want for this project.',
         'Verify with codex mcp list (or /mcp inside Codex).',
       ],
       getSnippets: (config) => [
@@ -234,7 +234,7 @@ function createGuides(): Record<GuideId, Guide> {
           id: 'codex-manual-command',
           label: 'Manual alternative: codex mcp add',
           language: 'bash',
-          code: `codex mcp add pinksundew --env AGENTPLANNER_API_KEY=${config.apiKey} --env AGENTPLANNER_PROJECT_ID=${config.projectId} --env AGENTPLANNER_CLIENT_ENV=codex -- pinksundew-mcp`,
+          code: `codex mcp add pinksundew --env AGENTPLANNER_API_KEY=${config.apiKey} --env AGENTPLANNER_PROJECT_ID=${config.projectId} -- pinksundew-mcp`,
         },
         {
           id: 'codex-toml',
@@ -248,9 +248,6 @@ function createGuides(): Record<GuideId, Guide> {
             '[mcp_servers.pinksundew.env]',
             `AGENTPLANNER_API_KEY = "${config.apiKey}"`,
             `AGENTPLANNER_PROJECT_ID = "${config.projectId}"`,
-            'AGENTPLANNER_CLIENT_ENV = "codex"',
-            '# Optional: include vscode sync too',
-            '# AGENTPLANNER_CLIENT_ENV = "codex,vscode"',
           ].join('\n'),
         },
       ],
@@ -265,6 +262,7 @@ function createGuides(): Record<GuideId, Guide> {
         'Generate an API key.',
         'Run the register command from your project root.',
         'Manual fallback: copy the `.mcp.json` snippet below into your project root or paste the single server object in settings.',
+        'In Agent Controls, enable the instruction sync targets you want for this project.',
         'Reconnect the workspace and confirm Pink Sundew tools appear.',
       ],
       getSnippets: (config) => [
@@ -288,7 +286,6 @@ function createGuides(): Record<GuideId, Guide> {
                   env: {
                     AGENTPLANNER_API_KEY: config.apiKey,
                     AGENTPLANNER_PROJECT_ID: config.projectId,
-                    AGENTPLANNER_CLIENT_ENV: 'antigravity',
                   },
                 },
               },
@@ -309,7 +306,6 @@ function createGuides(): Record<GuideId, Guide> {
               env: {
                 AGENTPLANNER_API_KEY: config.apiKey,
                 AGENTPLANNER_PROJECT_ID: config.projectId,
-                AGENTPLANNER_CLIENT_ENV: 'antigravity',
               },
             },
             null,

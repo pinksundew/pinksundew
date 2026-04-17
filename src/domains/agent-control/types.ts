@@ -83,7 +83,55 @@ export const CORE_MCP_TOOL_CATALOG = [
 
 export type CoreMcpToolId = (typeof CORE_MCP_TOOL_CATALOG)[number]['id']
 
-export type ToolToggleMap = Record<CoreMcpToolId, boolean>
+export const INSTRUCTION_SYNC_TARGET_CATALOG = [
+  {
+    id: 'sync_target_vscode',
+    name: 'VS Code',
+    file_path: '.github/copilot-instructions.md',
+    description: 'Write synced instructions to `.github/copilot-instructions.md`.',
+    default_enabled: true,
+  },
+  {
+    id: 'sync_target_cursor',
+    name: 'Cursor',
+    file_path: '.cursorrules',
+    description: 'Write synced instructions to `.cursorrules`.',
+    default_enabled: false,
+  },
+  {
+    id: 'sync_target_codex',
+    name: 'Codex',
+    file_path: 'AGENTS.md',
+    description: 'Write synced instructions to `AGENTS.md`.',
+    default_enabled: false,
+  },
+  {
+    id: 'sync_target_claude',
+    name: 'Claude Code',
+    file_path: 'CLAUDE.md',
+    description: 'Write synced instructions to `CLAUDE.md`.',
+    default_enabled: false,
+  },
+  {
+    id: 'sync_target_windsurf',
+    name: 'Windsurf',
+    file_path: '.windsurfrules',
+    description: 'Write synced instructions to `.windsurfrules`.',
+    default_enabled: false,
+  },
+  {
+    id: 'sync_target_antigravity',
+    name: 'Antigravity',
+    file_path: 'antigravity.md',
+    description: 'Write synced instructions to `antigravity.md`.',
+    default_enabled: false,
+  },
+] as const
+
+export type InstructionSyncTargetId = (typeof INSTRUCTION_SYNC_TARGET_CATALOG)[number]['id']
+export type ToggleId = CoreMcpToolId | InstructionSyncTargetId
+
+export type ToolToggleMap = Record<ToggleId, boolean>
 
 export type ProjectAgentControls = {
   project_id: string
@@ -95,21 +143,30 @@ export type ProjectAgentControls = {
 }
 
 export function getDefaultToolToggles(): ToolToggleMap {
-  const entries = CORE_MCP_TOOL_CATALOG.map((tool) => [tool.id, true] as const)
+  const toolEntries = CORE_MCP_TOOL_CATALOG.map((tool) => [tool.id, true] as const)
+  const targetEntries = INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => [
+    target.id,
+    target.default_enabled,
+  ] as const)
+  const entries = [...toolEntries, ...targetEntries]
   return Object.fromEntries(entries) as ToolToggleMap
 }
 
 export function normalizeToolToggles(rawValue: unknown): ToolToggleMap {
   const defaults = getDefaultToolToggles()
+  const allToggleIds = new Set<ToggleId>([
+    ...CORE_MCP_TOOL_CATALOG.map((tool) => tool.id),
+    ...INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => target.id),
+  ])
 
   if (!rawValue || typeof rawValue !== 'object') {
     return defaults
   }
 
-  for (const tool of CORE_MCP_TOOL_CATALOG) {
-    const value = (rawValue as Record<string, unknown>)[tool.id]
+  for (const toggleId of allToggleIds) {
+    const value = (rawValue as Record<string, unknown>)[toggleId]
     if (typeof value === 'boolean') {
-      defaults[tool.id] = value
+      defaults[toggleId] = value
     }
   }
 

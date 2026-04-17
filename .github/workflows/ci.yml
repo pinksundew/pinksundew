@@ -28,10 +28,6 @@ jobs:
       - name: Type check main app
         run: npx tsc --noEmit
 
-      - name: Type check MCP server
-        working-directory: mcp-server
-        run: npx tsc --noEmit
-
   test:
     name: Test
     runs-on: ubuntu-latest

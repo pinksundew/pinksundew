@@ -2,9 +2,6 @@
   "name": "agent-planner",
   "version": "0.1.0",
   "private": true,
-  "workspaces": [
-    "mcp-server"
-  ],
   "scripts": {
     "dev": "next dev",
     "prebuild": "node scripts/clean-next-artifacts.mjs",

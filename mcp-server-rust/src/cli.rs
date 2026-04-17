@@ -11,6 +11,7 @@ const API_KEY_ENV: &str = "AGENTPLANNER_API_KEY";
 const PROJECT_ID_ENV: &str = "AGENTPLANNER_PROJECT_ID";
 const CLIENT_ENV_ENV: &str = "AGENTPLANNER_CLIENT_ENV";
 const DISTRIBUTION_CHANNEL_ENV: &str = "PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL";
+const NATIVE_MCP_COMMAND: &str = "pinksundew-mcp";
 
 #[derive(Debug, Parser)]
 #[command(
@@ -199,11 +200,13 @@ fn resolve_command_tuple() -> Result<CommandTuple> {
         .trim()
         .to_lowercase();
 
-    if channel == "npm-wrapper" {
-        return Ok(CommandTuple {
-            command: "npx".to_string(),
-            args: vec!["-y".to_string(), "@pinksundew/mcp".to_string()],
-        });
+    if let Some(tuple) = command_tuple_for_known_channel(channel.as_str()) {
+        if channel == "npm-wrapper" {
+            eprintln!(
+                "[pinksundew-mcp] DEPRECATED: npm wrapper channel is deprecated. Registering native command. Install with: brew install pinksundew/tap/pinksundew-mcp"
+            );
+        }
+        return Ok(tuple);
     }
 
     let exe = std::env::current_exe().context("Unable to resolve current executable path")?;
@@ -217,6 +220,16 @@ fn resolve_command_tuple() -> Result<CommandTuple> {
         command,
         args: Vec::new(),
     })
+}
+
+fn command_tuple_for_known_channel(channel: &str) -> Option<CommandTuple> {
+    match channel {
+        "npm-wrapper" => Some(CommandTuple {
+            command: NATIVE_MCP_COMMAND.to_string(),
+            args: Vec::new(),
+        }),
+        _ => None,
+    }
 }
 
 fn resolve_required_value(
@@ -725,5 +738,18 @@ name = "test"
         assert!(is_confirmation_accepted("y"));
         assert!(is_confirmation_accepted("Yes"));
         assert!(!is_confirmation_accepted("n"));
+    }
+
+    #[test]
+    fn known_channel_npm_wrapper_maps_to_native_binary() {
+        let tuple = command_tuple_for_known_channel("npm-wrapper")
+            .expect("npm-wrapper channel should be handled");
+        assert_eq!(
+            tuple,
+            CommandTuple {
+                command: NATIVE_MCP_COMMAND.to_string(),
+                args: Vec::new(),
+            }
+        );
     }
 }

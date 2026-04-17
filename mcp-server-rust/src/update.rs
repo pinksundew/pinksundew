@@ -259,7 +259,7 @@ fn detect_distribution_channel() -> String {
 fn recommended_upgrade_command(channel: &str) -> String {
     match channel {
         "brew" => "brew upgrade pinksundew/tap/pinksundew-mcp".to_string(),
-        "npm-wrapper" => "npm install -g @pinksundew/mcp@latest".to_string(),
+        "npm-wrapper" => "brew install pinksundew/tap/pinksundew-mcp".to_string(),
         _ => "brew upgrade pinksundew/tap/pinksundew-mcp".to_string(),
     }
 }

@@ -62,7 +62,7 @@ function LoginPageInner() {
       <div className="relative z-10 w-full max-w-md space-y-8 rounded-xl border border-white/60 bg-white/85 p-8 shadow-xl backdrop-blur-sm">
         <div>
           <h2 className="mt-2 text-center text-3xl font-bold tracking-tight text-foreground">
-            Sign in to AgentPlanner
+            Sign in to Pink Sundew
           </h2>
           <p className="mt-2 text-center text-sm text-muted-foreground">
             Or{' '}

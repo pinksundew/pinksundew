@@ -9,7 +9,7 @@ function AppLogo({ className }: { className?: string }) {
   return (
     <Image
       src="/favicon.ico"
-      alt="AgentPlanner logo"
+      alt="Pink Sundew logo"
       width={28}
       height={28}
       className={className}

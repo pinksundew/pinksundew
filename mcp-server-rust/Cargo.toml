@@ -1,10 +1,10 @@
 [package]
 name = "pinksundew-mcp"
-version = "2.2.2"
+version = "2.2.3"
 edition = "2021"
 description = "Pink Sundew MCP server (Rust runtime)"
 license = "MIT"
-repository = "https://github.com/qadolphe/AgentPlanner"
+repository = "https://github.com/pinksundew/pinksundew"
 homepage = "https://pinksundew.com"
 
 [[bin]]

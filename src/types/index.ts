@@ -1,5 +1,5 @@
 /**
- * Central type exports for the AgentPlanner application.
+ * Central type exports for the Pink Sundew application.
  *
  * This barrel provides:
  * - Runtime schemas (Zod) for boundary validation

@@ -1,7 +1,7 @@
 <wizard-report>
 # PostHog post-wizard report
 
-The wizard has completed a deep integration of PostHog analytics into AgentPlanner. Here's a summary of all changes made:
+The wizard has completed a deep integration of PostHog analytics into Pink Sundew. Here's a summary of all changes made:
 
 **New files created:**
 - `instrumentation-client.ts` — Client-side PostHog initialization using the Next.js 15.3+ `instrumentation-client` pattern. Initializes with a reverse proxy (`/ingest`), error tracking (`capture_exceptions`), and debug mode in development.

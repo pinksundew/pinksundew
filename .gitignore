@@ -1,6 +1,7 @@
 # OS / editor
 .DS_Store
 .vscode/mcp.json
+.mcp.json
 
 # Secrets / local env
 .env*

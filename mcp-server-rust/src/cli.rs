@@ -191,12 +191,15 @@ fn resolve_command_tuple() -> Result<CommandTuple> {
         return Ok(tuple);
     }
 
+    if let Some(command) = find_command_on_path(NATIVE_MCP_COMMAND) {
+        return Ok(CommandTuple {
+            command,
+            args: Vec::new(),
+        });
+    }
+
     let exe = std::env::current_exe().context("Unable to resolve current executable path")?;
-    let command = exe
-        .canonicalize()
-        .unwrap_or(exe)
-        .to_string_lossy()
-        .to_string();
+    let command = exe.to_string_lossy().to_string();
 
     Ok(CommandTuple {
         command,
@@ -212,6 +215,49 @@ fn command_tuple_for_known_channel(channel: &str) -> Option<CommandTuple> {
         }),
         _ => None,
     }
+}
+
+fn find_command_on_path(command: &str) -> Option<String> {
+    let Some(path_var) = std::env::var_os("PATH") else {
+        return None;
+    };
+
+    find_command_in_paths(command, std::env::split_paths(&path_var))
+}
+
+fn find_command_in_paths<I>(command: &str, paths: I) -> Option<String>
+where
+    I: IntoIterator<Item = PathBuf>,
+{
+    paths.into_iter().find_map(|path| {
+        let candidate = path.join(command);
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().to_string());
+        }
+
+        #[cfg(windows)]
+        {
+            let pathext = std::env::var_os("PATHEXT")
+                .map(|value| value.to_string_lossy().to_string())
+                .unwrap_or_else(|| ".EXE;.BAT;.CMD;.COM".to_string());
+
+            return pathext.split(';').find_map(|extension| {
+                let extension = extension.trim();
+                if extension.is_empty() {
+                    return None;
+                }
+                let candidate = path.join(format!("{command}{extension}"));
+                candidate
+                    .is_file()
+                    .then(|| candidate.to_string_lossy().to_string())
+            });
+        }
+
+        #[cfg(not(windows))]
+        {
+            None
+        }
+    })
 }
 
 fn resolve_required_value(
@@ -728,5 +774,16 @@ name = "test"
                 args: Vec::new(),
             }
         );
+    }
+
+    #[test]
+    fn command_lookup_returns_stable_path_without_canonicalizing_symlinks() {
+        let temp_dir = tempfile::tempdir().expect("temp dir");
+        let command_path = temp_dir.path().join(NATIVE_MCP_COMMAND);
+        fs::write(&command_path, "").expect("write fake command");
+
+        let resolved = find_command_in_paths(NATIVE_MCP_COMMAND, [temp_dir.path().to_path_buf()]);
+
+        assert_eq!(resolved, Some(command_path.to_string_lossy().to_string()));
     }
 }

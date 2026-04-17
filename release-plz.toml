@@ -1,5 +1,5 @@
 [workspace]
-release_always = false
+release_always = true
 pr_name = "chore(release): bump pinksundew-mcp"
 pr_labels = ["release"]
 git_release_enable = true

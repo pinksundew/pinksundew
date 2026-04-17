@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     // 3. Send email using Resend
     if (resend) {
       await resend.emails.send({
-        from: 'AgentPlanner <notifications@agentplanner.dev>',
+        from: 'Pink Sundew <notifications@pinksundew.com>',
         to: profile.email,
         subject: `You have been assigned to: ${typedTask.title}`,
         html: `

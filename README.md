@@ -1,6 +1,6 @@
-# AgentPlanner
+# Pink Sundew
 
-AgentPlanner is a Next.js 16 board application with Supabase-backed data, an MCP bridge API, and SST/OpenNext deployment.
+Pink Sundew is a Next.js 16 board application with Supabase-backed data, an MCP bridge API, and SST/OpenNext deployment.
 
 ## Tech Stack
 

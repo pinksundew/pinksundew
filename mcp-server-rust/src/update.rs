@@ -8,7 +8,7 @@ use tracing::{info, warn};
 
 const DEFAULT_TTL_HOURS: u64 = 24;
 const GITHUB_LATEST_RELEASE_URL: &str =
-    "https://api.github.com/repos/qadolphe/AgentPlanner/releases/latest";
+    "https://api.github.com/repos/pinksundew/pinksundew/releases/latest";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateStatus {

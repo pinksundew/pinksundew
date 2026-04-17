@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.3](https://github.com/pinksundew/pinksundew/compare/v2.2.2...v2.2.3) - 2026-04-17
+
+### Fixed
+
+- point MCP update checks and install metadata at the Pink Sundew repository
+
 ## [2.2.2](https://github.com/pinksundew/pinksundew/compare/v2.2.1...v2.2.2) - 2026-04-17
 
 ### Fixed
@@ -29,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Remove MCP server files and configurations
 
-## [2.1.6](https://github.com/qadolphe/AgentPlanner/releases/tag/v2.1.6) - 2026-04-17
+## [2.1.6](https://github.com/pinksundew/pinksundew/releases/tag/v2.1.6) - 2026-04-17
 
 ### Added
 

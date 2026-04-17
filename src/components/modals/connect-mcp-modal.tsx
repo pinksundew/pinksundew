@@ -359,7 +359,7 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
       id: 'install-curl',
       label: 'Option B: curl installer',
       language: 'bash',
-      code: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/qadolphe/AgentPlanner/releases/latest/download/pinksundew-mcp-installer.sh | sh",
+      code: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/pinksundew/pinksundew/releases/latest/download/pinksundew-mcp-installer.sh | sh",
     },
   ] as const
 

@@ -1,15 +1,14 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getUserProjects } from '@/domains/project/queries'
-import { GuestBoardShell } from '@/components/guest/guest-board-shell'
+import { LandingPage } from '@/components/guest/landing-page'
 
 export default async function IndexRedirect() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) {
-    // Show guest board directly without redirect - removes friction
-    return <GuestBoardShell />
+    return <LandingPage />
   }
 
   try {

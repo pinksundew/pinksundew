@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    template: '%s | AgentPlanner',
-    default: 'AgentPlanner',
+    template: '%s | Pink Sundew',
+    default: 'Pink Sundew',
   },
   description: 'AI-Native Kanban for Developers',
 };

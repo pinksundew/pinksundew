@@ -4,7 +4,7 @@ export function PlannerBackdrop() {
       <div className="absolute inset-0 scale-[1.02]">
         <iframe
           src="/guest"
-          title="AgentPlanner guest board preview"
+          title="Pink Sundew guest board preview"
           className="h-full w-full border-0"
           tabIndex={-1}
           aria-hidden="true"

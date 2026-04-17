@@ -9,11 +9,11 @@ export async function sendTaskAssignmentEmail(
 ) {
   try {
     await resend.emails.send({
-      from: 'AgentPlanner <notifications@agentplanner.app>', // Need an actual domain in prod
+      from: 'Pink Sundew <notifications@pinksundew.com>',
       to: assigneeEmail,
       subject: `You've been assigned a new task: ${taskTitle}`,
       html: `<p>You have been assigned to <strong>${taskTitle}</strong> in the project <em>${projectName}</em>.</p>
-             <p><a href="https://agentplanner.app">Log in to view your task</a></p>`,
+             <p><a href="https://pinksundew.com">Log in to view your task</a></p>`,
     });
   } catch (error) {
     console.error('Error sending assignment email:', error);

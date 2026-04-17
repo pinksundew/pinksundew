@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { PlannerBackdrop } from '@/components/auth/planner-backdrop'
+import posthog from 'posthog-js'
 
 function LoginPageInner() {
   const [email, setEmail] = useState('')
@@ -22,21 +23,27 @@ function LoginPageInner() {
     e.preventDefault()
     setLoading(true)
     setErrorMsg('')
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
-    
+
     if (error) {
       setErrorMsg(error.message)
+      posthog.captureException(error)
       setLoading(false)
     } else {
+      if (signInData.user) {
+        posthog.identify(signInData.user.id, { email: signInData.user.email })
+        posthog.capture('user_logged_in', { method: 'email' })
+      }
       router.push(nextPath)
       router.refresh()
     }
   }
 
   const handleOAuth = async (provider: 'google' | 'github') => {
+    posthog.capture('user_logged_in', { method: provider })
     const callbackUrl = new URL('/callback', window.location.origin)
     callbackUrl.searchParams.set('next', nextPath)
 

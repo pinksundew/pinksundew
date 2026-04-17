@@ -27,6 +27,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TaskWithTags } from '@/domains/task/types'
+import posthog from 'posthog-js'
 
 type ExportModalProps = {
   isOpen: boolean
@@ -180,6 +181,14 @@ export function ExportModal({
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(exportText)
+    posthog.capture('export_prompt_copied', {
+      task_count: orderedTasks.length,
+      format,
+      mode,
+      include_tags: isGuestMode ? false : includeTags,
+      include_priority: includePriority,
+      include_ticket_number: isGuestMode ? false : includeTicketNumber,
+    })
     setExportCopied(true)
     window.setTimeout(() => {
       setExportCopied(false)

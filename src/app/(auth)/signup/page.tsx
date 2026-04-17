@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { PlannerBackdrop } from '@/components/auth/planner-backdrop'
+import posthog from 'posthog-js'
 
 function SignupPageInner() {
   const [email, setEmail] = useState('')
@@ -21,15 +22,20 @@ function SignupPageInner() {
     e.preventDefault()
     setLoading(true)
     setMsg({ type: '', text: '' })
-    const { error } = await supabase.auth.signUp({
+    const { data: signUpData, error } = await supabase.auth.signUp({
       email,
       password,
     })
-    
+
     if (error) {
       setMsg({ type: 'error', text: error.message })
+      posthog.captureException(error)
       setLoading(false)
     } else {
+      if (signUpData.user) {
+        posthog.identify(signUpData.user.id, { email: signUpData.user.email })
+        posthog.capture('user_signed_up', { method: 'email' })
+      }
       setMsg({ type: 'success', text: 'Success! Check your email to confirm your account (if enabled), or log in.' })
       setLoading(false)
       // depending on settings, Supabase might log in automatically:
@@ -39,6 +45,7 @@ function SignupPageInner() {
   }
 
   const handleOAuth = async (provider: 'google' | 'github') => {
+    posthog.capture('user_signed_up', { method: provider })
     const callbackUrl = new URL('/callback', window.location.origin)
     callbackUrl.searchParams.set('next', nextPath)
 

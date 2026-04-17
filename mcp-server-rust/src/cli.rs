@@ -185,6 +185,7 @@ fn resolve_command_tuple() -> Result<CommandTuple> {
             );
         }
         return Ok(tuple);
+<<<<<<< HEAD
     }
 
     if let Some(command) = find_command_on_path(NATIVE_MCP_COMMAND) {
@@ -192,6 +193,8 @@ fn resolve_command_tuple() -> Result<CommandTuple> {
             command,
             args: Vec::new(),
         });
+=======
+>>>>>>> e9e236d04dfc59c846464e5325d6d911a4f26cf1
     }
 
     let exe = std::env::current_exe().context("Unable to resolve current executable path")?;
@@ -771,6 +774,7 @@ name = "test"
             }
         );
     }
+<<<<<<< HEAD
 
     #[test]
     fn command_lookup_returns_stable_path_without_canonicalizing_symlinks() {
@@ -782,4 +786,6 @@ name = "test"
 
         assert_eq!(resolved, Some(command_path.to_string_lossy().to_string()));
     }
+=======
+>>>>>>> e9e236d04dfc59c846464e5325d6d911a4f26cf1
 }

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.5](https://github.com/pinksundew/pinksundew/compare/v2.2.4...v2.2.5) - 2026-04-17
+
+### Fixed
+
+- resolve merge conflicts and update last synced timestamps in multiple files
+- update last synced timestamps and MCP server instructions across multiple files
+
+### Other
+
+- Merge branch 'main' of https://github.com/pinksundew/pinksundew
+- use dirs crate for cross-platform home directory resolution and update project documentation with security guidelines
+
 ## [2.2.4](https://github.com/pinksundew/pinksundew/compare/v2.2.3...v2.2.4) - 2026-04-17
 
 ### Changed

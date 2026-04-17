@@ -8,20 +8,7 @@
  * Run with: npm run test:types
  */
 
-import type { Expect, Equal, Extends, CommonKeys } from './type-utils'
-import type {
-  TaskRow,
-  ProjectRow,
-  ProfileRow,
-  TagRow,
-  TaskPlanRow,
-  TaskStateMessageRow,
-  ApiKeyRow,
-  ProjectMemberRow,
-  ProjectAgentControlsRow,
-  AgentInstructionSetRow,
-  AgentInstructionSetFileRow,
-} from '@/lib/supabase/database.types'
+import type { Expect, Equal, Extends } from './type-utils'
 import type {
   Task,
   TaskStatus,
@@ -32,11 +19,6 @@ import type {
   Profile,
   TaskPlan,
   TaskStateMessage,
-  ApiKey,
-  ProjectMember,
-  ProjectAgentControls,
-  AgentInstructionSet,
-  AgentInstructionFile,
 } from '@/types/schemas'
 
 // ============================================================================

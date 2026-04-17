@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, PencilLine, Save, Trash2, X } from 'lucide-react'
 import {
@@ -77,6 +77,26 @@ export function TaskDetailsModal({
 
   const [supabase] = useState(() => createClient())
 
+  const fetchPlans = useCallback(async (taskId: string) => {
+    try {
+      const taskPlans = await getTaskPlans(supabase, taskId)
+      setPlans(taskPlans)
+    } catch (error) {
+      console.error('Error loading task plans:', error)
+      setPlans([])
+    }
+  }, [supabase])
+
+  const fetchSignalMessages = useCallback(async (taskId: string) => {
+    try {
+      const messages = await listTaskStateMessages(supabase, taskId, 25)
+      setSignalMessages(messages)
+    } catch (error) {
+      console.error('Error loading task signal messages:', error)
+      setSignalMessages([])
+    }
+  }, [supabase])
+
   useEffect(() => {
     if (!task) {
       setPlans([])
@@ -102,7 +122,7 @@ export function TaskDetailsModal({
     setIsInProgressActionMenuOpen(false)
     void fetchPlans(task.id)
     void fetchSignalMessages(task.id)
-  }, [task])
+  }, [fetchPlans, fetchSignalMessages, task])
 
   useEffect(() => {
     if (!isOpen || !task) {
@@ -126,26 +146,6 @@ export function TaskDetailsModal({
       isMounted = false
     }
   }, [isOpen, task, supabase])
-
-  const fetchPlans = async (taskId: string) => {
-    try {
-      const taskPlans = await getTaskPlans(supabase, taskId)
-      setPlans(taskPlans)
-    } catch (error) {
-      console.error('Error loading task plans:', error)
-      setPlans([])
-    }
-  }
-
-  const fetchSignalMessages = async (taskId: string) => {
-    try {
-      const messages = await listTaskStateMessages(supabase, taskId, 25)
-      setSignalMessages(messages)
-    } catch (error) {
-      console.error('Error loading task signal messages:', error)
-      setSignalMessages([])
-    }
-  }
 
   const persistTask = async (
     nextStatus: TaskStatus,

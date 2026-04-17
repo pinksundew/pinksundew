@@ -7,8 +7,8 @@ use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use toml_edit::{value, Array, DocumentMut, Item, Table};
 
-const API_KEY_ENV: &str = "AGENTPLANNER_API_KEY";
-const PROJECT_ID_ENV: &str = "AGENTPLANNER_PROJECT_ID";
+const API_KEY_ENV: &str = "PINKSUNDEW_API_KEY";
+const PROJECT_ID_ENV: &str = "PINKSUNDEW_PROJECT_ID";
 const DISTRIBUTION_CHANNEL_ENV: &str = "PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL";
 const NATIVE_MCP_COMMAND: &str = "pinksundew-mcp";
 
@@ -35,11 +35,11 @@ pub struct RegisterArgs {
     #[arg(value_enum)]
     client: RegisterClient,
 
-    /// AGENTPLANNER_API_KEY override
+    /// PINKSUNDEW_API_KEY override
     #[arg(long)]
     api_key: Option<String>,
 
-    /// AGENTPLANNER_PROJECT_ID override
+    /// PINKSUNDEW_PROJECT_ID override
     #[arg(long)]
     project_id: Option<String>,
 
@@ -319,7 +319,7 @@ fn render_codex_config(
 fn build_codex_preview(config: &ResolvedRegisterConfig) -> String {
     let args_preview = format!("{:?}", config.command_tuple.args);
     format!(
-        "[mcp_servers.pinksundew]\ncommand = {}\nargs = {}\n\n[mcp_servers.pinksundew.env]\nAGENTPLANNER_API_KEY = {}\nAGENTPLANNER_PROJECT_ID = {}",
+        "[mcp_servers.pinksundew]\ncommand = {}\nargs = {}\n\n[mcp_servers.pinksundew.env]\nPINKSUNDEW_API_KEY = {}\nPINKSUNDEW_PROJECT_ID = {}",
         quote_toml_string(&config.command_tuple.command),
         args_preview,
         quote_toml_string(&config.api_key),
@@ -636,8 +636,8 @@ mod tests {
     fn parse_dotenv_map_reads_export_and_quotes() {
         let parsed = parse_dotenv_map(
             r#"
-            export AGENTPLANNER_API_KEY="ap_123"
-            AGENTPLANNER_PROJECT_ID=project-uuid
+            export PINKSUNDEW_API_KEY="ap_123"
+            PINKSUNDEW_PROJECT_ID=project-uuid
             IGNORED=
             "#,
         );

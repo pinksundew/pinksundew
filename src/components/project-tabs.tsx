@@ -21,9 +21,9 @@ import { CSS } from '@dnd-kit/utilities'
 import { X } from 'lucide-react'
 import { Project } from '@/domains/project/types'
 
-const OPEN_TABS_STORAGE_KEY = 'agentplanner.open-project-tabs.v1'
-const LAST_ACTIVE_PROJECT_STORAGE_KEY = 'agentplanner.last-active-project.v1'
-const PROJECT_TAB_OPEN_EVENT = 'agentplanner:open-project-tab'
+const OPEN_TABS_STORAGE_KEY = 'pinksundew.open-project-tabs.v1'
+const LAST_ACTIVE_PROJECT_STORAGE_KEY = 'pinksundew.last-active-project.v1'
+const PROJECT_TAB_OPEN_EVENT = 'pinksundew:open-project-tab'
 
 function readStoredTabIds() {
   if (typeof window === 'undefined') {

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Save, Trash2, Plus } from 'lucide-react'
+import { X, Trash2, Plus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Tag } from '@/domains/tag/types'
 import { createTag, deleteTag } from '@/domains/tag/mutations'
@@ -19,16 +19,16 @@ export function TagManagerModal({ isOpen, onClose, projectId }: TagManagerModalP
   const [newTagColor, setNewTagColor] = useState('#3b82f6')
   const [loading, setLoading] = useState(false)
 
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
-  useEffect(() => {
-    if (isOpen) fetchTags()
-  }, [isOpen])
-
-  const fetchTags = async () => {
+  const fetchTags = useCallback(async () => {
     const { data } = await supabase.from('tags').select('*').eq('project_id', projectId)
     if (data) setTags(data)
-  }
+  }, [projectId, supabase])
+
+  useEffect(() => {
+    if (isOpen) void fetchTags()
+  }, [fetchTags, isOpen])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()

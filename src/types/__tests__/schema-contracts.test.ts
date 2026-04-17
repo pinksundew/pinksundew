@@ -10,7 +10,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   CreateTaskInputSchema,
-  UpdateTaskInputSchema,
   MoveTaskInputSchema,
   SetTaskSignalInputSchema,
   TaskStatusSchema,

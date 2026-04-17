@@ -97,7 +97,7 @@ async fn run_server() -> Result<()> {
             );
         }
     } else {
-        warn!("[pinksundew-mcp] Warning: No AGENTPLANNER_PROJECT_ID configured. All projects accessible.");
+        warn!("[pinksundew-mcp] Warning: No PINKSUNDEW_PROJECT_ID configured. All projects accessible.");
     }
 
     let bridge = BridgeClient::new(config.base_url.clone(), config.api_key.clone());

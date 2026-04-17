@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getProject } from '@/domains/project/queries'
-import { updateProject, inviteMember, removeMember } from '@/domains/project/mutations'
+import { updateProject, inviteMember } from '@/domains/project/mutations'
 import { getProjectMembers } from '@/domains/profile/queries'
 import { revalidatePath } from 'next/cache'
 

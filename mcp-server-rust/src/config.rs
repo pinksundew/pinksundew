@@ -28,10 +28,10 @@ pub enum PanicPolicy {
 
 impl AppConfig {
     pub fn from_env() -> Result<Self> {
-        let api_key = std::env::var("AGENTPLANNER_API_KEY")
-            .map_err(|_| anyhow!("Missing AGENTPLANNER_API_KEY environment variable."))?;
+        let api_key = std::env::var("PINKSUNDEW_API_KEY")
+            .map_err(|_| anyhow!("Missing PINKSUNDEW_API_KEY environment variable."))?;
 
-        let base_url = std::env::var("AGENTPLANNER_URL")
+        let base_url = std::env::var("PINKSUNDEW_URL")
             .unwrap_or_else(|_| DEFAULT_URL.to_string())
             .trim_end_matches('/')
             .to_string();
@@ -125,14 +125,14 @@ impl ProjectScope {
 }
 
 fn parse_project_id() -> Result<Option<String>> {
-    let raw = std::env::var("AGENTPLANNER_PROJECT_ID").unwrap_or_default();
+    let raw = std::env::var("PINKSUNDEW_PROJECT_ID").unwrap_or_default();
     if raw.trim().is_empty() {
         return Ok(None);
     }
 
     if raw.contains(',') {
         return Err(anyhow!(
-            "Strict Mode: Only one AGENTPLANNER_PROJECT_ID is allowed per workspace to prevent context drift. Remove extra project IDs from your configuration."
+            "Strict Mode: Only one PINKSUNDEW_PROJECT_ID is allowed per workspace to prevent context drift. Remove extra project IDs from your configuration."
         ));
     }
 
@@ -140,7 +140,7 @@ fn parse_project_id() -> Result<Option<String>> {
     let valid = regex_like_uuid_check(&value);
     if !valid {
         return Err(anyhow!(
-            "Invalid AGENTPLANNER_PROJECT_ID format (expected UUID): {}",
+            "Invalid PINKSUNDEW_PROJECT_ID format (expected UUID): {}",
             value
         ));
     }
@@ -175,7 +175,7 @@ fn regex_like_uuid_check(value: &str) -> bool {
 }
 
 fn parse_target_files() -> Result<Vec<String>> {
-    let raw = std::env::var("AGENTPLANNER_TARGET_FILES").unwrap_or_default();
+    let raw = std::env::var("PINKSUNDEW_TARGET_FILES").unwrap_or_default();
     if raw.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -190,14 +190,14 @@ fn parse_target_files() -> Result<Vec<String>> {
     {
         if part.starts_with('/') {
             return Err(anyhow!(
-                "Invalid AGENTPLANNER_TARGET_FILES entry \"{}\". Use workspace-relative paths only.",
+                "Invalid PINKSUNDEW_TARGET_FILES entry \"{}\". Use workspace-relative paths only.",
                 part
             ));
         }
 
         if part.split('/').any(|segment| segment == "..") {
             return Err(anyhow!(
-                "Invalid AGENTPLANNER_TARGET_FILES entry \"{}\". Parent directory traversal is not allowed.",
+                "Invalid PINKSUNDEW_TARGET_FILES entry \"{}\". Parent directory traversal is not allowed.",
                 part
             ));
         }

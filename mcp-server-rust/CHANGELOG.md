@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1](https://github.com/pinksundew/pinksundew/compare/v2.2.0...v2.2.1) - 2026-04-17
+
+### Fixed
+
+- etest
+
 ## [2.2.0](https://github.com/pinksundew/pinksundew/compare/v2.1.6...v2.2.0) - 2026-04-17
 
 ### Added

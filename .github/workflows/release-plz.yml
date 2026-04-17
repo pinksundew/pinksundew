@@ -10,6 +10,7 @@ on:
       - Cargo.lock
       - release-plz.toml
       - .github/workflows/release-plz.yml
+  workflow_dispatch:
 
 permissions:
   contents: write

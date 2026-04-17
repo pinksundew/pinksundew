@@ -3,6 +3,7 @@ import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
 import { requireProjectMembership } from '@/lib/bridge-access'
 import { createTask } from '@/domains/task/mutations'
 import { isTaskPriority, isTaskStatus } from '@/domains/task/types'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export async function POST(request: NextRequest) {
   const auth = await validateBridgeRequest(request)
@@ -41,6 +42,20 @@ export async function POST(request: NextRequest) {
       predecessor_id: predecessor_id ?? null,
       position: position ?? 0,
     })
+
+    const posthog = getPostHogClient()
+    posthog.capture({
+      distinctId: auth.userId,
+      event: 'agent_task_created',
+      properties: {
+        task_id: task.id,
+        project_id,
+        status: task.status,
+        priority: task.priority,
+        has_predecessor: Boolean(predecessor_id),
+      },
+    })
+    await posthog.shutdown()
 
     return NextResponse.json(task, { status: 201 })
   } catch (error) {

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenAI } from '@google/genai'
+import { createClient } from '@/lib/supabase/server'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.1-flash-lite-preview'
 
@@ -56,6 +58,16 @@ export async function POST(request: NextRequest) {
         { status: 502 }
       )
     }
+
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const posthog = getPostHogClient()
+    posthog.capture({
+      distinctId: user?.id ?? 'anonymous',
+      event: 'ai_title_generated',
+      properties: { model: GEMINI_MODEL },
+    })
+    await posthog.shutdown()
 
     return NextResponse.json({ title })
   } catch (error) {

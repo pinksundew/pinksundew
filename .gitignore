@@ -56,3 +56,4 @@ plan-dist-manifest.json
 
 # Local media scratch files
 introdemo.mp4
+.env.local

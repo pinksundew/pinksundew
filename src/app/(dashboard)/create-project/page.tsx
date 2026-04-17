@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { createProject } from '@/domains/project/mutations'
 import { Loader2, PlusCircle, Sparkles } from 'lucide-react'
+import posthog from 'posthog-js'
 
 export default function CreateProjectPage() {
   const [name, setName] = useState('')
@@ -79,10 +80,16 @@ export default function CreateProjectPage() {
         created_by: user.id,
       })
 
+      posthog.capture('project_created', {
+        project_id: project.id,
+        has_description: Boolean(description.trim()),
+      })
+
       router.push(`/${project.id}`)
       router.refresh()
     } catch (error) {
       console.error(error)
+      posthog.captureException(error)
       setErrorMsg('Failed to create project. Please try again.')
       setLoading(false)
     }

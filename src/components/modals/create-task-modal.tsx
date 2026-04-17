@@ -6,6 +6,7 @@ import { ArrowRight, Link2, X } from 'lucide-react'
 import { createTask } from '@/domains/task/mutations'
 import { createClient } from '@/lib/supabase/client'
 import { TaskStatus, TaskPriority, TaskWithTags } from '@/domains/task/types'
+import posthog from 'posthog-js'
 
 function fromDateInputValue(value: string) {
   if (!value) return null
@@ -112,6 +113,16 @@ export function CreateTaskModal({
         createdTask = { ...newTask, tags: [] }
       }
 
+      posthog.capture('task_created', {
+        task_id: createdTask.id,
+        project_id: projectId,
+        status,
+        priority,
+        has_due_date: Boolean(dueDate),
+        has_predecessor: Boolean(predecessorId),
+        ai_title: !hasCustomTitle,
+      })
+
       onSuccess(createdTask)
 
       onClose()
@@ -121,6 +132,7 @@ export function CreateTaskModal({
       }
     } catch (error) {
       console.error('Failed to create task:', error)
+      posthog.captureException(error)
       alert(error instanceof Error ? error.message : 'Error creating task')
     } finally {
       setLoading(false)

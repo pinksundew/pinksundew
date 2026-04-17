@@ -47,9 +47,9 @@ function createSeedGuestTasks(): TaskWithTags[] {
     {
       id: 'guest-readme-1',
       project_id: 'guest-board',
-      title: 'Stop copy-pasting context into Cursor.',
+      title: 'Stop copy-pasting context for AI agents.',
       description:
-        `AgentPlanner keeps your live board, review thread, and agent status in one place so your agent can read context directly instead of re-pasting instructions every run.`,
+        `Pink Sundew keeps your live board, review thread, and agent status in one place so your agent can read context directly instead of re-pasting instructions every run.`,
       status: 'todo',
       priority: 'medium',
       assignee_id: null,
@@ -71,9 +71,9 @@ function createSeedGuestTasks(): TaskWithTags[] {
     {
       id: 'guest-readme-2',
       project_id: 'guest-board',
-      title: 'Run pinksundew-mcp in your terminal.',
+      title: 'Getting started.',
       description:
-        `Open “Connect to MCP” to generate your API key, then paste the config snippet for your IDE. Once connected, your agent can read this board and post updates back to tasks.`,
+        `After logging in and adding your tasks, open “Connect to MCP” and follow the instructions for your environment. Once connected, your agent can read this board and post updates back to tasks.`,
       status: 'todo',
       priority: 'medium',
       assignee_id: null,
@@ -116,6 +116,30 @@ function createSeedGuestTasks(): TaskWithTags[] {
       updated_at: now,
       tags: [],
     },
+        {
+      id: 'guest-readme-4',
+      project_id: 'guest-board',
+      title: 'Add agent instructions for your .md files.',
+      description:
+        `Press the gear icon to add instructions for your agents. These instructions will be visible on the board and can be read by connected agents to understand how to interact with the board and its tasks.`,
+      status: 'todo',
+      priority: 'medium',
+      assignee_id: null,
+      due_date: null,
+      predecessor_id: null,
+      position: 3,
+      is_deleted: false,
+      completed_at: null,
+      workflow_signal: null,
+      workflow_signal_message: null,
+      workflow_signal_updated_at: null,
+      workflow_signal_updated_by: null,
+      agent_lock_until: null,
+      agent_lock_reason: null,
+      created_at: now,
+      updated_at: now,
+      tags: [],
+    }
   ]
 }
 

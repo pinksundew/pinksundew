@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getPostHogClient } from '@/lib/posthog-server'
 import {
   GUEST_ACTIVE_TASK_LIMIT,
 } from '@/domains/task/guest-draft'
@@ -255,6 +256,18 @@ export async function POST(request: NextRequest) {
   if (!response?.project_id) {
     return NextResponse.json({ error: 'Import did not return a project id' }, { status: 500 })
   }
+
+  const posthog = getPostHogClient()
+  posthog.capture({
+    distinctId: user.id,
+    event: 'guest_board_imported',
+    properties: {
+      project_id: response.project_id,
+      task_count: parsedPayload.tasks.length,
+      reused: Boolean(response.reused),
+    },
+  })
+  await posthog.shutdown()
 
   return NextResponse.json({ projectId: response.project_id, reused: Boolean(response.reused) })
 }

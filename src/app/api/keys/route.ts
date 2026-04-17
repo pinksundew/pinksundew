@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getUserApiKeys } from '@/domains/api-key/queries'
 import { createApiKey } from '@/domains/api-key/mutations'
+import { getPostHogClient } from '@/lib/posthog-server'
 
 export async function GET() {
   const supabase = await createClient()
@@ -27,6 +28,15 @@ export async function POST(request: NextRequest) {
     : 'Default'
 
   const { key, rawKey } = await createApiKey(supabase, user.id, name)
+
+  const posthog = getPostHogClient()
+  posthog.capture({
+    distinctId: user.id,
+    event: 'api_key_created',
+    properties: { key_id: key.id, key_name: key.name },
+  })
+  await posthog.shutdown()
+
   return NextResponse.json({
     id: key.id,
     key_prefix: key.key_prefix,

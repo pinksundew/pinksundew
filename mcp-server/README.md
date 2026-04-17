@@ -22,6 +22,24 @@ Install the native binary from GitHub Releases and put it on PATH as `pinksundew
 
 Canonical MCP release tags now follow `vX.Y.Z` (for example `v2.2.0`).
 
+## Self-registering setup (Codex + Antigravity)
+
+Use the native binary to auto-write client config:
+
+```bash
+# Codex global config (~/.codex/config.toml by default)
+pinksundew-mcp register codex --api-key ap_... --project-id your-project-uuid
+
+# Antigravity project config (./.mcp.json by default)
+pinksundew-mcp register antigravity --api-key ap_... --project-id your-project-uuid
+```
+
+Behavior notes:
+
+- Shows a preview before writing.
+- Prompts for confirmation unless `--yes` is provided.
+- Writes a backup to your system temp directory before mutating an existing file.
+
 ## Codex App quick setup (Rust binary)
 
 Use this exact flow in Codex/Cursor/VS Code MCP settings.

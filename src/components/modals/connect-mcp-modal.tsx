@@ -216,30 +216,24 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Codex',
       title: 'Connect In Codex',
       description:
-        'Use the native Rust binary (`pinksundew-mcp`) with `codex mcp add`. This is the recommended path.',
+        'Use the self-registering CLI (`pinksundew-mcp register codex`) for one-step setup.',
       steps: [
         'Generate an API key.',
-        'Run the command below from your project root.',
+        'Run the register command from your project root.',
         'Verify with codex mcp list (or /mcp inside Codex).',
       ],
       getSnippets: (config) => [
         {
-          id: 'codex-command',
+          id: 'codex-register-command',
           label: 'CLI command (recommended)',
           language: 'bash',
+          code: `pinksundew-mcp register codex --api-key ${config.apiKey} --project-id ${config.projectId}`,
+        },
+        {
+          id: 'codex-manual-command',
+          label: 'Manual alternative: codex mcp add',
+          language: 'bash',
           code: `codex mcp add pinksundew --env AGENTPLANNER_API_KEY=${config.apiKey} --env AGENTPLANNER_PROJECT_ID=${config.projectId} --env AGENTPLANNER_CLIENT_ENV=codex -- pinksundew-mcp`,
-        },
-        {
-          id: 'codex-command-path',
-          label: 'CLI command (absolute path fallback)',
-          language: 'bash',
-          code: `codex mcp add pinksundew --env AGENTPLANNER_API_KEY=${config.apiKey} --env AGENTPLANNER_PROJECT_ID=${config.projectId} --env AGENTPLANNER_CLIENT_ENV=codex -- "$(command -v pinksundew-mcp)"`,
-        },
-        {
-          id: 'codex-command-wrapper',
-          label: 'CLI command (npm wrapper fallback)',
-          language: 'bash',
-          code: `codex mcp add pinksundew --env AGENTPLANNER_API_KEY=${config.apiKey} --env AGENTPLANNER_PROJECT_ID=${config.projectId} --env AGENTPLANNER_CLIENT_ENV=codex -- npx -y @pinksundew/mcp`,
         },
         {
           id: 'codex-toml',
@@ -265,17 +259,23 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Antigravity',
       title: 'Connect In Antigravity',
       description:
-        'Use a project `.mcp.json` config (recommended) or add a single local stdio server manually.',
+        'Use the self-registering CLI (`pinksundew-mcp register antigravity`) for one-step setup.',
       steps: [
         'Generate an API key.',
-        'Preferred: copy the `.mcp.json` snippet below into your project root.',
-        'Alternative: open Antigravity MCP settings, add a local/stdio server, and paste the single-server snippet.',
+        'Run the register command from your project root.',
+        'Manual fallback: copy the `.mcp.json` snippet below into your project root or paste the single server object in settings.',
         'Reconnect the workspace and confirm Pink Sundew tools appear.',
       ],
       getSnippets: (config) => [
         {
+          id: 'antigravity-register-command',
+          label: 'CLI command (recommended)',
+          language: 'bash',
+          code: `pinksundew-mcp register antigravity --api-key ${config.apiKey} --project-id ${config.projectId}`,
+        },
+        {
           id: 'antigravity-mcp-json',
-          label: '.mcp.json (project scope)',
+          label: 'Manual fallback: .mcp.json',
           language: 'json',
           code: JSON.stringify(
             {
@@ -298,7 +298,7 @@ function createGuides(): Record<GuideId, Guide> {
         },
         {
           id: 'antigravity-server-json',
-          label: 'Single server object',
+          label: 'Manual fallback: single server object',
           language: 'json',
           code: JSON.stringify(
             {

@@ -1,5 +1,6 @@
 mod arg_parse;
 mod bridge;
+mod cli;
 mod config;
 mod formatters;
 mod models;
@@ -11,6 +12,7 @@ mod tools;
 mod update;
 
 use crate::bridge::BridgeClient;
+use crate::cli::Cli;
 use crate::config::{AppConfig, PanicPolicy};
 use crate::resources::ResourceService;
 use crate::server::PinkSundewServer;
@@ -18,6 +20,7 @@ use crate::sync::{start_background_sync_supervisor, BackgroundSyncOptions, SyncS
 use crate::tools::ToolService;
 use crate::update::UpdateService;
 use anyhow::Result;
+use clap::Parser;
 use rmcp::{transport::stdio, ServiceExt};
 use std::sync::Arc;
 use std::time::Duration;
@@ -26,6 +29,16 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let cli = Cli::parse();
+    if let Some(command) = cli.command {
+        cli::execute(command)?;
+        return Ok(());
+    }
+
+    run_server().await
+}
+
+async fn run_server() -> Result<()> {
     let panic_policy = std::env::var("PINKSUNDEW_MCP_PANIC_POLICY")
         .unwrap_or_else(|_| "graceful_exit".to_string());
 

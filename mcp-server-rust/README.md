@@ -23,6 +23,18 @@ Rust runtime implementation of the Pink Sundew MCP stdio server.
 cargo run --bin pinksundew-mcp
 ```
 
+## Register helper CLI (v1)
+
+```bash
+# Codex global config
+pinksundew-mcp register codex --api-key ap_... --project-id your-project-uuid
+
+# Antigravity project config
+pinksundew-mcp register antigravity --api-key ap_... --project-id your-project-uuid
+```
+
+The register flow previews changes, prompts by default, creates a backup in your system temp directory, and then writes atomically.
+
 ## Notes
 
 - Stdout is reserved for MCP JSON-RPC frames.

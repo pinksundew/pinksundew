@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, Copy, KeyRound, Loader2, PlugZap, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { Check, Copy, KeyRound, Loader2, PlugZap, ShieldCheck, Sparkles, X, Terminal } from 'lucide-react'
 import type { SetupClient } from '@/domains/setup-token/types'
 
 type ConnectMcpModalProps = {
@@ -177,6 +177,7 @@ function createGuides(): Record<GuideId, Guide> {
 }
 
 export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalProps) {
+  const [activeTab, setActiveTab] = useState<'setup' | 'architecture'>('setup')
   const [activeGuideId, setActiveGuideId] = useState<GuideId>('codex')
   const [copiedSnippetId, setCopiedSnippetId] = useState<string | null>(null)
   const [generatingSnippetId, setGeneratingSnippetId] = useState<string | null>(null)
@@ -192,6 +193,7 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
       setSetupCommands({})
       setCopyError(null)
       setActiveGuideId('codex')
+      setActiveTab('setup')
     }
   }, [isOpen])
 
@@ -304,7 +306,33 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
 
           <div className="m-3 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 md:m-4 md:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]">
             <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 md:border-b-0 md:border-r">
-              <div className="space-y-4">
+              <div className="mb-4 flex space-x-1 rounded-lg bg-slate-100 p-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('setup')}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    activeTab === 'setup'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Setup Guide
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('architecture')}
+                  className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    activeTab === 'architecture'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  Architecture
+                </button>
+              </div>
+
+              {activeTab === 'setup' ? (
+              <div className="space-y-4 overflow-y-auto pr-1">
                 <div className="rounded-2xl border border-pink-200 bg-pink-50 p-3">
                   <div className="flex items-center gap-2 text-sm font-semibold text-pink-950">
                     <Sparkles className="h-4 w-4" />
@@ -359,9 +387,23 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
                   </div>
                 </div>
               </div>
+              ) : (
+                <div className="space-y-4 overflow-y-auto pr-1">
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-blue-950">
+                      <Terminal className="h-4 w-4" />
+                      For Power Users
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-blue-900">
+                      Understand how the MCP server operates under the hood and how to use the raw CLI commands.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex min-h-0 flex-col overflow-hidden bg-white">
+              {activeTab === 'setup' ? (
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
                 <div className="mb-3">
                   <h3 className="text-base font-semibold text-foreground">
@@ -451,6 +493,45 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
                   </div>
                 ) : null}
               </div>
+              ) : (
+                <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+                  <div className="mx-auto max-w-2xl space-y-6 text-sm text-foreground">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-2">MCP System Architecture</h3>
+                      <p className="text-muted-foreground leading-relaxed">The Pink Sundew MCP server runs locally as a native Rust binary. It separates global authentication from per-repo links to keep workspace files safe.</p>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <strong className="text-sm">Storage Layer</strong>
+                      <ul className="list-disc pl-5 space-y-2 text-muted-foreground text-xs leading-relaxed">
+                        <li><strong>Global Auth:</strong> Saved securely on your machine in a system app data directory (e.g. <code>~/.config/pinksundew-mcp/auth.json</code>).</li>
+                        <li><strong>Workspace Link:</strong> Stored locally in your repo at <code>.pinksundew/project.json</code>.</li>
+                        <li><strong>Client Output:</strong> Generates standalone execution blocks in <code>.mcp.json</code> or <code>.vscode/mcp.json</code> containing no raw API keys.</li>
+                      </ul>
+                    </div>
+                    
+                    <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                      <div className="font-semibold text-red-900 flex items-center gap-2 mb-1">
+                        <ShieldCheck className="h-4 w-4" />
+                        Important Security Rule
+                      </div>
+                      <p className="text-red-800 text-xs leading-relaxed">
+                        ⚠️ Do not manually write auth files. Run the setup command instead. The new design explicitly prevents agents and IDEs from accessing your raw API key in workspace configurations.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <strong className="text-sm">CLI Commands</strong>
+                      <div className="space-y-2 border border-slate-200 rounded-xl overflow-hidden bg-slate-50/50 text-xs">
+                        <div className="p-3 border-b border-slate-200"><code className="font-semibold text-slate-800 mr-2">init</code> Interactive first-time setup wizard.</div>
+                        <div className="p-3 border-b border-slate-200"><code className="font-semibold text-slate-800 mr-2">setup</code> Automated web-to-CLI handshake via token.</div>
+                        <div className="p-3 border-b border-slate-200"><code className="font-semibold text-slate-800 mr-2">link</code> Binds existing global auth to another project. Only run this if auth already exists globally.</div>
+                        <div className="p-3"><code className="font-semibold text-slate-800 mr-2">status</code> Diagnose current authentication and MCP registration status.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </motion.div>

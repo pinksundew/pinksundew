@@ -226,14 +226,19 @@ async fn setup(args: SetupArgs) -> Result<()> {
     enable_sync_target(&bridge, project.id.as_str(), args.client).await?;
     let sync_result = sync_workspace(&auth, &cwd).await?;
 
-    eprintln!("Connected {}", client_label_title(args.client));
+    eprintln!();
+    eprintln!("✅ Client:  {}", client_label_title(args.client));
     eprintln!(
-        "Linked this directory to project: {}",
-        project.name.as_str()
+        "🔗 Linked:  {} ({})",
+        project.name.as_str(), project.id
     );
-    print_synced_files(&sync_result);
     eprintln!(
-        "Ready. Open {} and ask it to view your tasks.",
+        "📁 Synced:  {}",
+        if sync_result.files_written.is_empty() { "none".to_string() } else { sync_result.files_written.join(", ") }
+    );
+    eprintln!();
+    eprintln!(
+        "Ready! Open {} and ask it to view your tasks.",
         client_label_title(args.client)
     );
 
@@ -256,7 +261,9 @@ async fn register(args: RegisterArgs) -> Result<()> {
 async fn link(args: LinkArgs) -> Result<()> {
     validate_uuid_like(args.project.as_str())?;
     let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
-    let auth = load_global_auth()?;
+    let auth = load_global_auth().map_err(|e| {
+        anyhow!("{e}\n\nFor first-time setup, run `pinksundew-mcp init` or use the web setup command.")
+    })?;
     let bridge = BridgeClient::new(auth.base_url.clone(), auth.api_key.clone());
     let projects = bridge.get_json::<Vec<Project>>("/projects").await?;
     let project = projects
@@ -272,11 +279,16 @@ async fn link(args: LinkArgs) -> Result<()> {
     write_workspace_link_and_ignore(&cwd, &project)?;
     let sync_result = sync_workspace(&auth, &cwd).await?;
 
+    eprintln!();
     eprintln!(
-        "[pinksundew-mcp] Linked this directory to project: {} ({})",
-        project.name, project.id
+        "🔗 Linked:  {} ({})",
+        project.name.as_str(), project.id
     );
-    print_synced_files(&sync_result);
+    eprintln!(
+        "📁 Synced:  {}",
+        if sync_result.files_written.is_empty() { "none".to_string() } else { sync_result.files_written.join(", ") }
+    );
+    eprintln!();
     Ok(())
 }
 
@@ -365,11 +377,12 @@ async fn status() -> Result<()> {
         }
         Err(_) => {
             eprintln!("workspace linked: no");
-        }
     }
 
     Ok(())
 }
+
+
 
 fn register_client(client: Client, file: Option<PathBuf>, auto_yes: bool) -> Result<()> {
     let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
@@ -1058,24 +1071,15 @@ fn print_success_summary(clients: &[Client], project: &Project, sync_result: &Sy
         .map(|client| client_label_title(*client))
         .collect::<Vec<_>>()
         .join(", ");
-    eprintln!("Connected {}", connected);
+    eprintln!();
+    eprintln!("✅ Client:  {connected}");
+    eprintln!("🔗 Linked:  {} ({})", project.name.as_str(), project.id);
     eprintln!(
-        "Linked this directory to project: {}",
-        project.name.as_str()
+        "📁 Synced:  {}",
+        if sync_result.files_written.is_empty() { "none".to_string() } else { sync_result.files_written.join(", ") }
     );
-    print_synced_files(sync_result);
-    eprintln!("Ready. Open your agent and ask it to view your tasks.");
-}
-
-fn print_synced_files(sync_result: &SyncResult) {
-    if sync_result.files_written.is_empty() {
-        eprintln!("Synced instruction files: none");
-    } else {
-        eprintln!(
-            "Synced instruction files: {}",
-            sync_result.files_written.join(", ")
-        );
-    }
+    eprintln!();
+    eprintln!("Ready! Open your IDE or agent and ask it to view your tasks.");
 }
 
 fn enabled_sync_targets(controls: &AgentControls) -> Vec<String> {

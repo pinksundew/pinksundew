@@ -1088,14 +1088,8 @@ fn enabled_sync_targets(controls: &AgentControls) -> Vec<String> {
         ("sync_target_windsurf", "Windsurf"),
     ]
     .into_iter()
-    .filter_map(|(toggle, label)| {
-        controls
-            .tool_toggles
-            .get(toggle)
-            .copied()
-            .unwrap_or(false)
-            .then(|| label.to_string())
-    })
+    .filter(|&(toggle, _label)| controls.tool_toggles.get(toggle).copied().unwrap_or(false))
+    .map(|(_toggle, label)| label.to_string())
     .collect()
 }
 

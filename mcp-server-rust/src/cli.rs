@@ -228,13 +228,14 @@ async fn setup(args: SetupArgs) -> Result<()> {
 
     eprintln!();
     eprintln!("✅ Client:  {}", client_label_title(args.client));
-    eprintln!(
-        "🔗 Linked:  {} ({})",
-        project.name.as_str(), project.id
-    );
+    eprintln!("🔗 Linked:  {} ({})", project.name.as_str(), project.id);
     eprintln!(
         "📁 Synced:  {}",
-        if sync_result.files_written.is_empty() { "none".to_string() } else { sync_result.files_written.join(", ") }
+        if sync_result.files_written.is_empty() {
+            "none".to_string()
+        } else {
+            sync_result.files_written.join(", ")
+        }
     );
     eprintln!();
     eprintln!(
@@ -262,7 +263,9 @@ async fn link(args: LinkArgs) -> Result<()> {
     validate_uuid_like(args.project.as_str())?;
     let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
     let auth = load_global_auth().map_err(|e| {
-        anyhow!("{e}\n\nFor first-time setup, run `pinksundew-mcp init` or use the web setup command.")
+        anyhow!(
+            "{e}\n\nFor first-time setup, run `pinksundew-mcp init` or use the web setup command."
+        )
     })?;
     let bridge = BridgeClient::new(auth.base_url.clone(), auth.api_key.clone());
     let projects = bridge.get_json::<Vec<Project>>("/projects").await?;
@@ -280,13 +283,14 @@ async fn link(args: LinkArgs) -> Result<()> {
     let sync_result = sync_workspace(&auth, &cwd).await?;
 
     eprintln!();
-    eprintln!(
-        "🔗 Linked:  {} ({})",
-        project.name.as_str(), project.id
-    );
+    eprintln!("🔗 Linked:  {} ({})", project.name.as_str(), project.id);
     eprintln!(
         "📁 Synced:  {}",
-        if sync_result.files_written.is_empty() { "none".to_string() } else { sync_result.files_written.join(", ") }
+        if sync_result.files_written.is_empty() {
+            "none".to_string()
+        } else {
+            sync_result.files_written.join(", ")
+        }
     );
     eprintln!();
     Ok(())
@@ -377,12 +381,11 @@ async fn status() -> Result<()> {
         }
         Err(_) => {
             eprintln!("workspace linked: no");
+        }
     }
 
     Ok(())
 }
-
-
 
 fn register_client(client: Client, file: Option<PathBuf>, auto_yes: bool) -> Result<()> {
     let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
@@ -1076,7 +1079,11 @@ fn print_success_summary(clients: &[Client], project: &Project, sync_result: &Sy
     eprintln!("🔗 Linked:  {} ({})", project.name.as_str(), project.id);
     eprintln!(
         "📁 Synced:  {}",
-        if sync_result.files_written.is_empty() { "none".to_string() } else { sync_result.files_written.join(", ") }
+        if sync_result.files_written.is_empty() {
+            "none".to_string()
+        } else {
+            sync_result.files_written.join(", ")
+        }
     );
     eprintln!();
     eprintln!("Ready! Open your IDE or agent and ask it to view your tasks.");

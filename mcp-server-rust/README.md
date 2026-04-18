@@ -41,4 +41,4 @@ The register flow previews changes, prompts by default, creates a backup in your
 - Request-level panics are converted to JSON-RPC errors.
 - Background sync panics are supervised according to panic policy.
 - Update checks are passive, cached on disk, and never auto-update binaries.
-- Hello
+- Hello- bump test

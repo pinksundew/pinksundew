@@ -31,7 +31,7 @@ use tracing_subscriber::EnvFilter;
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     if let Some(command) = cli.command {
-        cli::execute(command)?;
+        cli::execute(command).await?;
         return Ok(());
     }
 
@@ -84,21 +84,11 @@ async fn run_server() -> Result<()> {
         );
     }
 
-    if config.project_scope.is_enabled() {
-        info!(
-            "[pinksundew-mcp] Project scoping enabled. Project ID: {}",
-            config.project_scope.project_id().unwrap_or("unknown")
-        );
-
-        if !config.project_scope.target_files().is_empty() {
-            info!(
-                "[pinksundew-mcp] Explicit instruction target files: {}",
-                config.project_scope.target_files().join(", ")
-            );
-        }
-    } else {
-        warn!("[pinksundew-mcp] Warning: No PINKSUNDEW_PROJECT_ID configured. All projects accessible.");
-    }
+    info!(
+        "[pinksundew-mcp] Linked workspace project: {} ({})",
+        config.project_scope.project_name(),
+        config.project_scope.project_id()
+    );
 
     let bridge = BridgeClient::new(config.base_url.clone(), config.api_key.clone());
     let resources = ResourceService::new(bridge.clone(), config.project_scope.clone());
@@ -122,9 +112,8 @@ async fn run_server() -> Result<()> {
         config.project_scope.clone(),
     );
 
-    let mut background_sync = None;
-
-    if let Some(project_id) = config.project_scope.project_id().map(ToString::to_string) {
+    let background_sync = {
+        let project_id = config.project_scope.project_id().to_string();
         let startup_sync = sync_service.sync_global_instructions(None, true).await;
         if startup_sync.success {
             let files = if startup_sync.files_written.is_empty() {
@@ -149,7 +138,7 @@ async fn run_server() -> Result<()> {
             );
         }
 
-        background_sync = Some(start_background_sync_supervisor(
+        Some(start_background_sync_supervisor(
             sync_service.clone(),
             BackgroundSyncOptions {
                 project_id,
@@ -159,8 +148,8 @@ async fn run_server() -> Result<()> {
                 verbose: true,
                 panic_policy: config.panic_policy,
             },
-        ));
-    }
+        ))
+    };
 
     let service = server.serve(stdio()).await.inspect_err(|error| {
         error!("Failed to start MCP stdio service: {}", error);

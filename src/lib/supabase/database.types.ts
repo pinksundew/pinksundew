@@ -142,6 +142,47 @@ export type Database = {
         }
         Relationships: []
       }
+      cli_setup_tokens: {
+        Row: {
+          client: string
+          created_at: string
+          expires_at: string
+          id: string
+          project_id: string
+          token_hash: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          client: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          project_id: string
+          token_hash: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          client?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          project_id?: string
+          token_hash?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cli_setup_tokens_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guest_import_runs: {
         Row: {
           completed_at: string | null
@@ -693,6 +734,7 @@ export type TaskTagRow = Tables<'task_tags'>
 export type TaskPlanRow = Tables<'task_plans'>
 export type TaskStateMessageRow = Tables<'task_state_messages'>
 export type ApiKeyRow = Tables<'api_keys'>
+export type CliSetupTokenRow = Tables<'cli_setup_tokens'>
 export type ProjectMemberRow = Tables<'project_members'>
 export type ProjectAgentControlsRow = Tables<'project_agent_controls'>
 export type AgentInstructionSetRow = Tables<'agent_instruction_sets'>

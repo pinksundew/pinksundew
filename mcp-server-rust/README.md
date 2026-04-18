@@ -2,15 +2,15 @@
 
 Rust runtime implementation of the Pink Sundew MCP stdio server.
 
-## Required environment variables
+## Runtime state
 
-- `PINKSUNDEW_API_KEY`
-- `PINKSUNDEW_PROJECT_ID` (strict single UUID per workspace)
-- `PINKSUNDEW_TARGET_FILES` (optional manual override; otherwise file targets come from board Agent Controls)
-- `PINKSUNDEW_URL` (optional)
+- Global auth is stored in the platform config directory at `pinksundew-mcp/auth.json`.
+- Workspace project context is stored locally at `.pinksundew/project.json`.
+- Client MCP configs launch `pinksundew-mcp` only; they do not store API keys or project IDs.
 
 ## Optional runtime env vars
 
+- `PINKSUNDEW_URL` (optional)
 - `PINKSUNDEW_MCP_LOG_LEVEL` (default: `info`)
 - `PINKSUNDEW_MCP_PANIC_POLICY` (`graceful_exit` or `supervise`)
 - `PINKSUNDEW_MCP_UPDATE_CHECK_TTL_HOURS` (default: `24`)
@@ -22,14 +22,20 @@ Rust runtime implementation of the Pink Sundew MCP stdio server.
 cargo run --bin pinksundew-mcp
 ```
 
-## Register helper CLI (v1)
+## Setup CLI
 
 ```bash
-# Codex global config
-pinksundew-mcp register codex --api-key ap_... --project-id your-project-uuid
+# Friendly terminal wizard
+pinksundew-mcp init
 
-# Antigravity project config
-pinksundew-mcp register antigravity --api-key ap_... --project-id your-project-uuid
+# Web handoff
+pinksundew-mcp setup --token pst_... --client codex --project your-project-uuid
+
+# Power-user commands
+pinksundew-mcp register codex
+pinksundew-mcp link --project your-project-uuid
+pinksundew-mcp unlink
+pinksundew-mcp status
 ```
 
 The register flow previews changes, prompts by default, creates a backup in your system temp directory, and then writes atomically.

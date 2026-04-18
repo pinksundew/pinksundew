@@ -42,10 +42,8 @@ impl ToolService {
         serde_json::to_value(projects).map_err(Into::into)
     }
 
-    pub async fn get_project_board(&self, project_id: &str) -> Result<Value> {
-        self.scope
-            .assert_project_allowed(project_id, Some("getProjectBoard"))?;
-
+    pub async fn get_project_board(&self) -> Result<Value> {
+        let project_id = self.scope.project_id();
         let board = self.resources.get_board_state(project_id).await?;
         let hydrated = self.hydrate_board_instructions(board).await?;
         serde_json::to_value(hydrated).map_err(Into::into)
@@ -56,17 +54,14 @@ impl ToolService {
         serde_json::to_value(task).map_err(Into::into)
     }
 
-    pub async fn list_abyss_tasks(&self, project_id: &str) -> Result<Value> {
-        self.scope
-            .assert_project_allowed(project_id, Some("listAbyssTasks"))?;
+    pub async fn list_abyss_tasks(&self) -> Result<Value> {
+        let project_id = self.scope.project_id();
         let abyss = self.resources.get_abyss_state(project_id).await?;
         serde_json::to_value(abyss).map_err(Into::into)
     }
 
-    pub async fn list_tags(&self, project_id: &str) -> Result<Value> {
-        self.scope
-            .assert_project_allowed(project_id, Some("listTags"))?;
-
+    pub async fn list_tags(&self) -> Result<Value> {
+        let project_id = self.scope.project_id();
         let tags = self
             .bridge
             .get_json::<Vec<Tag>>(&format!(
@@ -79,13 +74,7 @@ impl ToolService {
     }
 
     pub async fn create_task(&self, payload: Value) -> Result<Value> {
-        let project_id = payload
-            .get("projectId")
-            .and_then(Value::as_str)
-            .ok_or_else(|| anyhow!("projectId must be a string"))?;
-
-        self.scope
-            .assert_project_allowed(project_id, Some("createTask"))?;
+        let project_id = self.scope.project_id();
 
         let title = payload
             .get("title")
@@ -412,13 +401,7 @@ impl ToolService {
     }
 
     pub async fn create_tag(&self, payload: Value) -> Result<Value> {
-        let project_id = payload
-            .get("projectId")
-            .and_then(Value::as_str)
-            .ok_or_else(|| anyhow!("projectId must be a string"))?;
-        self.scope
-            .assert_project_allowed(project_id, Some("createTag"))?;
-
+        let project_id = self.scope.project_id();
         let name = payload
             .get("name")
             .and_then(Value::as_str)
@@ -456,11 +439,7 @@ impl ToolService {
     }
 
     pub async fn export_tasks(&self, payload: Value) -> Result<Value> {
-        let project_id = payload
-            .get("projectId")
-            .and_then(Value::as_str)
-            .ok_or_else(|| anyhow!("projectId must be a string"))?;
-
+        let project_id = self.scope.project_id();
         let board = self.resources.get_board_state(project_id).await?;
         let mut tasks_by_id = HashMap::new();
         for task in board.tasks.iter().cloned() {

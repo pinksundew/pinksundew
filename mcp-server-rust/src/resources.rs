@@ -73,6 +73,9 @@ impl ResourceService {
         project_id: &str,
         file_ids: &[String],
     ) -> Result<Vec<AgentInstructionFile>> {
+        self.scope
+            .assert_project_allowed(project_id, Some("getInstructionFilesForProject"))?;
+
         if file_ids.is_empty() {
             return Ok(Vec::new());
         }

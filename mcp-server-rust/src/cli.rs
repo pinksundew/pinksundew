@@ -1,7 +1,16 @@
+use crate::bridge::BridgeClient;
+use crate::config::{
+    ensure_workspace_gitignored, load_global_auth, load_workspace_link, normalize_base_url,
+    save_global_auth, save_workspace_link, validate_uuid_like, workspace_link_path, GlobalAuth,
+    ProjectScope, WorkspaceLink, DEFAULT_URL,
+};
+use crate::models::{AgentControls, Project, SyncResult};
+use crate::resources::ResourceService;
+use crate::sync::SyncService;
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use std::collections::HashMap;
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
@@ -25,23 +34,51 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Register MCP config for a client
+    /// Interactive first-time setup
+    Init(InitArgs),
+    /// Complete web-to-CLI setup from a short-lived setup token
+    Setup(SetupArgs),
+    /// Register MCP config for a client without linking a workspace
     Register(RegisterArgs),
+    /// Link the current directory to a Pink Sundew project
+    Link(LinkArgs),
+    /// Unlink the current directory from Pink Sundew
+    Unlink,
+    /// Show auth, registration, workspace link, and sync status
+    Status,
+}
+
+#[derive(Debug, Args)]
+pub struct InitArgs {
+    /// Skip write confirmation prompts
+    #[arg(long)]
+    yes: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct SetupArgs {
+    /// Short-lived setup token from the Pink Sundew web app
+    #[arg(long)]
+    token: String,
+
+    /// Client target to set up
+    #[arg(long, value_enum)]
+    client: Client,
+
+    /// Project ID to link this workspace to
+    #[arg(long)]
+    project: String,
+
+    /// Custom client config file path override
+    #[arg(long)]
+    file: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
 pub struct RegisterArgs {
     /// Client target to register
     #[arg(value_enum)]
-    client: RegisterClient,
-
-    /// PINKSUNDEW_API_KEY override
-    #[arg(long)]
-    api_key: Option<String>,
-
-    /// PINKSUNDEW_PROJECT_ID override
-    #[arg(long)]
-    project_id: Option<String>,
+    client: Option<Client>,
 
     /// Custom config file path override
     #[arg(long)]
@@ -52,10 +89,21 @@ pub struct RegisterArgs {
     yes: bool,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
-pub enum RegisterClient {
+#[derive(Debug, Args)]
+pub struct LinkArgs {
+    /// Project ID to link this workspace to
+    #[arg(long)]
+    project: String,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Client {
+    Cursor,
     Codex,
+    ClaudeCode,
     Antigravity,
+    Vscode,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,9 +114,7 @@ struct CommandTuple {
 
 #[derive(Debug)]
 struct ResolvedRegisterConfig {
-    client: RegisterClient,
-    api_key: String,
-    project_id: String,
+    client: Client,
     target_file: PathBuf,
     command_tuple: CommandTuple,
 }
@@ -79,16 +125,255 @@ struct RenderedConfig {
     content: String,
 }
 
-pub fn execute(command: Command) -> Result<()> {
+#[derive(Debug, Serialize)]
+struct SetupExchangeRequest<'a> {
+    token: &'a str,
+    client: &'a str,
+    #[serde(rename = "projectId")]
+    project_id: &'a str,
+}
+
+#[derive(Debug, Deserialize)]
+struct SetupExchangeResponse {
+    #[serde(rename = "apiKey")]
+    api_key: String,
+    #[serde(rename = "keyPrefix")]
+    key_prefix: String,
+    #[serde(rename = "baseUrl")]
+    base_url: Option<String>,
+    project: SetupProject,
+}
+
+#[derive(Debug, Deserialize)]
+struct SetupProject {
+    id: String,
+    name: String,
+}
+
+pub async fn execute(command: Command) -> Result<()> {
     match command {
-        Command::Register(args) => register(args),
+        Command::Init(args) => init(args).await,
+        Command::Setup(args) => setup(args).await,
+        Command::Register(args) => register(args).await,
+        Command::Link(args) => link(args).await,
+        Command::Unlink => unlink(),
+        Command::Status => status().await,
     }
 }
 
-fn register(args: RegisterArgs) -> Result<()> {
+async fn init(args: InitArgs) -> Result<()> {
+    ensure_interactive("init")?;
     let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
-    let auto_yes = args.yes;
-    let resolved = resolve_register_config(args, &cwd)?;
+
+    let api_key = prompt_secret("Paste API key: ")?;
+    let base_url = env_base_url();
+    let auth = GlobalAuth::new(api_key, base_url);
+    save_global_auth(&auth)?;
+    eprintln!("[pinksundew-mcp] Saved global auth ({})", auth.key_prefix);
+
+    let clients = prompt_clients()?;
+    for client in &clients {
+        register_client(*client, None, true)?;
+    }
+
+    let bridge = BridgeClient::new(auth.base_url.clone(), auth.api_key.clone());
+    let project = prompt_project(&bridge).await?;
+    write_workspace_link_and_ignore(&cwd, &project)?;
+
+    for client in &clients {
+        enable_sync_target(&bridge, project.id.as_str(), *client).await?;
+    }
+
+    let sync_result = sync_workspace(&auth, &cwd).await?;
+    print_success_summary(&clients, &project, &sync_result);
+    let _ = args.yes;
+    Ok(())
+}
+
+async fn setup(args: SetupArgs) -> Result<()> {
+    validate_uuid_like(args.project.as_str())?;
+    let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
+    let base_url = env_base_url();
+    let exchange = exchange_setup_token(
+        base_url.as_str(),
+        args.token.as_str(),
+        args.client,
+        args.project.as_str(),
+    )
+    .await?;
+
+    let mut auth = GlobalAuth::new(
+        exchange.api_key,
+        exchange.base_url.unwrap_or_else(|| base_url.clone()),
+    );
+    auth.key_prefix = exchange.key_prefix;
+    save_global_auth(&auth)?;
+
+    register_client(args.client, args.file, true)?;
+
+    let project = Project {
+        id: exchange.project.id,
+        name: exchange.project.name,
+        description: None,
+        created_by: None,
+        created_at: None,
+        updated_at: None,
+        role: None,
+    };
+    write_workspace_link_and_ignore(&cwd, &project)?;
+
+    let bridge = BridgeClient::new(auth.base_url.clone(), auth.api_key.clone());
+    enable_sync_target(&bridge, project.id.as_str(), args.client).await?;
+    let sync_result = sync_workspace(&auth, &cwd).await?;
+
+    eprintln!("Connected {}", client_label_title(args.client));
+    eprintln!(
+        "Linked this directory to project: {}",
+        project.name.as_str()
+    );
+    print_synced_files(&sync_result);
+    eprintln!(
+        "Ready. Open {} and ask it to view your tasks.",
+        client_label_title(args.client)
+    );
+
+    Ok(())
+}
+
+async fn register(args: RegisterArgs) -> Result<()> {
+    let client = match args.client {
+        Some(client) => client,
+        None => {
+            ensure_interactive("register without a client")?;
+            prompt_single_client()?
+        }
+    };
+
+    let _auth = load_global_auth_or_prompt()?;
+    register_client(client, args.file, args.yes)
+}
+
+async fn link(args: LinkArgs) -> Result<()> {
+    validate_uuid_like(args.project.as_str())?;
+    let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
+    let auth = load_global_auth()?;
+    let bridge = BridgeClient::new(auth.base_url.clone(), auth.api_key.clone());
+    let projects = bridge.get_json::<Vec<Project>>("/projects").await?;
+    let project = projects
+        .into_iter()
+        .find(|project| project.id == args.project)
+        .ok_or_else(|| {
+            anyhow!(
+                "Project {} was not found or is not accessible",
+                args.project
+            )
+        })?;
+
+    write_workspace_link_and_ignore(&cwd, &project)?;
+    let sync_result = sync_workspace(&auth, &cwd).await?;
+
+    eprintln!(
+        "[pinksundew-mcp] Linked this directory to project: {} ({})",
+        project.name, project.id
+    );
+    print_synced_files(&sync_result);
+    Ok(())
+}
+
+fn unlink() -> Result<()> {
+    let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
+    if crate::config::delete_workspace_link(&cwd)? {
+        eprintln!(
+            "[pinksundew-mcp] Deleted {}",
+            workspace_link_path(&cwd).display()
+        );
+    } else {
+        eprintln!("[pinksundew-mcp] No workspace link found.");
+    }
+    Ok(())
+}
+
+async fn status() -> Result<()> {
+    let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
+
+    match load_global_auth() {
+        Ok(auth) => {
+            eprintln!("auth configured: yes");
+            eprintln!("key prefix: {}", auth.key_prefix);
+            eprintln!("base url: {}", auth.base_url);
+        }
+        Err(_) => {
+            eprintln!("auth configured: no");
+        }
+    }
+
+    eprintln!("registered clients:");
+    eprintln!(
+        "  Codex: {}",
+        yes_no(is_registered(Client::Codex, &cwd).unwrap_or(false))
+    );
+    eprintln!(
+        "  Cursor: {}",
+        yes_no(is_registered(Client::Cursor, &cwd).unwrap_or(false))
+    );
+    eprintln!(
+        "  VS Code: {}",
+        yes_no(is_registered(Client::Vscode, &cwd).unwrap_or(false))
+    );
+    let mcp_json_registered = is_project_mcp_json_registered(&cwd).unwrap_or(false);
+    eprintln!("  Claude Code: {}", yes_no(mcp_json_registered));
+    eprintln!("  Antigravity: {}", yes_no(mcp_json_registered));
+
+    match load_workspace_link(&cwd) {
+        Ok(link) => {
+            eprintln!("workspace linked: yes");
+            eprintln!(
+                "linked project: {} ({})",
+                link.project_name, link.project_id
+            );
+            eprintln!(
+                "last sync: {}",
+                link.last_synced_at.as_deref().unwrap_or("never")
+            );
+            eprintln!(
+                "last instruction hash: {}",
+                link.last_instruction_hash.as_deref().unwrap_or("unknown")
+            );
+
+            if let Ok(auth) = load_global_auth() {
+                let bridge = BridgeClient::new(auth.base_url, auth.api_key);
+                match bridge
+                    .get_json::<AgentControls>(&format!("/controls/{}", link.project_id))
+                    .await
+                {
+                    Ok(controls) => {
+                        let targets = enabled_sync_targets(&controls);
+                        eprintln!(
+                            "enabled sync targets: {}",
+                            if targets.is_empty() {
+                                "none".to_string()
+                            } else {
+                                targets.join(", ")
+                            }
+                        );
+                    }
+                    Err(err) => {
+                        eprintln!("enabled sync targets: unavailable ({err})");
+                    }
+                }
+            }
+        }
+        Err(_) => {
+            eprintln!("workspace linked: no");
+        }
+    }
+
+    Ok(())
+}
+
+fn register_client(client: Client, file: Option<PathBuf>, auto_yes: bool) -> Result<()> {
+    let cwd = std::env::current_dir().context("Unable to resolve current directory")?;
+    let resolved = resolve_register_config(client, file, &cwd)?;
 
     let existing = if resolved.target_file.exists() {
         Some(
@@ -126,24 +411,23 @@ fn register(args: RegisterArgs) -> Result<()> {
     Ok(())
 }
 
-fn resolve_register_config(args: RegisterArgs, cwd: &Path) -> Result<ResolvedRegisterConfig> {
-    let file_values = DotenvValues::from_workspace(cwd);
-    let api_key = resolve_required_value(API_KEY_ENV, args.api_key, &file_values)?;
-    let project_id = resolve_required_value(PROJECT_ID_ENV, args.project_id, &file_values)?;
-    let target_file = resolve_target_file(args.client, args.file, cwd)?;
+fn resolve_register_config(
+    client: Client,
+    explicit_file: Option<PathBuf>,
+    cwd: &Path,
+) -> Result<ResolvedRegisterConfig> {
+    let target_file = resolve_target_file(client, explicit_file, cwd)?;
     let command_tuple = resolve_command_tuple()?;
 
     Ok(ResolvedRegisterConfig {
-        client: args.client,
-        api_key,
-        project_id,
+        client,
         target_file,
         command_tuple,
     })
 }
 
 fn resolve_target_file(
-    client: RegisterClient,
+    client: Client,
     explicit_file: Option<PathBuf>,
     cwd: &Path,
 ) -> Result<PathBuf> {
@@ -152,8 +436,10 @@ fn resolve_target_file(
     }
 
     match client {
-        RegisterClient::Codex => resolve_codex_config_path(),
-        RegisterClient::Antigravity => Ok(cwd.join(".mcp.json")),
+        Client::Codex => resolve_codex_config_path(),
+        Client::Cursor => Ok(cwd.join(".cursor").join("mcp.json")),
+        Client::Vscode => Ok(cwd.join(".vscode").join("mcp.json")),
+        Client::ClaudeCode | Client::Antigravity => Ok(cwd.join(".mcp.json")),
     }
 }
 
@@ -195,10 +481,8 @@ fn resolve_command_tuple() -> Result<CommandTuple> {
     }
 
     let exe = std::env::current_exe().context("Unable to resolve current executable path")?;
-    let command = exe.to_string_lossy().to_string();
-
     Ok(CommandTuple {
-        command,
+        command: exe.to_string_lossy().to_string(),
         args: Vec::new(),
     })
 }
@@ -215,7 +499,6 @@ fn command_tuple_for_known_channel(channel: &str) -> Option<CommandTuple> {
 
 fn find_command_on_path(command: &str) -> Option<String> {
     let path_var = std::env::var_os("PATH")?;
-
     find_command_in_paths(command, std::env::split_paths(&path_var))
 }
 
@@ -254,46 +537,16 @@ where
     })
 }
 
-fn resolve_required_value(
-    key: &str,
-    flag_value: Option<String>,
-    file_values: &DotenvValues,
-) -> Result<String> {
-    let from_flag = flag_value
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
-    let from_env = std::env::var(key)
-        .ok()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
-    let from_local = file_values.env_local.get(key).cloned();
-    let from_env_file = file_values.env_file.get(key).cloned();
-
-    resolve_value_from_sources(from_flag, from_env, from_local, from_env_file).ok_or_else(|| {
-        anyhow!(
-            "Missing required value for {}. Provide --{}, set the env var, or define it in .env.local/.env.",
-            key,
-            key.to_lowercase().replace('_', "-")
-        )
-    })
-}
-
-fn resolve_value_from_sources(
-    from_flag: Option<String>,
-    from_env: Option<String>,
-    from_env_local: Option<String>,
-    from_env_file: Option<String>,
-) -> Option<String> {
-    from_flag.or(from_env).or(from_env_local).or(from_env_file)
-}
-
 fn render_config(
     config: &ResolvedRegisterConfig,
     existing: Option<&str>,
 ) -> Result<RenderedConfig> {
     match config.client {
-        RegisterClient::Codex => render_codex_config(config, existing),
-        RegisterClient::Antigravity => render_antigravity_config(config, existing),
+        Client::Codex => render_codex_config(config, existing),
+        Client::Vscode => render_vscode_config(config, existing),
+        Client::Cursor | Client::ClaudeCode | Client::Antigravity => {
+            render_mcp_json_config(config, existing)
+        }
     }
 }
 
@@ -324,76 +577,45 @@ fn render_codex_config(
     } else {
         mcp_servers.insert("pinksundew", Item::Table(Table::new()));
     }
+
     let pinksundew = mcp_servers
         .get_mut("pinksundew")
         .and_then(Item::as_table_like_mut)
         .ok_or_else(|| anyhow!("`mcp_servers.pinksundew` could not be treated as a table"))?;
     pinksundew.insert("command", value(config.command_tuple.command.clone()));
-
-    let mut args_array = Array::new();
-    for arg in &config.command_tuple.args {
-        args_array.push(arg.as_str());
+    pinksundew.insert("args", value(args_array(&config.command_tuple.args)));
+    if let Some(env) = pinksundew.get_mut("env").and_then(Item::as_table_like_mut) {
+        env.remove(API_KEY_ENV);
+        env.remove(PROJECT_ID_ENV);
     }
-    pinksundew.insert("args", value(args_array));
 
-    if let Some(existing) = pinksundew.get("env") {
-        if !existing.is_table_like() {
-            bail!("Existing `mcp_servers.pinksundew.env` entry is not a table.");
-        }
-    } else {
-        pinksundew.insert("env", Item::Table(Table::new()));
-    }
-    let env_table = pinksundew
-        .get_mut("env")
-        .and_then(Item::as_table_like_mut)
-        .ok_or_else(|| anyhow!("`mcp_servers.pinksundew.env` could not be treated as a table"))?;
-    env_table.insert(API_KEY_ENV, value(config.api_key.clone()));
-    env_table.insert(PROJECT_ID_ENV, value(config.project_id.clone()));
-
-    let preview = build_codex_preview(config);
+    let preview = format!(
+        "[mcp_servers.pinksundew]\ncommand = {}\nargs = {:?}",
+        quote_toml_string(&config.command_tuple.command),
+        config.command_tuple.args
+    );
     let content = doc.to_string();
 
     Ok(RenderedConfig { preview, content })
 }
 
-fn build_codex_preview(config: &ResolvedRegisterConfig) -> String {
-    let args_preview = format!("{:?}", config.command_tuple.args);
-    format!(
-        "[mcp_servers.pinksundew]\ncommand = {}\nargs = {}\n\n[mcp_servers.pinksundew.env]\nPINKSUNDEW_API_KEY = {}\nPINKSUNDEW_PROJECT_ID = {}",
-        quote_toml_string(&config.command_tuple.command),
-        args_preview,
-        quote_toml_string(&config.api_key),
-        quote_toml_string(&config.project_id)
-    )
-}
-
-fn quote_toml_string(value: &str) -> String {
-    format!("{value:?}")
-}
-
-fn render_antigravity_config(
+fn render_mcp_json_config(
     config: &ResolvedRegisterConfig,
     existing: Option<&str>,
 ) -> Result<RenderedConfig> {
-    let mut root_value = match existing {
-        Some(raw) if !raw.trim().is_empty() => {
-            serde_json::from_str::<Value>(raw).context("Failed to parse existing .mcp.json")?
-        }
-        _ => Value::Object(Map::new()),
-    };
-
+    let mut root_value = parse_json_root(existing, ".mcp.json")?;
     let root = root_value
         .as_object_mut()
-        .ok_or_else(|| anyhow!("Existing .mcp.json root must be a JSON object"))?;
+        .ok_or_else(|| anyhow!("Existing MCP config root must be a JSON object"))?;
 
     let mcp_servers_item = root
         .entry("mcpServers".to_string())
         .or_insert_with(|| Value::Object(Map::new()));
     let mcp_servers = mcp_servers_item
         .as_object_mut()
-        .ok_or_else(|| anyhow!("Existing `mcpServers` entry in .mcp.json must be an object"))?;
+        .ok_or_else(|| anyhow!("Existing `mcpServers` entry must be an object"))?;
 
-    let server_object = build_antigravity_server_object(config);
+    let server_object = build_stdio_server_object(config, matches!(config.client, Client::Cursor));
     mcp_servers.insert("pinksundew".to_string(), server_object.clone());
 
     let preview =
@@ -404,19 +626,85 @@ fn render_antigravity_config(
     Ok(RenderedConfig { preview, content })
 }
 
-fn build_antigravity_server_object(config: &ResolvedRegisterConfig) -> Value {
-    json!({
-        "type": "stdio",
-        "command": config.command_tuple.command,
-        "args": config.command_tuple.args,
-        "env": {
-            API_KEY_ENV: config.api_key,
-            PROJECT_ID_ENV: config.project_id,
-        }
-    })
+fn render_vscode_config(
+    config: &ResolvedRegisterConfig,
+    existing: Option<&str>,
+) -> Result<RenderedConfig> {
+    let mut root_value = parse_json_root(existing, ".vscode/mcp.json")?;
+    let root = root_value
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("Existing VS Code MCP config root must be a JSON object"))?;
+
+    let servers_item = root
+        .entry("servers".to_string())
+        .or_insert_with(|| Value::Object(Map::new()));
+    let servers = servers_item
+        .as_object_mut()
+        .ok_or_else(|| anyhow!("Existing `servers` entry must be an object"))?;
+
+    let server_object = build_stdio_server_object(config, false);
+    servers.insert("pinksundew".to_string(), server_object.clone());
+
+    let preview =
+        serde_json::to_string_pretty(&server_object).context("Failed to render JSON preview")?;
+    let content =
+        serde_json::to_string_pretty(&root_value).context("Failed to render merged JSON")?;
+
+    Ok(RenderedConfig { preview, content })
 }
 
-fn confirm_write(target_file: &Path, client: RegisterClient, yes: bool) -> Result<()> {
+fn parse_json_root(existing: Option<&str>, label: &str) -> Result<Value> {
+    let value = match existing {
+        Some(raw) if !raw.trim().is_empty() => serde_json::from_str::<Value>(raw)
+            .with_context(|| format!("Failed to parse existing {label}"))?,
+        _ => Value::Object(Map::new()),
+    };
+    Ok(value)
+}
+
+fn build_stdio_server_object(
+    config: &ResolvedRegisterConfig,
+    include_workspace_cwd: bool,
+) -> Value {
+    let mut object = Map::new();
+    object.insert("type".to_string(), Value::String("stdio".to_string()));
+    object.insert(
+        "command".to_string(),
+        Value::String(config.command_tuple.command.clone()),
+    );
+    object.insert(
+        "args".to_string(),
+        Value::Array(
+            config
+                .command_tuple
+                .args
+                .iter()
+                .map(|arg| Value::String(arg.clone()))
+                .collect(),
+        ),
+    );
+    if include_workspace_cwd {
+        object.insert(
+            "cwd".to_string(),
+            Value::String("${workspaceFolder}".to_string()),
+        );
+    }
+    Value::Object(object)
+}
+
+fn args_array(args: &[String]) -> Array {
+    let mut args_array = Array::new();
+    for arg in args {
+        args_array.push(arg.as_str());
+    }
+    args_array
+}
+
+fn quote_toml_string(value: &str) -> String {
+    format!("{value:?}")
+}
+
+fn confirm_write(target_file: &Path, client: Client, yes: bool) -> Result<()> {
     if yes {
         return Ok(());
     }
@@ -534,94 +822,347 @@ fn write_atomic(path: &Path, content: &[u8]) -> Result<()> {
     Ok(())
 }
 
-fn client_label(client: RegisterClient) -> &'static str {
-    match client {
-        RegisterClient::Codex => "codex",
-        RegisterClient::Antigravity => "antigravity",
-    }
-}
-
-#[derive(Debug, Default)]
-struct DotenvValues {
-    env_local: HashMap<String, String>,
-    env_file: HashMap<String, String>,
-}
-
-impl DotenvValues {
-    fn from_workspace(cwd: &Path) -> Self {
-        let env_local = read_dotenv_file(&cwd.join(".env.local")).unwrap_or_default();
-        let env_file = read_dotenv_file(&cwd.join(".env")).unwrap_or_default();
-        Self {
-            env_local,
-            env_file,
+fn load_global_auth_or_prompt() -> Result<GlobalAuth> {
+    match load_global_auth() {
+        Ok(auth) => Ok(auth),
+        Err(_) => {
+            ensure_interactive("register without saved auth")?;
+            let api_key = prompt_secret("Paste API key: ")?;
+            let auth = GlobalAuth::new(api_key, env_base_url());
+            save_global_auth(&auth)?;
+            eprintln!("[pinksundew-mcp] Saved global auth ({})", auth.key_prefix);
+            Ok(auth)
         }
     }
 }
 
-fn read_dotenv_file(path: &Path) -> Result<HashMap<String, String>> {
-    if !path.exists() {
-        return Ok(HashMap::new());
-    }
-
-    let mut buffer = String::new();
-    fs::File::open(path)
-        .and_then(|mut file| file.read_to_string(&mut buffer))
-        .with_context(|| format!("Failed to read {}", path.display()))?;
-
-    Ok(parse_dotenv_map(&buffer))
+fn env_base_url() -> String {
+    std::env::var("PINKSUNDEW_URL")
+        .ok()
+        .map(|value| normalize_base_url(value.as_str()))
+        .unwrap_or_else(|| DEFAULT_URL.to_string())
 }
 
-fn parse_dotenv_map(content: &str) -> HashMap<String, String> {
-    let mut output = HashMap::new();
-
-    for raw_line in content.lines() {
-        let line = raw_line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-
-        let line = line
-            .strip_prefix("export ")
-            .map(str::trim_start)
-            .unwrap_or(line);
-
-        let Some((key, value_raw)) = line.split_once('=') else {
-            continue;
-        };
-
-        let key = key.trim();
-        if key.is_empty() {
-            continue;
-        }
-
-        let value = normalize_dotenv_value(value_raw);
-        if value.is_empty() {
-            continue;
-        }
-
-        output.insert(key.to_string(), value);
+fn ensure_interactive(action: &str) -> Result<()> {
+    if io::stdin().is_terminal() && io::stderr().is_terminal() {
+        return Ok(());
     }
-
-    output
+    bail!("Cannot run {action} interactively because stdin/stderr are not terminals.")
 }
 
-fn normalize_dotenv_value(raw_value: &str) -> String {
-    let trimmed = raw_value.trim();
+fn prompt_secret(prompt: &str) -> Result<String> {
+    eprint!("{prompt}");
+    io::stderr().flush().ok();
+
+    #[cfg(unix)]
+    let _echo_guard = EchoGuard::disable();
+
+    let mut value = String::new();
+    io::stdin()
+        .read_line(&mut value)
+        .context("Failed to read prompt response")?;
+
+    #[cfg(unix)]
+    eprintln!();
+
+    let trimmed = value.trim().to_string();
     if trimmed.is_empty() {
-        return String::new();
+        bail!("API key cannot be empty.");
     }
+    if !trimmed.starts_with("ap_") {
+        bail!("API key must start with ap_.");
+    }
+    Ok(trimmed)
+}
 
-    if (trimmed.starts_with('"') && trimmed.ends_with('"'))
-        || (trimmed.starts_with('\'') && trimmed.ends_with('\''))
+#[cfg(unix)]
+struct EchoGuard;
+
+#[cfg(unix)]
+impl EchoGuard {
+    fn disable() -> Self {
+        let _ = std::process::Command::new("stty").arg("-echo").status();
+        Self
+    }
+}
+
+#[cfg(unix)]
+impl Drop for EchoGuard {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new("stty").arg("echo").status();
+    }
+}
+
+fn prompt_clients() -> Result<Vec<Client>> {
+    let clients = [
+        Client::Cursor,
+        Client::Codex,
+        Client::ClaudeCode,
+        Client::Antigravity,
+        Client::Vscode,
+    ];
+    eprintln!("Which client(s) do you want to set up?");
+    for (index, client) in clients.iter().enumerate() {
+        eprintln!("  {}. {}", index + 1, client_label_title(*client));
+    }
+    eprint!("Choose one or more numbers, comma-separated: ");
+    io::stderr().flush().ok();
+
+    let mut response = String::new();
+    io::stdin()
+        .read_line(&mut response)
+        .context("Failed to read prompt response")?;
+
+    let mut selected = Vec::new();
+    for part in response
+        .split(',')
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
     {
-        return trimmed[1..trimmed.len() - 1].to_string();
+        let index: usize = part
+            .parse()
+            .with_context(|| format!("Invalid client choice: {part}"))?;
+        let client = clients
+            .get(index.saturating_sub(1))
+            .copied()
+            .ok_or_else(|| anyhow!("Invalid client choice: {part}"))?;
+        if !selected.contains(&client) {
+            selected.push(client);
+        }
     }
 
-    if let Some((before_comment, _)) = trimmed.split_once(" #") {
-        return before_comment.trim().to_string();
+    if selected.is_empty() {
+        bail!("At least one client must be selected.");
     }
 
-    trimmed.to_string()
+    Ok(selected)
+}
+
+fn prompt_single_client() -> Result<Client> {
+    let clients = prompt_clients()?;
+    clients
+        .first()
+        .copied()
+        .ok_or_else(|| anyhow!("No client selected"))
+}
+
+async fn prompt_project(bridge: &BridgeClient) -> Result<Project> {
+    let projects = bridge.get_json::<Vec<Project>>("/projects").await?;
+    if projects.is_empty() {
+        bail!("No Pink Sundew projects were found for this API key.");
+    }
+
+    eprintln!("Which project should this directory use?");
+    for (index, project) in projects.iter().enumerate() {
+        eprintln!("  {}. {} ({})", index + 1, project.name, project.id);
+    }
+    eprint!("Choose a project number: ");
+    io::stderr().flush().ok();
+
+    let mut response = String::new();
+    io::stdin()
+        .read_line(&mut response)
+        .context("Failed to read prompt response")?;
+    let index: usize = response
+        .trim()
+        .parse()
+        .with_context(|| format!("Invalid project choice: {}", response.trim()))?;
+
+    projects
+        .get(index.saturating_sub(1))
+        .cloned()
+        .ok_or_else(|| anyhow!("Invalid project choice: {}", response.trim()))
+}
+
+fn write_workspace_link_and_ignore(cwd: &Path, project: &Project) -> Result<()> {
+    let link = WorkspaceLink::new(project.id.clone(), project.name.clone());
+    save_workspace_link(cwd, &link)?;
+    let _ = ensure_workspace_gitignored(cwd)?;
+    Ok(())
+}
+
+async fn exchange_setup_token(
+    base_url: &str,
+    token: &str,
+    client: Client,
+    project_id: &str,
+) -> Result<SetupExchangeResponse> {
+    let url = format!("{}/api/setup-tokens/exchange", normalize_base_url(base_url));
+    let body = SetupExchangeRequest {
+        token,
+        client: client_slug(client),
+        project_id,
+    };
+
+    let response = reqwest::Client::new()
+        .post(url.as_str())
+        .json(&body)
+        .send()
+        .await
+        .with_context(|| format!("Failed to exchange setup token with {url}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "<unreadable body>".to_string());
+        bail!("Setup token exchange failed {}: {}", status.as_u16(), body);
+    }
+
+    response
+        .json::<SetupExchangeResponse>()
+        .await
+        .context("Failed to decode setup token exchange response")
+}
+
+async fn enable_sync_target(bridge: &BridgeClient, project_id: &str, client: Client) -> Result<()> {
+    let sync_target = sync_target_for_client(client);
+    bridge
+        .patch_json::<Value, AgentControls>(
+            &format!("/controls/{project_id}"),
+            &json!({ "syncTarget": sync_target }),
+        )
+        .await?;
+    eprintln!(
+        "[pinksundew-mcp] Enabled {} instruction sync target for project.",
+        client_label_title(client)
+    );
+    Ok(())
+}
+
+async fn sync_workspace(auth: &GlobalAuth, cwd: &Path) -> Result<SyncResult> {
+    let scope = ProjectScope::from_workspace(cwd)?;
+    let bridge = BridgeClient::new(auth.base_url.clone(), auth.api_key.clone());
+    let resources = ResourceService::new(bridge, scope.clone());
+    let sync = SyncService::new(resources, scope);
+    let result = sync
+        .sync_global_instructions(Some(cwd.to_path_buf()), true)
+        .await;
+
+    if result.success {
+        Ok(result)
+    } else {
+        Err(anyhow!(
+            "{}",
+            result
+                .error
+                .unwrap_or_else(|| "Failed to sync instructions".to_string())
+        ))
+    }
+}
+
+fn print_success_summary(clients: &[Client], project: &Project, sync_result: &SyncResult) {
+    let connected = clients
+        .iter()
+        .map(|client| client_label_title(*client))
+        .collect::<Vec<_>>()
+        .join(", ");
+    eprintln!("Connected {}", connected);
+    eprintln!(
+        "Linked this directory to project: {}",
+        project.name.as_str()
+    );
+    print_synced_files(sync_result);
+    eprintln!("Ready. Open your agent and ask it to view your tasks.");
+}
+
+fn print_synced_files(sync_result: &SyncResult) {
+    if sync_result.files_written.is_empty() {
+        eprintln!("Synced instruction files: none");
+    } else {
+        eprintln!(
+            "Synced instruction files: {}",
+            sync_result.files_written.join(", ")
+        );
+    }
+}
+
+fn enabled_sync_targets(controls: &AgentControls) -> Vec<String> {
+    [
+        ("sync_target_cursor", "Cursor"),
+        ("sync_target_codex", "Codex"),
+        ("sync_target_claude", "Claude Code"),
+        ("sync_target_vscode", "VS Code"),
+        ("sync_target_antigravity", "Antigravity"),
+        ("sync_target_windsurf", "Windsurf"),
+    ]
+    .into_iter()
+    .filter_map(|(toggle, label)| {
+        controls
+            .tool_toggles
+            .get(toggle)
+            .copied()
+            .unwrap_or(false)
+            .then(|| label.to_string())
+    })
+    .collect()
+}
+
+fn is_registered(client: Client, cwd: &Path) -> Result<bool> {
+    match client {
+        Client::Codex => config_contains(resolve_codex_config_path()?, "pinksundew"),
+        Client::Cursor => config_contains(cwd.join(".cursor").join("mcp.json"), "pinksundew"),
+        Client::Vscode => config_contains(cwd.join(".vscode").join("mcp.json"), "pinksundew"),
+        Client::ClaudeCode | Client::Antigravity => is_project_mcp_json_registered(cwd),
+    }
+}
+
+fn is_project_mcp_json_registered(cwd: &Path) -> Result<bool> {
+    config_contains(cwd.join(".mcp.json"), "pinksundew")
+}
+
+fn config_contains(path: PathBuf, needle: &str) -> Result<bool> {
+    if !path.exists() {
+        return Ok(false);
+    }
+    let mut content = String::new();
+    fs::File::open(&path)
+        .and_then(|mut file| file.read_to_string(&mut content))
+        .with_context(|| format!("Failed to read {}", path.display()))?;
+    Ok(content.contains(needle))
+}
+
+fn sync_target_for_client(client: Client) -> &'static str {
+    match client {
+        Client::Cursor => "sync_target_cursor",
+        Client::Codex => "sync_target_codex",
+        Client::ClaudeCode => "sync_target_claude",
+        Client::Antigravity => "sync_target_antigravity",
+        Client::Vscode => "sync_target_vscode",
+    }
+}
+
+fn client_slug(client: Client) -> &'static str {
+    match client {
+        Client::Cursor => "cursor",
+        Client::Codex => "codex",
+        Client::ClaudeCode => "claude-code",
+        Client::Antigravity => "antigravity",
+        Client::Vscode => "vscode",
+    }
+}
+
+fn client_label(client: Client) -> &'static str {
+    client_slug(client)
+}
+
+fn client_label_title(client: Client) -> &'static str {
+    match client {
+        Client::Cursor => "Cursor",
+        Client::Codex => "Codex",
+        Client::ClaudeCode => "Claude Code",
+        Client::Antigravity => "Antigravity",
+        Client::Vscode => "VS Code",
+    }
+}
+
+fn yes_no(value: bool) -> &'static str {
+    if value {
+        "yes"
+    } else {
+        "no"
+    }
 }
 
 #[cfg(test)]
@@ -630,76 +1171,45 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn cli_parses_register_subcommand() {
+    fn cli_parses_new_subcommands() {
         let parsed = Cli::try_parse_from(["pinksundew-mcp", "register", "codex"])
             .expect("parse should work");
-        let command = parsed.command.expect("command expected");
-        match command {
-            Command::Register(args) => assert_eq!(args.client, RegisterClient::Codex),
+        match parsed.command.expect("command expected") {
+            Command::Register(args) => assert_eq!(args.client, Some(Client::Codex)),
+            _ => panic!("wrong command"),
+        }
+
+        let parsed = Cli::try_parse_from([
+            "pinksundew-mcp",
+            "setup",
+            "--token",
+            "pst_abc",
+            "--client",
+            "claude-code",
+            "--project",
+            "8cd4fe92-63ad-49af-ae3a-c404f4576cc7",
+        ])
+        .expect("parse should work");
+        match parsed.command.expect("command expected") {
+            Command::Setup(args) => assert_eq!(args.client, Client::ClaudeCode),
+            _ => panic!("wrong command"),
         }
     }
 
     #[test]
-    fn cli_parses_no_subcommand_as_none() {
-        let parsed = Cli::try_parse_from(["pinksundew-mcp"]).expect("parse should work");
-        assert!(parsed.command.is_none());
-    }
-
-    #[test]
-    fn resolve_value_prefers_flag_then_env_then_files() {
-        let resolved = resolve_value_from_sources(
-            Some("flag".to_string()),
-            Some("env".to_string()),
-            Some("local".to_string()),
-            Some("file".to_string()),
-        );
-        assert_eq!(resolved, Some("flag".to_string()));
-
-        let resolved = resolve_value_from_sources(
-            None,
-            Some("env".to_string()),
-            Some("local".to_string()),
-            Some("file".to_string()),
-        );
-        assert_eq!(resolved, Some("env".to_string()));
-
-        let resolved = resolve_value_from_sources(
-            None,
-            None,
-            Some("local".to_string()),
-            Some("file".to_string()),
-        );
-        assert_eq!(resolved, Some("local".to_string()));
-    }
-
-    #[test]
-    fn parse_dotenv_map_reads_export_and_quotes() {
-        let parsed = parse_dotenv_map(
-            r#"
-            export PINKSUNDEW_API_KEY="ap_123"
-            PINKSUNDEW_PROJECT_ID=project-uuid
-            IGNORED=
-            "#,
-        );
-
-        assert_eq!(parsed.get(API_KEY_ENV).map(String::as_str), Some("ap_123"));
-        assert_eq!(
-            parsed.get(PROJECT_ID_ENV).map(String::as_str),
-            Some("project-uuid")
-        );
-    }
-
-    #[test]
-    fn codex_render_preserves_existing_comments() {
+    fn codex_render_removes_secret_env_entries() {
         let existing = r#"# keep this comment
-[workspace]
-name = "test"
+[mcp_servers.pinksundew]
+command = "old"
+args = []
+
+[mcp_servers.pinksundew.env]
+PINKSUNDEW_API_KEY = "ap_secret"
+PINKSUNDEW_PROJECT_ID = "8cd4fe92-63ad-49af-ae3a-c404f4576cc7"
 "#;
 
         let config = ResolvedRegisterConfig {
-            client: RegisterClient::Codex,
-            api_key: "ap_abc".to_string(),
-            project_id: "8cd4fe92-63ad-49af-ae3a-c404f4576cc7".to_string(),
+            client: Client::Codex,
             target_file: PathBuf::from("/tmp/config.toml"),
             command_tuple: CommandTuple {
                 command: "pinksundew-mcp".to_string(),
@@ -709,27 +1219,15 @@ name = "test"
 
         let rendered = render_codex_config(&config, Some(existing)).expect("render should work");
         assert!(rendered.content.contains("# keep this comment"));
-        assert!(rendered.content.contains("[workspace]"));
         assert!(rendered.content.contains("[mcp_servers.pinksundew]"));
-        assert!(rendered.content.contains("[mcp_servers.pinksundew.env]"));
+        assert!(!rendered.content.contains(API_KEY_ENV));
+        assert!(!rendered.content.contains(PROJECT_ID_ENV));
     }
 
     #[test]
-    fn antigravity_render_keeps_other_servers() {
-        let existing = r#"{
-  "mcpServers": {
-    "other": {
-      "type": "stdio",
-      "command": "other-mcp",
-      "args": []
-    }
-  }
-}"#;
-
+    fn mcp_json_render_has_no_env_secrets() {
         let config = ResolvedRegisterConfig {
-            client: RegisterClient::Antigravity,
-            api_key: "ap_abc".to_string(),
-            project_id: "8cd4fe92-63ad-49af-ae3a-c404f4576cc7".to_string(),
+            client: Client::Antigravity,
             target_file: PathBuf::from(".mcp.json"),
             command_tuple: CommandTuple {
                 command: "pinksundew-mcp".to_string(),
@@ -737,16 +1235,29 @@ name = "test"
             },
         };
 
-        let rendered =
-            render_antigravity_config(&config, Some(existing)).expect("render should work");
+        let rendered = render_mcp_json_config(&config, None).expect("render should work");
         let root: Value = serde_json::from_str(&rendered.content).expect("valid json");
-        let servers = root
-            .get("mcpServers")
+        let server = root
+            .pointer("/mcpServers/pinksundew")
             .and_then(Value::as_object)
-            .expect("mcpServers object");
+            .expect("server object");
+        assert!(!server.contains_key("env"));
+    }
 
-        assert!(servers.contains_key("other"));
-        assert!(servers.contains_key("pinksundew"));
+    #[test]
+    fn vscode_render_uses_servers_root() {
+        let config = ResolvedRegisterConfig {
+            client: Client::Vscode,
+            target_file: PathBuf::from(".vscode/mcp.json"),
+            command_tuple: CommandTuple {
+                command: "pinksundew-mcp".to_string(),
+                args: Vec::new(),
+            },
+        };
+
+        let rendered = render_vscode_config(&config, None).expect("render should work");
+        let root: Value = serde_json::from_str(&rendered.content).expect("valid json");
+        assert!(root.pointer("/servers/pinksundew").is_some());
     }
 
     #[test]

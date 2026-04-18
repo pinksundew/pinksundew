@@ -121,25 +121,13 @@ impl PinkSundewServer {
 
         let tool_result: anyhow::Result<Value> = match tool_name.as_str() {
             "list_projects" => self.tools.list_projects().await,
-            "get_project_board" => {
-                let project_id =
-                    required_str_arg(&args, "projectId").map_err(invalid_params_error)?;
-                self.tools.get_project_board(project_id).await
-            }
+            "get_project_board" => self.tools.get_project_board().await,
             "get_task_details" => {
                 let task_id = required_str_arg(&args, "taskId").map_err(invalid_params_error)?;
                 self.tools.get_task(task_id).await
             }
-            "list_abyss_tasks" => {
-                let project_id =
-                    required_str_arg(&args, "projectId").map_err(invalid_params_error)?;
-                self.tools.list_abyss_tasks(project_id).await
-            }
-            "list_project_tags" => {
-                let project_id =
-                    required_str_arg(&args, "projectId").map_err(invalid_params_error)?;
-                self.tools.list_tags(project_id).await
-            }
+            "list_abyss_tasks" => self.tools.list_abyss_tasks().await,
+            "list_project_tags" => self.tools.list_tags().await,
             "create_task" => self.tools.create_task(args.clone()).await,
             "update_task" => self.tools.update_task(args.clone()).await,
             "move_task" => self.tools.move_task(args.clone()).await,
@@ -205,7 +193,7 @@ impl PinkSundewServer {
     ) -> anyhow::Result<String> {
         match tool_name {
             "get_project_board" | "list_abyss_tasks" | "list_project_tags" | "create_task"
-            | "create_tag" | "export_tasks" => Ok(required_str_arg(args, "projectId")?.to_string()),
+            | "create_tag" | "export_tasks" => Ok(self.scope.project_id().to_string()),
             "get_task_details" | "update_task" | "move_task" | "set_task_signal"
             | "list_task_messages" | "add_task_message" | "move_task_to_abyss" | "restore_task"
             | "add_plan_to_task" => {
@@ -239,8 +227,11 @@ impl ServerHandler for PinkSundewServer {
             SERVER_VERSION,
         ))
         .with_instructions(format!(
-            "Pink Sundew MCP server for project-first Kanban operations. Runtime: {} {}",
-            SERVER_NAME, SERVER_VERSION
+            "Pink Sundew MCP server for linked project {} ({}). Runtime: {} {}",
+            self.scope.project_name(),
+            self.scope.project_id(),
+            SERVER_NAME,
+            SERVER_VERSION
         ))
     }
 
@@ -420,13 +411,13 @@ fn tool_definitions() -> Vec<ToolDefinition> {
     vec![
         ToolDefinition {
             name: "list_projects",
-            description: "Lists the projects accessible to the current Pink Sundew API key and project scope.",
-            input_schema: json!({"type":"object","properties":{}}),
+            description: "Returns the single Pink Sundew project linked to the current workspace.",
+            input_schema: json!({"type":"object","properties":{},"additionalProperties":false}),
         },
         ToolDefinition {
             name: "get_project_board",
-            description: "Returns the current visible board state for a project, including tasks, tags, and instruction sets.",
-            input_schema: json!({"type":"object","properties":{"projectId":{"type":"string"}},"required":["projectId"]}),
+            description: "Returns the current visible board state for the linked workspace project, including tasks, tags, and instruction sets.",
+            input_schema: json!({"type":"object","properties":{},"additionalProperties":false}),
         },
         ToolDefinition {
             name: "get_task_details",
@@ -435,21 +426,20 @@ fn tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "list_abyss_tasks",
-            description: "Lists deleted and archived tasks for a project.",
-            input_schema: json!({"type":"object","properties":{"projectId":{"type":"string"}},"required":["projectId"]}),
+            description: "Lists deleted and archived tasks for the linked workspace project.",
+            input_schema: json!({"type":"object","properties":{},"additionalProperties":false}),
         },
         ToolDefinition {
             name: "list_project_tags",
-            description: "Lists the tags configured for a project.",
-            input_schema: json!({"type":"object","properties":{"projectId":{"type":"string"}},"required":["projectId"]}),
+            description: "Lists the tags configured for the linked workspace project.",
+            input_schema: json!({"type":"object","properties":{},"additionalProperties":false}),
         },
         ToolDefinition {
             name: "create_task",
-            description: "Creates a new task for a project. Use predecessorId to create a follow-up ticket instead of subtasks.",
+            description: "Creates a new task in the linked workspace project. Use predecessorId to create a follow-up ticket instead of subtasks.",
             input_schema: json!({
                 "type":"object",
                 "properties":{
-                    "projectId":{"type":"string"},
                     "title":{"type":"string"},
                     "description":{"type":"string"},
                     "status":{"type":"string","enum":["todo","in-progress","done"]},
@@ -459,7 +449,8 @@ fn tool_definitions() -> Vec<ToolDefinition> {
                     "predecessorId":{"type":["string","null"]},
                     "position":{"type":"number"}
                 },
-                "required":["projectId","title"]
+                "required":["title"],
+                "additionalProperties":false
             }),
         },
         ToolDefinition {
@@ -526,8 +517,8 @@ fn tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "create_tag",
-            description: "Creates a new project tag.",
-            input_schema: json!({"type":"object","properties":{"projectId":{"type":"string"},"name":{"type":"string"},"color":{"type":"string"}},"required":["projectId","name"]}),
+            description: "Creates a new tag in the linked workspace project.",
+            input_schema: json!({"type":"object","properties":{"name":{"type":"string"},"color":{"type":"string"}},"required":["name"],"additionalProperties":false}),
         },
         ToolDefinition {
             name: "delete_tag",
@@ -536,11 +527,10 @@ fn tool_definitions() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "export_tasks",
-            description: "Builds an AI-ready export prompt from project tasks using the same formatting options as the UI export modal.",
+            description: "Builds an AI-ready export prompt from linked workspace project tasks using the same formatting options as the UI export modal.",
             input_schema: json!({
                 "type":"object",
                 "properties":{
-                    "projectId":{"type":"string"},
                     "taskIds":{"type":"array","items":{"type":"string"}},
                     "format":{"type":"string","enum":["numbered","bullets","checkboxes","compact"]},
                     "includeTags":{"type":"boolean"},
@@ -556,7 +546,8 @@ fn tool_definitions() -> Vec<ToolDefinition> {
                         }
                     }
                 },
-                "required":["projectId"]
+                "required":[],
+                "additionalProperties":false
             }),
         },
         ToolDefinition {

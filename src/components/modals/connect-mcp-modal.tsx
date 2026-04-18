@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, Copy, Key, Loader2, PlugZap, Sparkles, X } from 'lucide-react'
+import { Check, Copy, KeyRound, Loader2, PlugZap, ShieldCheck, Sparkles, X } from 'lucide-react'
+import type { SetupClient } from '@/domains/setup-token/types'
 
 type ConnectMcpModalProps = {
   isOpen: boolean
@@ -10,7 +11,15 @@ type ConnectMcpModalProps = {
   projectId: string
 }
 
-type GuideId = 'vscode' | 'cursor' | 'claude-code' | 'codex' | 'antigravity'
+type GuideId = SetupClient
+
+type Snippet = {
+  id: string
+  label: string
+  language: string
+  code: string
+  setupClient?: SetupClient
+}
 
 type Guide = {
   id: GuideId
@@ -18,55 +27,60 @@ type Guide = {
   title: string
   description: string
   steps: string[]
-  getSnippets: (config: SnippetConfig) => Array<{
-    id: string
-    label: string
-    language: string
-    code: string
-  }>
+  getSnippets: (config: SnippetConfig) => Snippet[]
 }
 
 type SnippetConfig = {
-  apiKey: string
   projectId: string
+  setupCommands: Partial<Record<SetupClient, string>>
 }
 
 type CodeSnippetCardProps = {
-  id: string
-  label: string
-  language: string
-  code: string
+  snippet: Snippet
   copiedSnippetId: string | null
-  onCopy: (snippetId: string, content: string) => void
+  generatingSnippetId: string | null
+  onCopy: (snippet: Snippet) => void
+}
+
+function buildSetupCommand(client: SetupClient, token: string, projectId: string) {
+  return `pinksundew-mcp setup --token ${token} --client ${client} --project ${projectId}`
+}
+
+function placeholderSetupCommand(client: SetupClient, projectId: string) {
+  return buildSetupCommand(client, 'pst_generated_on_copy', projectId)
 }
 
 function CodeSnippetCard({
-  id,
-  label,
-  language,
-  code,
+  snippet,
   copiedSnippetId,
+  generatingSnippetId,
   onCopy,
 }: CodeSnippetCardProps) {
-  const isCopied = copiedSnippetId === id
+  const isCopied = copiedSnippetId === snippet.id
+  const isGenerating = generatingSnippetId === snippet.id
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-white">
       <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            {label}
+            {snippet.label}
           </span>
           <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
-            {language}
+            {snippet.language}
           </span>
         </div>
         <button
           type="button"
-          onClick={() => onCopy(id, code)}
-          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          onClick={() => onCopy(snippet)}
+          disabled={isGenerating}
+          className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-wait disabled:opacity-60"
         >
-          {isCopied ? (
+          {isGenerating ? (
+            <>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Creating
+            </>
+          ) : isCopied ? (
             <>
               <Check className="h-3.5 w-3.5" /> Copied
             </>
@@ -78,277 +92,117 @@ function CodeSnippetCard({
         </button>
       </div>
       <pre className="max-h-72 overflow-auto bg-muted/20 p-3 text-xs leading-relaxed text-foreground">
-        <code>{code}</code>
+        <code>{snippet.code}</code>
       </pre>
     </div>
   )
 }
 
 function createGuides(): Record<GuideId, Guide> {
+  const setupSnippet = (client: SetupClient, config: SnippetConfig): Snippet => ({
+    id: `${client}-setup-command`,
+    label: 'Setup command',
+    language: 'bash',
+    setupClient: client,
+    code: config.setupCommands[client] ?? placeholderSetupCommand(client, config.projectId),
+  })
+
   return {
-    vscode: {
-      id: 'vscode',
-      label: 'VS Code',
-      title: 'Connect In VS Code',
-      description:
-        'Add the Pink Sundew MCP server to your workspace settings with the native Rust binary.',
-      steps: [
-        'Generate an API key (or use an existing one).',
-        'Copy the mcp.json snippet and paste it into .vscode/mcp.json in your project.',
-        'Add .vscode/mcp.json to your .gitignore to keep your API key private.',
-        'In Agent Controls, enable the instruction sync targets you want (for example VS Code + Cursor).',
-        'Reload VS Code window, then open Copilot Chat and confirm MCP tools appear.',
-      ],
-      getSnippets: (config) => [
-        {
-          id: 'vscode-config',
-          label: '.vscode/mcp.json',
-          language: 'json',
-          code: JSON.stringify(
-            {
-              servers: {
-                pinksundew: {
-                  type: 'stdio',
-                  command: 'pinksundew-mcp',
-                  args: [],
-                  env: {
-                    PINKSUNDEW_API_KEY: config.apiKey,
-                    PINKSUNDEW_PROJECT_ID: config.projectId,
-                  },
-                },
-              },
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    },
     cursor: {
       id: 'cursor',
       label: 'Cursor',
-      title: 'Connect In Cursor',
+      title: 'Connect Cursor',
       description:
-        'Add the MCP server to Cursor workspace settings with the native Rust binary.',
+        'Register Pink Sundew in this workspace and link the current directory to this project.',
       steps: [
-        'Generate an API key (or use an existing one).',
-        'Copy the mcp.json snippet and paste it into .cursor/mcp.json in your project.',
-        'Add .cursor/mcp.json to your .gitignore to keep your API key private.',
-        'In Agent Controls, enable the instruction sync targets you want (for example Cursor + Codex).',
-        'Restart Cursor or reconnect MCP, then confirm Pink Sundew tools appear.',
+        'Install the Pink Sundew CLI once on your machine.',
+        'Copy the setup command and run it from your repo root.',
+        'Restart Cursor or reconnect MCP, then ask it to view your tasks.',
       ],
-      getSnippets: (config) => [
-        {
-          id: 'cursor-config',
-          label: '.cursor/mcp.json',
-          language: 'json',
-          code: JSON.stringify(
-            {
-              mcpServers: {
-                pinksundew: {
-                  type: 'stdio',
-                  command: 'pinksundew-mcp',
-                  args: [],
-                  cwd: '${workspaceFolder}',
-                  env: {
-                    PINKSUNDEW_API_KEY: config.apiKey,
-                    PINKSUNDEW_PROJECT_ID: config.projectId,
-                  },
-                },
-              },
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    },
-    'claude-code': {
-      id: 'claude-code',
-      label: 'Claude Code',
-      title: 'Connect In Claude Code',
-      description:
-        'Add via CLI or paste JSON into a project `.mcp.json` config file using the native Rust binary.',
-      steps: [
-        'Generate an API key.',
-        'Run the CLI command from your project root, OR paste the JSON into .mcp.json.',
-        'In Agent Controls, enable the instruction sync targets you want for this project.',
-        'In Claude Code, run /mcp to verify the server is connected.',
-      ],
-      getSnippets: (config) => [
-        {
-          id: 'claude-command',
-          label: 'CLI command',
-          language: 'bash',
-          code: [
-            'claude mcp add --transport stdio --scope project \\',
-            `  --env PINKSUNDEW_API_KEY=${config.apiKey} \\`,
-            `  --env PINKSUNDEW_PROJECT_ID=${config.projectId} \\`,
-            '  pinksundew -- pinksundew-mcp',
-          ].join('\n'),
-        },
-        {
-          id: 'claude-json',
-          label: '.mcp.json (project scope)',
-          language: 'json',
-          code: JSON.stringify(
-            {
-              mcpServers: {
-                pinksundew: {
-                  type: 'stdio',
-                  command: 'pinksundew-mcp',
-                  args: [],
-                  env: {
-                    PINKSUNDEW_API_KEY: config.apiKey,
-                    PINKSUNDEW_PROJECT_ID: config.projectId,
-                  },
-                },
-              },
-            },
-            null,
-            2
-          ),
-        },
-      ],
+      getSnippets: (config) => [setupSnippet('cursor', config)],
     },
     codex: {
       id: 'codex',
       label: 'Codex',
-      title: 'Connect In Codex',
+      title: 'Connect Codex',
       description:
-        'Use the self-registering CLI (`pinksundew-mcp register codex`) for one-step setup.',
+        'Register one global Codex MCP server while keeping the project link local to this repo.',
       steps: [
-        'Generate an API key.',
-        'Run the register command from your project root.',
-        'In Agent Controls, enable the instruction sync targets you want for this project.',
-        'Verify with codex mcp list (or /mcp inside Codex).',
+        'Install the Pink Sundew CLI once on your machine.',
+        'Copy the setup command and run it from your repo root.',
+        'Open Codex in this repo and ask it to view your tasks.',
       ],
-      getSnippets: (config) => [
-        {
-          id: 'codex-register-command',
-          label: 'CLI command (recommended)',
-          language: 'bash',
-          code: `pinksundew-mcp register codex --api-key ${config.apiKey} --project-id ${config.projectId}`,
-        },
-        {
-          id: 'codex-manual-command',
-          label: 'Manual alternative: codex mcp add',
-          language: 'bash',
-          code: `codex mcp add pinksundew --env PINKSUNDEW_API_KEY=${config.apiKey} --env PINKSUNDEW_PROJECT_ID=${config.projectId} -- pinksundew-mcp`,
-        },
-        {
-          id: 'codex-toml',
-          label: '~/.codex/config.toml (manual fallback)',
-          language: 'toml',
-          code: [
-            '[mcp_servers.pinksundew]',
-            'command = "pinksundew-mcp"',
-            'args = []',
-            '',
-            '[mcp_servers.pinksundew.env]',
-            `PINKSUNDEW_API_KEY = "${config.apiKey}"`,
-            `PINKSUNDEW_PROJECT_ID = "${config.projectId}"`,
-          ].join('\n'),
-        },
+      getSnippets: (config) => [setupSnippet('codex', config)],
+    },
+    'claude-code': {
+      id: 'claude-code',
+      label: 'Claude Code',
+      title: 'Connect Claude Code',
+      description:
+        'Create a project MCP config and link this directory to the selected Pink Sundew project.',
+      steps: [
+        'Install the Pink Sundew CLI once on your machine.',
+        'Copy the setup command and run it from your repo root.',
+        'In Claude Code, run /mcp to verify Pink Sundew tools are connected.',
       ],
+      getSnippets: (config) => [setupSnippet('claude-code', config)],
     },
     antigravity: {
       id: 'antigravity',
       label: 'Antigravity',
-      title: 'Connect In Antigravity',
+      title: 'Connect Antigravity',
       description:
-        'Use the self-registering CLI (`pinksundew-mcp register antigravity`) for one-step setup.',
+        'Create a project MCP config and sync Antigravity instructions for this workspace.',
       steps: [
-        'Generate an API key.',
-        'Run the register command from your project root.',
-        'Manual fallback: copy the `.mcp.json` snippet below into your project root or paste the single server object in settings.',
-        'In Agent Controls, enable the instruction sync targets you want for this project.',
+        'Install the Pink Sundew CLI once on your machine.',
+        'Copy the setup command and run it from your repo root.',
         'Reconnect the workspace and confirm Pink Sundew tools appear.',
       ],
-      getSnippets: (config) => [
-        {
-          id: 'antigravity-register-command',
-          label: 'CLI command (recommended)',
-          language: 'bash',
-          code: `pinksundew-mcp register antigravity --api-key ${config.apiKey} --project-id ${config.projectId}`,
-        },
-        {
-          id: 'antigravity-mcp-json',
-          label: 'Manual fallback: .mcp.json',
-          language: 'json',
-          code: JSON.stringify(
-            {
-              mcpServers: {
-                pinksundew: {
-                  type: 'stdio',
-                  command: 'pinksundew-mcp',
-                  args: [],
-                  env: {
-                    PINKSUNDEW_API_KEY: config.apiKey,
-                    PINKSUNDEW_PROJECT_ID: config.projectId,
-                  },
-                },
-              },
-            },
-            null,
-            2
-          ),
-        },
-        {
-          id: 'antigravity-server-json',
-          label: 'Manual fallback: single server object',
-          language: 'json',
-          code: JSON.stringify(
-            {
-              type: 'stdio',
-              command: 'pinksundew-mcp',
-              args: [],
-              env: {
-                PINKSUNDEW_API_KEY: config.apiKey,
-                PINKSUNDEW_PROJECT_ID: config.projectId,
-              },
-            },
-            null,
-            2
-          ),
-        },
+      getSnippets: (config) => [setupSnippet('antigravity', config)],
+    },
+    vscode: {
+      id: 'vscode',
+      label: 'VS Code',
+      title: 'Connect VS Code',
+      description:
+        'Register the MCP server in `.vscode/mcp.json` and sync Copilot instructions for this project.',
+      steps: [
+        'Install the Pink Sundew CLI once on your machine.',
+        'Copy the setup command and run it from your repo root.',
+        'Reload VS Code and confirm Pink Sundew MCP tools appear.',
       ],
+      getSnippets: (config) => [setupSnippet('vscode', config)],
     },
   }
 }
 
-function generateUniqueKeyName(): string {
-  const now = new Date()
-  const month = now.toLocaleString('en-US', { month: 'short' })
-  const day = now.getDate()
-  const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
-  return `MCP ${month} ${day} ${time}`
-}
-
 export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalProps) {
-  const [activeGuideId, setActiveGuideId] = useState<GuideId>('vscode')
+  const [activeGuideId, setActiveGuideId] = useState<GuideId>('codex')
   const [copiedSnippetId, setCopiedSnippetId] = useState<string | null>(null)
-  const [apiKey, setApiKey] = useState('')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [keyGenerated, setKeyGenerated] = useState(false)
+  const [generatingSnippetId, setGeneratingSnippetId] = useState<string | null>(null)
+  const [setupCommands, setSetupCommands] = useState<Partial<Record<SetupClient, string>>>({})
+  const [copyError, setCopyError] = useState<string | null>(null)
 
   const guides = useMemo(() => createGuides(), [])
 
   useEffect(() => {
     if (!isOpen) {
       setCopiedSnippetId(null)
-      setActiveGuideId('vscode')
+      setGeneratingSnippetId(null)
+      setSetupCommands({})
+      setCopyError(null)
+      setActiveGuideId('codex')
     }
   }, [isOpen])
 
   const snippetConfig: SnippetConfig = {
-    apiKey: apiKey || 'YOUR_API_KEY',
     projectId,
+    setupCommands,
   }
 
   const activeGuide = guides[activeGuideId]
   const snippets = activeGuide.getSnippets(snippetConfig)
-  const installSnippets = [
+  const installSnippets: Snippet[] = [
     {
       id: 'install-brew',
       label: 'Option A: Homebrew',
@@ -361,42 +215,59 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
       language: 'bash',
       code: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/pinksundew/pinksundew/releases/latest/download/pinksundew-mcp-installer.sh | sh",
     },
-  ] as const
+  ]
 
-  const generateApiKey = async () => {
-    setIsGenerating(true)
-    try {
-      const res = await fetch('/api/keys', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: generateUniqueKeyName() }),
-      })
-      if (!res.ok) throw new Error('Failed to create key')
-      const data = await res.json()
-      setApiKey(data.raw_key)
-      setKeyGenerated(true)
-    } catch (error) {
-      console.error('Failed to generate API key:', error)
-    } finally {
-      setIsGenerating(false)
+  const createSetupCommand = async (client: SetupClient) => {
+    const response = await fetch('/api/setup-tokens', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, client }),
+    })
+
+    if (!response.ok) {
+      throw new Error('Could not create setup token')
     }
+
+    const data = await response.json()
+    const token = typeof data.token === 'string' ? data.token : ''
+    if (!token.startsWith('pst_')) {
+      throw new Error('Setup token response was invalid')
+    }
+
+    const command = buildSetupCommand(client, token, projectId)
+    setSetupCommands((current) => ({
+      ...current,
+      [client]: command,
+    }))
+    return command
   }
 
-  const copySnippet = async (snippetId: string, content: string) => {
+  const copySnippet = async (snippet: Snippet) => {
+    setCopyError(null)
+    setGeneratingSnippetId(snippet.id)
     try {
+      const content = snippet.setupClient
+        ? await createSetupCommand(snippet.setupClient)
+        : snippet.code
+
       await navigator.clipboard.writeText(content)
-      setCopiedSnippetId(snippetId)
+      setCopiedSnippetId(snippet.id)
       window.setTimeout(() => {
-        setCopiedSnippetId((current) => (current === snippetId ? null : current))
+        setCopiedSnippetId((current) => (current === snippet.id ? null : current))
       }, 1500)
     } catch (error) {
-      console.error('Failed to copy snippet:', error)
+      console.error('Failed to copy setup snippet:', error)
+      setCopyError(
+        error instanceof Error
+          ? error.message
+          : 'Could not create a setup command. Please try again.'
+      )
+    } finally {
+      setGeneratingSnippetId(null)
     }
   }
 
   if (!isOpen) return null
-
-  const hasApiKey = apiKey.startsWith('ap_')
 
   return (
     <AnimatePresence>
@@ -415,12 +286,11 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
           exit={{ scale: 0.95, opacity: 0 }}
           className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 shrink-0">
+          <div className="flex shrink-0 items-center justify-between p-4">
             <div>
               <h2 className="text-xl font-semibold">Connect MCP Server</h2>
               <p className="text-sm text-muted-foreground">
-                Configure your AI agent to connect to this project board.
+                Install the CLI, then run one setup command from your repo.
               </p>
             </div>
             <button
@@ -432,88 +302,36 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
             </button>
           </div>
 
-          {/* Two-column layout */}
           <div className="m-3 grid min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/40 md:m-4 md:grid-cols-[minmax(250px,280px)_minmax(0,1fr)]">
-            {/* Left sidebar - API Key */}
             <div className="flex min-h-0 flex-col border-b border-slate-200 bg-white p-4 md:border-b-0 md:border-r">
               <div className="space-y-4">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    <Key className="h-4 w-4" />
-                    API Key
+                <div className="rounded-2xl border border-pink-200 bg-pink-50 p-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-pink-950">
+                    <Sparkles className="h-4 w-4" />
+                    Two-step setup
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Required to authenticate the MCP server.
+                  <p className="mt-2 text-xs leading-relaxed text-pink-900">
+                    The copied command uses a short-lived setup token. Your API key is created only
+                    when the CLI exchanges that token, so it never appears in browser snippets.
                   </p>
                 </div>
 
-                {hasApiKey ? (
-                  <div className="space-y-2">
-                    <div className="rounded-lg border border-green-200 bg-green-50 p-2">
-                      <div className="flex items-center gap-1.5">
-                        <Check className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                        <span className="text-xs font-medium text-green-700">Key Generated</span>
-                      </div>
-                      <code className="mt-1.5 block truncate font-mono text-[10px] text-green-800">
-                        {apiKey}
-                      </code>
-                      <button
-                        type="button"
-                        onClick={() => copySnippet('api-key', apiKey)}
-                        className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-green-200 bg-white px-2 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-50"
-                      >
-                        {copiedSnippetId === 'api-key' ? (
-                          <>
-                            <Check className="h-3 w-3" /> Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3 w-3" /> Copy Key
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    {keyGenerated && (
-                      <p className="text-[10px] leading-tight text-amber-700">
-                        Save this key — it won&apos;t be shown again after closing.
-                      </p>
-                    )}
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    What gets configured
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    <button
-                      type="button"
-                      onClick={generateApiKey}
-                      disabled={isGenerating}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {isGenerating ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
-                      Generate Key
-                    </button>
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-border" />
-                      </div>
-                      <div className="relative flex justify-center text-[10px] uppercase">
-                        <span className="bg-muted/10 px-2 text-muted-foreground">or paste</span>
-                      </div>
-                    </div>
-                    <input
-                      type="text"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="ap_..."
-                      className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 font-mono text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                  </div>
-                )}
+                  <ul className="space-y-2 text-xs text-slate-700">
+                    <li>Global auth is saved on this machine.</li>
+                    <li>The selected MCP client is registered without secrets.</li>
+                    <li>This repo is linked through `.pinksundew/project.json`.</li>
+                    <li>The matching instruction sync target is enabled automatically.</li>
+                  </ul>
+                </div>
 
                 <div className="border-t border-border pt-4">
-                  <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                    <KeyRound className="h-3.5 w-3.5" />
                     Project ID
                   </div>
                   <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-border bg-white px-2 py-1.5">
@@ -522,7 +340,14 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
                     </code>
                     <button
                       type="button"
-                      onClick={() => copySnippet('project-id', projectId)}
+                      onClick={() =>
+                        copySnippet({
+                          id: 'project-id',
+                          label: 'Project ID',
+                          language: 'text',
+                          code: projectId,
+                        })
+                      }
                       className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted"
                     >
                       {copiedSnippetId === 'project-id' ? (
@@ -536,26 +361,25 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
               </div>
             </div>
 
-            {/* Right content - Config */}
             <div className="flex min-h-0 flex-col overflow-hidden bg-white">
-              {/* Guide Content */}
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
                 <div className="mb-3">
-                  <h3 className="text-base font-semibold text-foreground">Step 1: Install the MCP server</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Choose one install option below.</p>
+                  <h3 className="text-base font-semibold text-foreground">
+                    Step 1: Install the MCP CLI
+                  </h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Do this once on your machine.
+                  </p>
                 </div>
 
                 <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                  {/* <p className="text-xs text-muted-foreground">Do this once on your machine, then continue to Step 2.</p> */}
-                  <div className="mt-3 space-y-3">
+                  <div className="space-y-3">
                     {installSnippets.map((snippet) => (
                       <CodeSnippetCard
                         key={snippet.id}
-                        id={snippet.id}
-                        label={snippet.label}
-                        language={snippet.language}
-                        code={snippet.code}
+                        snippet={snippet}
                         copiedSnippetId={copiedSnippetId}
+                        generatingSnippetId={generatingSnippetId}
                         onCopy={copySnippet}
                       />
                     ))}
@@ -563,10 +387,12 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
                 </div>
 
                 <div className="mb-3">
-                  <h3 className="text-base font-semibold text-foreground">Step 2: Choose your IDE</h3>
-                  {/* <p className="mt-0.5 text-xs text-muted-foreground">
-                    Click your IDE tab, then copy the custom config snippet.
-                  </p> */}
+                  <h3 className="text-base font-semibold text-foreground">
+                    Step 2: Choose your client
+                  </h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Copy the setup command, then run it from your repo root.
+                  </p>
                 </div>
 
                 <div className="mb-4 overflow-x-auto">
@@ -590,7 +416,9 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
 
                 <div className="mb-3">
                   <h3 className="text-base font-semibold text-foreground">{activeGuide.title}</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{activeGuide.description}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {activeGuide.description}
+                  </p>
                 </div>
 
                 <ol className="mb-4 list-decimal space-y-1 pl-4 text-xs text-foreground">
@@ -603,31 +431,25 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
                   {snippets.map((snippet) => (
                     <CodeSnippetCard
                       key={snippet.id}
-                      id={snippet.id}
-                      label={snippet.label}
-                      language={snippet.language}
-                      code={snippet.code}
+                      snippet={snippet}
                       copiedSnippetId={copiedSnippetId}
+                      generatingSnippetId={generatingSnippetId}
                       onCopy={copySnippet}
                     />
                   ))}
                 </div>
 
-                {activeGuideId === 'codex' ? (
-                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
-                    <PlugZap className="mr-1 inline-block h-3.5 w-3.5" />
-                    In restricted sandbox environments, Codex may connect but fail to write synced instruction
-                    files until filesystem permissions are granted. MCP tools still work while sync retries in
-                    the background.
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
+                  <PlugZap className="mr-1 inline-block h-3.5 w-3.5" />
+                  Setup tokens expire after 10 minutes and can only be used once. If a command
+                  expires, copy a fresh one from this modal.
+                </div>
+
+                {copyError ? (
+                  <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">
+                    {copyError}
                   </div>
                 ) : null}
-
-                {!hasApiKey && (
-                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-800">
-                    <Key className="mr-1 inline-block h-3.5 w-3.5" />
-                    Generate an API key to populate the config snippets.
-                  </div>
-                )}
               </div>
             </div>
           </div>

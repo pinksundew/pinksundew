@@ -54,6 +54,7 @@ plan-dist-manifest.json
 
 # Pink Sundew local cache
 .pinksundew-hash
+.pinksundew/
 
 # Local media scratch files. Demo assets that should ship belong in public/demo/.
 /introdemo.mp4

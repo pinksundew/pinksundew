@@ -1,4 +1,6 @@
-use crate::config::{PanicPolicy, ProjectScope};
+use crate::config::{
+    load_workspace_link, update_workspace_sync_metadata, PanicPolicy, ProjectScope,
+};
 use crate::models::{AgentInstructionSet, InstructionHashResponse, SyncResult};
 use crate::resources::ResourceService;
 use anyhow::Result;
@@ -15,8 +17,6 @@ use tracing::{error, info, warn};
 
 const SYNC_START: &str = "<!-- BEGIN:pinksundew-sync -->";
 const SYNC_END: &str = "<!-- END:pinksundew-sync -->";
-const HASH_FILE: &str = ".pinksundew-hash";
-const DEFAULT_OUTPUT_FILE: &str = ".agentrules";
 const SYNC_TARGET_TOGGLES: [(&str, &str); 6] = [
     ("sync_target_cursor", ".cursorrules"),
     ("sync_target_claude", "CLAUDE.md"),
@@ -45,25 +45,7 @@ impl SyncService {
         let workspace_root = workspace_root
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
-        if !self.scope.is_enabled() {
-            let error =
-                "No PINKSUNDEW_PROJECT_ID configured. Cannot sync instructions.".to_string();
-            if verbose {
-                warn!(target: "pinksundew::sync", "{}", error);
-            }
-            return SyncResult {
-                success: false,
-                project_id: None,
-                project_name: None,
-                file_written: None,
-                files_written: Vec::new(),
-                instruction_count: 0,
-                error: Some(error),
-            };
-        }
-
-        let project_id = self.scope.project_id().unwrap_or_default().to_string();
-        let explicit_targets = self.scope.target_files().to_vec();
+        let project_id = self.scope.project_id().to_string();
         let board_targets = match self.resources.get_project_agent_controls(&project_id).await {
             Ok(controls) => resolve_board_target_files(&controls.tool_toggles),
             Err(err) => {
@@ -73,15 +55,13 @@ impl SyncService {
                 Vec::new()
             }
         };
-        let output_files = get_output_file_paths(&board_targets, &explicit_targets);
+        let output_files = get_output_file_paths(&board_targets);
 
         if verbose {
-            if !explicit_targets.is_empty() {
-                info!(target: "pinksundew::sync", "[sync] Using explicit output targets: {}", output_files.join(", "));
-            } else if !board_targets.is_empty() {
+            if !board_targets.is_empty() {
                 info!(target: "pinksundew::sync", "[sync] Board-configured sync targets: {}", output_files.join(", "));
             } else {
-                info!(target: "pinksundew::sync", "[sync] No sync targets configured, using default: {}", output_files.join(", "));
+                info!(target: "pinksundew::sync", "[sync] No sync targets enabled for linked project.");
             }
         }
 
@@ -160,6 +140,8 @@ impl SyncService {
             })
             .sum();
 
+        let _ = update_workspace_sync_metadata(&workspace_root, None);
+
         SyncResult {
             success: true,
             project_id: Some(project_id),
@@ -174,29 +156,15 @@ impl SyncService {
     pub async fn read_local_hash(&self, workspace_root: Option<PathBuf>) -> Option<String> {
         let root = workspace_root
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-        let hash_path = root.join(HASH_FILE);
-
-        match fs::read_to_string(hash_path).await {
-            Ok(content) => {
-                let value = content.trim().to_string();
-                if value.is_empty() {
-                    None
-                } else {
-                    Some(value)
-                }
-            }
-            Err(_) => None,
-        }
+        load_workspace_link(root.as_path())
+            .ok()
+            .and_then(|link| link.last_instruction_hash)
     }
 
     pub async fn save_local_hash(&self, hash: &str, workspace_root: Option<PathBuf>) {
         let root = workspace_root
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-        let hash_path = root.join(HASH_FILE);
-        if let Some(parent) = hash_path.parent() {
-            let _ = fs::create_dir_all(parent).await;
-        }
-        let _ = fs::write(hash_path, hash).await;
+        let _ = update_workspace_sync_metadata(root.as_path(), Some(hash));
     }
 
     pub async fn fetch_cloud_hash(&self, project_id: &str) -> Option<String> {
@@ -448,16 +416,8 @@ async fn write_instruction_file(file_path: &Path, sync_block: &str) -> Result<()
     Ok(())
 }
 
-pub fn get_output_file_paths(board_targets: &[String], explicit_targets: &[String]) -> Vec<String> {
-    if !explicit_targets.is_empty() {
-        return dedupe(explicit_targets);
-    }
-
-    if !board_targets.is_empty() {
-        return dedupe(board_targets);
-    }
-
-    vec![DEFAULT_OUTPUT_FILE.to_string()]
+pub fn get_output_file_paths(board_targets: &[String]) -> Vec<String> {
+    dedupe(board_targets)
 }
 
 fn resolve_board_target_files(tool_toggles: &HashMap<String, bool>) -> Vec<String> {
@@ -510,17 +470,15 @@ pub async fn cleanup_instruction_files(
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let mut files_cleaned = Vec::new();
 
-    let mut all_files = vec![
+    let all_files = vec![
         ".cursorrules".to_string(),
         "CLAUDE.md".to_string(),
         ".windsurfrules".to_string(),
         ".github/copilot-instructions.md".to_string(),
         "AGENTS.md".to_string(),
         "antigravity.md".to_string(),
-        DEFAULT_OUTPUT_FILE.to_string(),
     ];
-
-    all_files.extend(scope.target_files().iter().cloned());
+    let _ = scope;
     let all_files = dedupe(&all_files);
 
     for relative_path in all_files {
@@ -573,30 +531,11 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn output_file_precedence_prefers_explicit_targets() {
-        let result = get_output_file_paths(
-            &[
-                ".github/copilot-instructions.md".to_string(),
-                "AGENTS.md".to_string(),
-            ],
-            &[
-                "AGENTS.md".to_string(),
-                "AGENTS.md".to_string(),
-                ".custom".to_string(),
-            ],
-        );
-        assert_eq!(result, vec!["AGENTS.md".to_string(), ".custom".to_string()]);
-    }
-
-    #[test]
-    fn output_file_precedence_uses_board_targets() {
-        let result = get_output_file_paths(
-            &[
-                "AGENTS.md".to_string(),
-                ".github/copilot-instructions.md".to_string(),
-            ],
-            &[],
-        );
+    fn output_file_paths_use_board_targets_without_default_fallback() {
+        let result = get_output_file_paths(&[
+            "AGENTS.md".to_string(),
+            ".github/copilot-instructions.md".to_string(),
+        ]);
         assert_eq!(
             result,
             vec![
@@ -604,6 +543,9 @@ mod tests {
                 ".github/copilot-instructions.md".to_string()
             ]
         );
+
+        let empty = get_output_file_paths(&[]);
+        assert!(empty.is_empty());
     }
 
     #[test]

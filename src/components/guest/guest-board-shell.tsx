@@ -25,7 +25,7 @@ const EMPTY_TASKS: TaskWithTags[] = []
 function AppLogo({ className }: { className?: string }) {
   return (
     <Image
-      src="/favicon.ico"
+      src="/favicon.png"
       alt="Pink Sundew logo"
       width={28}
       height={28}

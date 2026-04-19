@@ -10,7 +10,7 @@ export function LandingPage() {
       <header className="mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
         <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-foreground">
           <Image
-            src="/favicon.ico"
+            src="/favicon.png"
             alt="Pink Sundew logo"
             width={30}
             height={30}

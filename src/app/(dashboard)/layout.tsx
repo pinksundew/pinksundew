@@ -8,7 +8,7 @@ import { ProjectBreadcrumb } from '@/components/dashboard/project-breadcrumb'
 function AppLogo({ className }: { className?: string }) {
   return (
     <Image
-      src="/favicon.ico"
+      src="/favicon.png"
       alt="Pink Sundew logo"
       width={28}
       height={28}

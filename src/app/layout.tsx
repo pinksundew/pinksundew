@@ -13,11 +13,21 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://pinksundew.com'),
   title: {
     template: '%s | Pink Sundew',
     default: 'Pink Sundew',
   },
   description: 'AI-Native Kanban for Developers',
+  icons: {
+    icon: [
+      {
+        url: '/favicon.png',
+        type: 'image/png',
+        sizes: '632x632',
+      },
+    ],
+  },
 };
 
 export default function RootLayout({

@@ -18,7 +18,11 @@ export async function POST(
     `
       *,
       task_tags(tags (*))
-    `
+    `,
+    {
+      recordMcpActivity: true,
+      requestPath: request.nextUrl.pathname,
+    }
   )
 
   if (taskResult.response) {

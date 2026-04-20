@@ -283,6 +283,38 @@ export type Database = {
           },
         ]
       }
+      project_mcp_activity: {
+        Row: {
+          created_at: string
+          last_request_path: string | null
+          last_seen_at: string
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          last_request_path?: string | null
+          last_seen_at?: string
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          last_request_path?: string | null
+          last_seen_at?: string
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_mcp_activity_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_members: {
         Row: {
           id: string
@@ -737,6 +769,7 @@ export type ApiKeyRow = Tables<'api_keys'>
 export type CliSetupTokenRow = Tables<'cli_setup_tokens'>
 export type ProjectMemberRow = Tables<'project_members'>
 export type ProjectAgentControlsRow = Tables<'project_agent_controls'>
+export type ProjectMcpActivityRow = Tables<'project_mcp_activity'>
 export type AgentInstructionSetRow = Tables<'agent_instruction_sets'>
 export type AgentInstructionSetFileRow = Tables<'agent_instruction_set_files'>
 export type GuestImportRunRow = Tables<'guest_import_runs'>

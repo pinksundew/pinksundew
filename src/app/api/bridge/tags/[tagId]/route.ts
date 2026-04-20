@@ -32,7 +32,15 @@ async function getTagProject(
     }
   }
 
-  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, (tag as TagProjectRow).project_id)
+  const membershipError = await requireProjectMembership(
+    auth.supabase,
+    auth.userId,
+    (tag as TagProjectRow).project_id,
+    {
+      recordMcpActivity: true,
+      requestPath: request.nextUrl.pathname,
+    }
+  )
   if (membershipError) {
     return { auth, response: membershipError }
   }

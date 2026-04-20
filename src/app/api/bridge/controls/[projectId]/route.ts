@@ -13,7 +13,10 @@ export async function GET(
   if (isBridgeAuthError(auth)) return auth
 
   const { projectId } = await params
-  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId)
+  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId, {
+    recordMcpActivity: true,
+    requestPath: request.nextUrl.pathname,
+  })
   if (membershipError) {
     return membershipError
   }
@@ -37,7 +40,10 @@ export async function PATCH(
   if (isBridgeAuthError(auth)) return auth
 
   const { projectId } = await params
-  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId)
+  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId, {
+    recordMcpActivity: true,
+    requestPath: request.nextUrl.pathname,
+  })
   if (membershipError) {
     return membershipError
   }

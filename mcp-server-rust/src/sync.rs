@@ -7,7 +7,7 @@ use anyhow::Result;
 use chrono::Utc;
 use futures::FutureExt;
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::fs;
@@ -25,6 +25,9 @@ const SYNC_TARGET_TOGGLES: [(&str, &str); 6] = [
     ("sync_target_codex", "AGENTS.md"),
     ("sync_target_antigravity", "antigravity.md"),
 ];
+const CONTEXT_DOCS_DIR: &str = ".pinksundew/docs/";
+const CONTEXT_DOCS_NOTE: &str =
+    "Project context documents live in .pinksundew/docs/. Read them before making architectural changes.";
 
 #[derive(Clone)]
 pub struct SyncService {
@@ -85,6 +88,7 @@ impl SyncService {
         };
 
         let sync_block = build_sync_block(&instructions, &project_name);
+        let context_documents = collect_context_documents(&instructions);
 
         let mut files_written = Vec::new();
         let mut write_errors = Vec::new();
@@ -100,6 +104,25 @@ impl SyncService {
                 }
                 Err(err) => {
                     let message = format!("Failed to write {}: {}", output_file, err);
+                    if verbose {
+                        error!(target: "pinksundew::sync", "[sync] {}", message);
+                    }
+                    write_errors.push(message);
+                }
+            }
+        }
+
+        for (relative_path, content) in context_documents {
+            let full_path = workspace_root.join(relative_path.as_str());
+            match write_context_document(&full_path, &content).await {
+                Ok(_) => {
+                    if verbose {
+                        info!(target: "pinksundew::sync", "[sync] Wrote {}", relative_path);
+                    }
+                    files_written.push(relative_path);
+                }
+                Err(err) => {
+                    let message = format!("Failed to write {}: {}", relative_path, err);
                     if verbose {
                         error!(target: "pinksundew::sync", "[sync] {}", message);
                     }
@@ -352,6 +375,10 @@ fn build_sync_block(instructions: &[AgentInstructionSet], project_name: &str) ->
         files.sort_by(|a, b| a.file_name.cmp(&b.file_name));
 
         for file in files {
+            if is_context_document(file.file_name.as_str()) {
+                continue;
+            }
+
             if let Some(content) = file.content {
                 let trimmed = content.trim();
                 if !trimmed.is_empty() {
@@ -359,6 +386,13 @@ fn build_sync_block(instructions: &[AgentInstructionSet], project_name: &str) ->
                 }
             }
         }
+    }
+
+    if !content_blocks
+        .iter()
+        .any(|content| content.contains(CONTEXT_DOCS_NOTE))
+    {
+        content_blocks.push(CONTEXT_DOCS_NOTE.to_string());
     }
 
     let timestamp = Utc::now().to_rfc3339();
@@ -374,6 +408,59 @@ fn build_sync_block(instructions: &[AgentInstructionSet], project_name: &str) ->
     };
 
     format!("{SYNC_START}\n{header}\n\n{inner_content}\n{SYNC_END}")
+}
+
+fn is_context_document(file_name: &str) -> bool {
+    file_name.replace('\\', "/").starts_with(CONTEXT_DOCS_DIR)
+}
+
+fn safe_context_document_path(file_name: &str) -> Option<String> {
+    let normalized = file_name.replace('\\', "/");
+    if !normalized.starts_with(CONTEXT_DOCS_DIR) || !normalized.ends_with(".md") {
+        return None;
+    }
+
+    let path = Path::new(normalized.as_str());
+    if path.is_absolute() {
+        return None;
+    }
+
+    if path.components().any(|component| {
+        matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    }) {
+        return None;
+    }
+
+    Some(normalized)
+}
+
+fn collect_context_documents(instructions: &[AgentInstructionSet]) -> Vec<(String, String)> {
+    let mut documents = Vec::new();
+
+    for instruction in instructions {
+        let mut files = instruction.files.clone();
+        files.sort_by(|a, b| a.file_name.cmp(&b.file_name));
+
+        for file in files {
+            let Some(relative_path) = safe_context_document_path(file.file_name.as_str()) else {
+                continue;
+            };
+            let Some(content) = file.content else {
+                continue;
+            };
+            let trimmed = content.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            documents.push((relative_path, trimmed.to_string()));
+        }
+    }
+
+    documents
 }
 
 fn replace_sync_block(existing: &str, sync_block: &str) -> String {
@@ -413,6 +500,15 @@ async fn write_instruction_file(file_path: &Path, sync_block: &str) -> Result<()
     };
 
     fs::write(file_path, content).await?;
+    Ok(())
+}
+
+async fn write_context_document(file_path: &Path, content: &str) -> Result<()> {
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+
+    fs::write(file_path, format!("{}\n", content.trim())).await?;
     Ok(())
 }
 
@@ -528,6 +624,7 @@ pub async fn cleanup_instruction_files(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::AgentInstructionFile;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -584,6 +681,92 @@ mod tests {
         assert_eq!(
             result,
             "before\n<!-- BEGIN:pinksundew-sync -->\nnew\n<!-- END:pinksundew-sync -->\nafter\n"
+        );
+    }
+
+    #[test]
+    fn sync_block_excludes_context_documents_and_points_to_docs_dir() {
+        let instructions = vec![AgentInstructionSet {
+            id: "set-1".to_string(),
+            project_id: None,
+            name: "Workspace".to_string(),
+            code: "workspace".to_string(),
+            scope: "global".to_string(),
+            description: None,
+            sort_order: None,
+            is_active: Some(true),
+            created_at: None,
+            updated_at: None,
+            files: vec![
+                AgentInstructionFile {
+                    id: "rules".to_string(),
+                    set_id: "set-1".to_string(),
+                    file_name: "agent-rules.md".to_string(),
+                    content_hash: "rules-hash".to_string(),
+                    updated_at: "2026-04-20T00:00:00Z".to_string(),
+                    created_at: None,
+                    content: Some("Always read the task thread first.".to_string()),
+                },
+                AgentInstructionFile {
+                    id: "context".to_string(),
+                    set_id: "set-1".to_string(),
+                    file_name: ".pinksundew/docs/architecture.md".to_string(),
+                    content_hash: "context-hash".to_string(),
+                    updated_at: "2026-04-20T00:00:00Z".to_string(),
+                    created_at: None,
+                    content: Some("# Architecture\n\nDetails".to_string()),
+                },
+            ],
+        }];
+
+        let result = build_sync_block(&instructions, "Pink Sundew");
+
+        assert!(result.contains("Always read the task thread first."));
+        assert!(result.contains(CONTEXT_DOCS_NOTE));
+        assert!(!result.contains("# Architecture"));
+    }
+
+    #[test]
+    fn collect_context_documents_keeps_safe_markdown_paths_only() {
+        let instructions = vec![AgentInstructionSet {
+            id: "set-1".to_string(),
+            project_id: None,
+            name: "Workspace".to_string(),
+            code: "workspace".to_string(),
+            scope: "global".to_string(),
+            description: None,
+            sort_order: None,
+            is_active: Some(true),
+            created_at: None,
+            updated_at: None,
+            files: vec![
+                AgentInstructionFile {
+                    id: "context".to_string(),
+                    set_id: "set-1".to_string(),
+                    file_name: ".pinksundew/docs/database-schema.md".to_string(),
+                    content_hash: "context-hash".to_string(),
+                    updated_at: "2026-04-20T00:00:00Z".to_string(),
+                    created_at: None,
+                    content: Some("# Schema".to_string()),
+                },
+                AgentInstructionFile {
+                    id: "unsafe".to_string(),
+                    set_id: "set-1".to_string(),
+                    file_name: ".pinksundew/docs/../secret.md".to_string(),
+                    content_hash: "unsafe-hash".to_string(),
+                    updated_at: "2026-04-20T00:00:00Z".to_string(),
+                    created_at: None,
+                    content: Some("nope".to_string()),
+                },
+            ],
+        }];
+
+        assert_eq!(
+            collect_context_documents(&instructions),
+            vec![(
+                ".pinksundew/docs/database-schema.md".to_string(),
+                "# Schema".to_string()
+            )]
         );
     }
 

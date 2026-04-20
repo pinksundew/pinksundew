@@ -31,6 +31,8 @@ type ReviewThreadMessage = Pick<
   'id' | 'signal' | 'message' | 'created_at' | 'created_by'
 >
 
+type DescriptionMode = 'edit' | 'preview'
+
 function toDateInputValue(value: string | null) {
   if (!value) return ''
 
@@ -63,6 +65,7 @@ export function TaskDetailsModal({
 }: TaskDetailsModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [descriptionMode, setDescriptionMode] = useState<DescriptionMode>('edit')
   const [status, setStatus] = useState<TaskStatus>('todo')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [dueDate, setDueDate] = useState('')
@@ -103,6 +106,7 @@ export function TaskDetailsModal({
       setPlans([])
       setSignalMessages([])
       setDueDate('')
+      setDescriptionMode('edit')
       setReplyMessage('')
       setEditingMessageId(null)
       setEditingMessageText('')
@@ -114,6 +118,7 @@ export function TaskDetailsModal({
 
     setTitle(task.title)
     setDescription(task.description || '')
+    setDescriptionMode('edit')
     setStatus(task.status)
     setPriority(task.priority)
     setDueDate(toDateInputValue(task.due_date))
@@ -421,21 +426,41 @@ export function TaskDetailsModal({
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-foreground">Description</label>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                  className="w-full rounded-md border border-border bg-white p-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                {description.trim() ? (
-                  <div className="mt-3 rounded-md border border-border bg-white p-3">
-                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      Markdown Preview
-                    </div>
-                    <MarkdownContent content={description} />
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <label className="block text-sm font-medium text-foreground">Description</label>
+                  <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5">
+                    {(['edit', 'preview'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setDescriptionMode(mode)}
+                        className={`rounded px-2.5 py-1 text-xs font-semibold capitalize transition-colors ${
+                          descriptionMode === mode
+                            ? 'bg-white text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {mode}
+                      </button>
+                    ))}
                   </div>
-                ) : null}
+                </div>
+                {descriptionMode === 'edit' ? (
+                  <textarea
+                    rows={3}
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                    className="w-full rounded-md border border-border bg-white p-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                ) : (
+                  <div className="min-h-[5.75rem] rounded-md border border-border bg-white p-3">
+                    {description.trim() ? (
+                      <MarkdownContent content={description} />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Nothing to preview yet.</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -776,18 +801,23 @@ function hasActiveSignal(task: TaskWithTags) {
 }
 
 function buildThreadMessages(task: TaskWithTags, messages: TaskStateMessage[]): ReviewThreadMessage[] {
-  const orderedMessages = [...messages].sort(
-    (left, right) =>
-      new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
+  const orderedMessages = dedupeThreadMessages(
+    [...messages].sort(
+      (left, right) =>
+        new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
+    )
   )
 
   if (!task.workflow_signal || !task.workflow_signal_message) {
     return orderedMessages
   }
 
+  const workflowSignalMessage = task.workflow_signal_message
   const hasCurrentSignalMessage = orderedMessages.some(
     (message) =>
-      message.signal === task.workflow_signal && message.message === task.workflow_signal_message
+      normalizeThreadMessageForDedupe(message.message) ===
+        normalizeThreadMessageForDedupe(workflowSignalMessage) &&
+      (message.signal === task.workflow_signal || message.created_by === null)
   )
 
   if (hasCurrentSignalMessage) {
@@ -807,6 +837,42 @@ function buildThreadMessages(task: TaskWithTags, messages: TaskStateMessage[]): 
     (left, right) =>
       new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
   )
+}
+
+function normalizeThreadMessageForDedupe(value: string) {
+  return value
+    .trim()
+    .replace(/^(agent working|needs review|ready for review|needs help|note):\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+}
+
+function buildThreadMessageDedupeKey(message: ReviewThreadMessage) {
+  const normalizedMessage = normalizeThreadMessageForDedupe(message.message)
+  const authorBucket = message.created_by ?? 'agent'
+
+  if (message.created_by === null) {
+    return `${authorBucket}:${normalizedMessage}`
+  }
+
+  return `${authorBucket}:${message.signal}:${normalizedMessage}`
+}
+
+function dedupeThreadMessages(messages: ReviewThreadMessage[]) {
+  const seen = new Set<string>()
+  const output: ReviewThreadMessage[] = []
+
+  for (const message of messages) {
+    const key = buildThreadMessageDedupeKey(message)
+    if (seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    output.push(message)
+  }
+
+  return output
 }
 
 function formatSignalLabel(signal: TaskStateMessage['signal'] | TaskWithTags['workflow_signal']) {
@@ -908,7 +974,6 @@ const THREAD_TIMESTAMP_FORMATTER = new Intl.DateTimeFormat('en-US', {
   hour: 'numeric',
   minute: '2-digit',
   hour12: true,
-  timeZone: 'UTC',
 })
 
 function formatTimestamp(value: string) {

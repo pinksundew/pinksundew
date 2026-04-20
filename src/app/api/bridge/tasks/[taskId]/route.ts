@@ -67,7 +67,11 @@ export async function PATCH(
     auth.supabase,
     auth.userId,
     taskId,
-    'project_id, workflow_signal, workflow_signal_message'
+    'project_id, workflow_signal, workflow_signal_message',
+    {
+      recordMcpActivity: true,
+      requestPath: request.nextUrl.pathname,
+    }
   )
 
   if (taskResult.response) {
@@ -250,7 +254,11 @@ export async function DELETE(
     auth.supabase,
     auth.userId,
     taskId,
-    'project_id'
+    'project_id',
+    {
+      recordMcpActivity: true,
+      requestPath: request.nextUrl.pathname,
+    }
   )
 
   if (taskResult.response) {

@@ -154,12 +154,35 @@ export async function createTaskStateMessage(
   client: SupabaseClient,
   input: CreateTaskStateMessageInput
 ): Promise<TaskStateMessage> {
+  const trimmedMessage = input.message.trim()
+  if (!trimmedMessage) {
+    throw new Error('Message is required')
+  }
+
+  if (!input.createdBy) {
+    const duplicateWindowStart = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+    const { data: recentDuplicate, error: duplicateError } = await client
+      .from('task_state_messages')
+      .select('*')
+      .eq('task_id', input.taskId)
+      .eq('signal', input.signal)
+      .eq('message', trimmedMessage)
+      .is('created_by', null)
+      .gte('created_at', duplicateWindowStart)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (duplicateError) throw duplicateError
+    if (recentDuplicate) return recentDuplicate as TaskStateMessage
+  }
+
   const { data, error } = await client
     .from('task_state_messages')
     .insert({
       task_id: input.taskId,
       signal: input.signal,
-      message: input.message,
+      message: trimmedMessage,
       created_by: input.createdBy ?? null,
     })
     .select('*')

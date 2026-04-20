@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
   }
 
-  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId)
+  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId, {
+    recordMcpActivity: true,
+    requestPath: request.nextUrl.pathname,
+  })
   if (membershipError) {
     return membershipError
   }
@@ -42,7 +45,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'project_id and name are required' }, { status: 400 })
   }
 
-  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId)
+  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId, {
+    recordMcpActivity: true,
+    requestPath: request.nextUrl.pathname,
+  })
   if (membershipError) {
     return membershipError
   }

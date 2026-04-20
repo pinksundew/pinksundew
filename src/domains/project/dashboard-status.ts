@@ -4,8 +4,8 @@ import {
   INSTRUCTION_SYNC_TARGET_CATALOG,
   type InstructionSyncTargetId,
 } from '@/domains/agent-control/types'
-import { getUserApiKeys } from '@/domains/api-key/queries'
 import { getProjectInstructionSetMetadata } from '@/domains/agent-instruction/queries'
+import { getProjectMcpActivity } from '@/domains/project/mcp-activity'
 
 const ACTIVE_MCP_WINDOW_MS = 2 * 60 * 1000
 
@@ -52,10 +52,10 @@ export async function getProjectDashboardStatus(
   projectId: string,
   userId: string
 ): Promise<ProjectDashboardStatus> {
-  const [agentControls, instructionSets, apiKeys, setupTokenResult] = await Promise.all([
+  const [agentControls, instructionSets, activity, setupTokenResult] = await Promise.all([
     getProjectAgentControls(client, projectId),
     getProjectInstructionSetMetadata(client, projectId),
-    getUserApiKeys(client, userId),
+    getProjectMcpActivity(client, projectId, userId),
     client
       .from('cli_setup_tokens')
       .select('client, used_at')
@@ -73,7 +73,7 @@ export async function getProjectDashboardStatus(
 
   const latestSetupToken = setupTokenResult.data as UsedSetupTokenRow | null
   const lastSetupAt = latestSetupToken?.used_at ?? null
-  const latestApiKeyUse = getLatestIso(apiKeys.map((key) => key.last_used_at))
+  const latestProjectActivity = activity?.last_seen_at ?? null
   const lastInstructionFileUpdate = getLatestIso(
     instructionSets.flatMap((instructionSet) =>
       instructionSet.files.map((file) => file.updated_at)
@@ -83,16 +83,18 @@ export async function getProjectDashboardStatus(
     agentControls.updated_at,
     lastInstructionFileUpdate,
   ])
-  const lastConnectedAt = getLatestIso([latestApiKeyUse, lastSetupAt])
-  const latestApiKeyUseTime = latestApiKeyUse ? new Date(latestApiKeyUse).getTime() : null
+  const lastConnectedAt = getLatestIso([latestProjectActivity, lastSetupAt])
+  const latestProjectActivityTime = latestProjectActivity
+    ? new Date(latestProjectActivity).getTime()
+    : null
   const isActive =
-    latestApiKeyUse !== null &&
-    latestApiKeyUseTime !== null &&
-    Date.now() - latestApiKeyUseTime <= ACTIVE_MCP_WINDOW_MS
+    latestProjectActivity !== null &&
+    latestProjectActivityTime !== null &&
+    Date.now() - latestProjectActivityTime <= ACTIVE_MCP_WINDOW_MS
 
   return {
     mcp: {
-      hasConnected: Boolean(lastSetupAt || latestApiKeyUse),
+      hasConnected: Boolean(lastSetupAt || latestProjectActivity),
       isActive,
       lastConnectedAt,
       lastSetupAt,

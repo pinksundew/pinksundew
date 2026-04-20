@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, Save, Trash2, X } from 'lucide-react'
 import {
@@ -21,6 +21,8 @@ type GuestTaskDetailsModalProps = {
   onDelete: (taskId: string) => void
   onCompleteAndFollowUp: (task: TaskWithTags) => void
 }
+
+type DescriptionMode = 'edit' | 'preview'
 
 function toDateInputValue(value: string | null) {
   if (!value) return ''
@@ -57,7 +59,25 @@ export function GuestTaskDetailsModal({
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'todo')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'medium')
   const [dueDate, setDueDate] = useState(toDateInputValue(task?.due_date ?? null))
+  const [descriptionMode, setDescriptionMode] = useState<DescriptionMode>('edit')
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+
+  useEffect(() => {
+    if (!task) return
+
+    const timeout = window.setTimeout(() => {
+      setTitle(task.title)
+      setDescription(task.description ?? '')
+      setStatus(task.status)
+      setPriority(task.priority)
+      setDueDate(toDateInputValue(task.due_date))
+      setDescriptionMode('edit')
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [task])
 
   if (!isOpen || !task) return null
 
@@ -170,21 +190,41 @@ export function GuestTaskDetailsModal({
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">Description</label>
-              <textarea
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                className="min-h-28 w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="Add details"
-              />
-              {description.trim() ? (
-                <div className="mt-3 rounded-md border border-border bg-white p-3">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Markdown Preview
-                  </div>
-                  <MarkdownContent content={description} />
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <label className="block text-sm font-medium text-foreground">Description</label>
+                <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5">
+                  {(['edit', 'preview'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setDescriptionMode(mode)}
+                      className={`rounded px-2.5 py-1 text-xs font-semibold capitalize transition-colors ${
+                        descriptionMode === mode
+                          ? 'bg-white text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
                 </div>
-              ) : null}
+              </div>
+              {descriptionMode === 'edit' ? (
+                <textarea
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
+                  className="min-h-28 w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Add details"
+                />
+              ) : (
+                <div className="min-h-28 rounded-md border border-border bg-white p-3">
+                  {description.trim() ? (
+                    <MarkdownContent content={description} />
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Nothing to preview yet.</span>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

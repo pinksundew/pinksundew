@@ -26,7 +26,11 @@ export async function POST(
     auth.supabase,
     auth.userId,
     taskId,
-    'project_id'
+    'project_id',
+    {
+      recordMcpActivity: true,
+      requestPath: request.nextUrl.pathname,
+    }
   )
 
   if (parentTaskResult.response) {

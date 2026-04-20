@@ -15,7 +15,10 @@ export async function GET(
   const { projectId } = await params
 
   // Verify user is a member of this project
-  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId)
+  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId, {
+    recordMcpActivity: true,
+    requestPath: request.nextUrl.pathname,
+  })
   if (membershipError) {
     return membershipError
   }

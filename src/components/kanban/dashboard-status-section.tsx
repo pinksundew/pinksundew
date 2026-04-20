@@ -1,15 +1,26 @@
-import type { ReactNode } from 'react'
+'use client'
+
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
+  Bot,
   Clock3,
+  Code2,
+  Cpu,
   Download,
   FileText,
+  MousePointer2,
   PlugZap,
   Radio,
   Settings2,
+  Sparkles,
+  Waves,
+  Wind,
+  type LucideIcon,
 } from 'lucide-react'
 import type { ProjectDashboardStatus } from '@/domains/project/dashboard-status'
 
 type DashboardStatusSectionProps = {
+  projectId: string
   status?: ProjectDashboardStatus | null
   isGuestMode: boolean
   isSelectionMode: boolean
@@ -26,16 +37,15 @@ const STATUS_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
   hour: 'numeric',
   minute: '2-digit',
   hour12: true,
-  timeZone: 'UTC',
 })
 
-const TARGET_GLYPHS: Record<string, string> = {
-  sync_target_vscode: 'VS',
-  sync_target_cursor: 'CR',
-  sync_target_codex: 'CX',
-  sync_target_claude: 'CL',
-  sync_target_windsurf: 'WS',
-  sync_target_antigravity: 'AG',
+const TARGET_ICONS: Record<string, LucideIcon> = {
+  sync_target_vscode: Code2,
+  sync_target_cursor: MousePointer2,
+  sync_target_codex: Bot,
+  sync_target_claude: Sparkles,
+  sync_target_windsurf: Wind,
+  sync_target_antigravity: Cpu,
 }
 
 function formatStatusTime(value: string | null | undefined) {
@@ -57,6 +67,7 @@ function formatClientLabel(value: string | null | undefined) {
 }
 
 export function DashboardStatusSection({
+  projectId,
   status,
   isGuestMode,
   isSelectionMode,
@@ -65,14 +76,65 @@ export function DashboardStatusSection({
   onOpenInstructions,
   onStartExport,
 }: DashboardStatusSectionProps) {
-  const mcp = status?.mcp
+  const [currentStatus, setCurrentStatus] = useState<ProjectDashboardStatus | null>(
+    status ?? null
+  )
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setCurrentStatus(status ?? null)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(timeout)
+    }
+  }, [status])
+
+  const refreshDashboardStatus = useCallback(async () => {
+    if (isGuestMode) return
+
+    try {
+      const response = await fetch(
+        `/api/projects/${encodeURIComponent(projectId)}/dashboard-status`,
+        {
+          cache: 'no-store',
+        }
+      )
+
+      if (!response.ok) return
+
+      const nextStatus = (await response.json()) as ProjectDashboardStatus
+      setCurrentStatus(nextStatus)
+    } catch (error) {
+      console.error('Error refreshing dashboard status:', error)
+    }
+  }, [isGuestMode, projectId])
+
+  useEffect(() => {
+    if (isGuestMode) return
+
+    const initialRefresh = window.setTimeout(() => {
+      void refreshDashboardStatus()
+    }, 0)
+    const interval = window.setInterval(() => {
+      void refreshDashboardStatus()
+    }, 30_000)
+
+    return () => {
+      window.clearTimeout(initialRefresh)
+      window.clearInterval(interval)
+    }
+  }, [isGuestMode, refreshDashboardStatus])
+
+  const mcp = currentStatus?.mcp
   const hasConnected = Boolean(mcp?.hasConnected)
   const isActive = Boolean(mcp?.isActive)
   const lastConnected = formatStatusTime(mcp?.lastConnectedAt)
-  const lastSync = formatStatusTime(status?.instructionSync.lastSyncedAt)
+  const lastSync = formatStatusTime(currentStatus?.instructionSync.lastSyncedAt)
   const connectedClient = formatClientLabel(mcp?.lastSetupClient)
   const enabledTargets =
-    status?.instructionSync.targets.filter((target) => target.enabled) ?? []
+    currentStatus?.instructionSync.targets.filter((target) => target.enabled) ?? []
+  const connectButtonLabel = isGuestMode || !hasConnected ? 'Set Up' : isActive ? 'Connected' : 'Reconnect'
 
   return (
     <section className="w-full md:w-[63rem] max-w-full">
@@ -106,7 +168,7 @@ export function DashboardStatusSection({
                 {lastConnected ? (
                   <span className="inline-flex items-center gap-1.5">
                     <Clock3 className="h-3.5 w-3.5" />
-                    Last connected {lastConnected}
+                    Last connected <time suppressHydrationWarning>{lastConnected}</time>
                   </span>
                 ) : (
                   <span>No connection recorded</span>
@@ -118,10 +180,10 @@ export function DashboardStatusSection({
             <button
               type="button"
               onClick={onOpenConnect}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border border-primary/40 bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <Radio className="h-4 w-4" />
-              {isGuestMode || !hasConnected ? 'Set Up' : 'Reconnect'}
+              {connectButtonLabel}
             </button>
           </div>
         </div>
@@ -137,25 +199,35 @@ export function DashboardStatusSection({
                   <h2 className="text-sm font-semibold text-foreground">Agent Instructions</h2>
                   <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
                     <Clock3 className="h-3.5 w-3.5" />
-                    <span>{lastSync ? `Last sync ${lastSync}` : 'No sync yet'}</span>
+                    <span>
+                      {lastSync ? (
+                        <>
+                          Last sync <time suppressHydrationWarning>{lastSync}</time>
+                        </>
+                      ) : (
+                        'No sync yet'
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {enabledTargets.length > 0 ? (
-                  enabledTargets.map((target) => (
-                    <span
-                      key={target.id}
-                      title={`${target.name} - ${target.filePath}`}
-                      className="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-slate-700"
-                    >
-                      <span className="flex h-5 min-w-5 items-center justify-center rounded bg-white px-1 font-mono text-[10px] text-primary-foreground shadow-sm">
-                        {TARGET_GLYPHS[target.id] ?? target.name.slice(0, 2).toUpperCase()}
+                  enabledTargets.map((target) => {
+                    const TargetIcon = TARGET_ICONS[target.id] ?? Waves
+
+                    return (
+                      <span
+                        key={target.id}
+                        title={`${target.name} - ${target.filePath}`}
+                        aria-label={`${target.name} target enabled`}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-sm"
+                      >
+                        <TargetIcon className="h-4 w-4" aria-hidden="true" />
                       </span>
-                      {target.name}
-                    </span>
-                  ))
+                    )
+                  })
                 ) : (
                   <span className="text-sm text-muted-foreground">No targets selected</span>
                 )}
@@ -165,7 +237,7 @@ export function DashboardStatusSection({
             <button
               type="button"
               onClick={onOpenInstructions}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-white px-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border border-border bg-white px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
             >
               <Settings2 className="h-4 w-4" />
               Manage

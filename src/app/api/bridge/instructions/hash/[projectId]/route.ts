@@ -23,7 +23,10 @@ export async function GET(
     return NextResponse.json({ error: 'projectId is required' }, { status: 400 })
   }
 
-  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId)
+  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId, {
+    recordMcpActivity: true,
+    requestPath: request.nextUrl.pathname,
+  })
   if (membershipError) {
     return membershipError
   }

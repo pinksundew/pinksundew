@@ -47,7 +47,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json([])
   }
 
-  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId)
+  const membershipError = await requireProjectMembership(auth.supabase, auth.userId, projectId, {
+    recordMcpActivity: true,
+    requestPath: request.nextUrl.pathname,
+  })
   if (membershipError) {
     return membershipError
   }

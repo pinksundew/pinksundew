@@ -1095,6 +1095,7 @@ export function KanbanBoard({
       <div className="sticky top-0 z-30 mb-4 w-full shrink-0 bg-background/80 py-2 backdrop-blur-sm">
          <div className="flex w-full justify-start xl:justify-center">
            <DashboardStatusSection
+             projectId={projectId}
              status={dashboardStatus}
              isGuestMode={isGuestMode}
              isSelectionMode={isSelectionMode}

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { FileText, Save, Shield, X } from 'lucide-react'
+import { BookOpen, FilePlus2, FileText, Save, Shield, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import {
+  AgentInstructionFile,
   AgentInstructionSetWithFiles,
   InstructionSetScope,
 } from '@/domains/agent-instruction/types'
@@ -32,7 +33,68 @@ type AgentInstructionsModalProps = {
 }
 
 type AgentSettingsTab = 'instructions' | 'controls'
-const DEFAULT_INSTRUCTION_FILE_NAME = 'copilot-instructions.md'
+const CONTEXT_DOCS_DIR = '.pinksundew/docs/'
+const CONTEXT_DOCS_NOTE =
+  'Project context documents live in .pinksundew/docs/. Read them before making architectural changes.'
+const DEFAULT_INSTRUCTION_FILE_NAME = 'agent-rules.md'
+
+function isContextDocument(file: Pick<AgentInstructionFile, 'file_name'>) {
+  return file.file_name.replace(/\\/g, '/').startsWith(CONTEXT_DOCS_DIR)
+}
+
+function getInstructionFileLabel(file: Pick<AgentInstructionFile, 'file_name'>) {
+  return isContextDocument(file)
+    ? file.file_name.replace(/\\/g, '/').slice(CONTEXT_DOCS_DIR.length)
+    : file.file_name
+}
+
+function normalizePathSegment(rawValue: string) {
+  return rawValue
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function ensureMarkdownExtension(fileName: string) {
+  return fileName.endsWith('.md') ? fileName : `${fileName}.md`
+}
+
+function normalizeInstructionFileName(
+  rawValue: string,
+  selectedFile: Pick<AgentInstructionFile, 'file_name'>
+) {
+  const normalizedValue = rawValue.trim().replace(/\\/g, '/')
+  const isContext = isContextDocument(selectedFile)
+
+  if (!isContext) {
+    const lastSegment = normalizedValue.split('/').filter(Boolean).pop() ?? ''
+    return ensureMarkdownExtension(normalizePathSegment(lastSegment) || DEFAULT_INSTRUCTION_FILE_NAME)
+  }
+
+  const withoutPrefix = normalizedValue.startsWith(CONTEXT_DOCS_DIR)
+    ? normalizedValue.slice(CONTEXT_DOCS_DIR.length)
+    : normalizedValue
+
+  const segments = withoutPrefix
+    .split('/')
+    .map(normalizePathSegment)
+    .filter((segment) => segment.length > 0 && segment !== '.' && segment !== '..')
+
+  const docPath = ensureMarkdownExtension(segments.join('/') || 'project-context.md')
+  return `${CONTEXT_DOCS_DIR}${docPath}`
+}
+
+function buildNextContextFileName(files: AgentInstructionFile[]) {
+  const existingNames = new Set(files.map((file) => file.file_name))
+  let index = 1
+
+  while (existingNames.has(`${CONTEXT_DOCS_DIR}context-${index}.md`)) {
+    index += 1
+  }
+
+  return `${CONTEXT_DOCS_DIR}context-${index}.md`
+}
 
 function slugifyInstructionCode(rawValue: string) {
   const slug = rawValue
@@ -79,6 +141,7 @@ export function AgentInstructionsModal({
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
 
   const [draftContent, setDraftContent] = useState('')
+  const [draftFileName, setDraftFileName] = useState('')
 
   const [allowTaskCompletion, setAllowTaskCompletion] = useState(true)
   const [toolToggles, setToolToggles] = useState<ToolToggleMap>(getDefaultToolToggles())
@@ -99,6 +162,18 @@ export function AgentInstructionsModal({
     () => selectedSet?.files.find((file) => file.id === selectedFileId) ?? null,
     [selectedSet, selectedFileId]
   )
+
+  const ruleFiles = useMemo(
+    () => selectedSet?.files.filter((file) => !isContextDocument(file)) ?? [],
+    [selectedSet]
+  )
+
+  const contextFiles = useMemo(
+    () => selectedSet?.files.filter(isContextDocument) ?? [],
+    [selectedSet]
+  )
+
+  const selectedFileIsContextDocument = selectedFile ? isContextDocument(selectedFile) : false
 
   const fetchInstructionSets = useCallback(async (options?: { selectedSetId?: string | null; selectedFileId?: string | null }) => {
     setInstructionErrorMessage(null)
@@ -136,11 +211,12 @@ export function AgentInstructionsModal({
           return
         }
 
-        if (nextSelectedSet.files.length === 0) {
+        const nextRuleFiles = nextSelectedSet.files.filter((file) => !isContextDocument(file))
+        if (nextRuleFiles.length === 0) {
           const createdFile = await createInstructionFile(supabase, {
             set_id: nextSelectedSet.id,
             file_name: DEFAULT_INSTRUCTION_FILE_NAME,
-            content: '',
+            content: CONTEXT_DOCS_NOTE,
           })
 
           await loadInstructionSets({
@@ -154,7 +230,7 @@ export function AgentInstructionsModal({
           nextOptions?.selectedFileId &&
           nextSelectedSet.files.some((file) => file.id === nextOptions.selectedFileId)
             ? nextOptions.selectedFileId
-            : nextSelectedSet.files[0]?.id ?? null
+            : nextRuleFiles[0]?.id ?? nextSelectedSet.files[0]?.id ?? null
 
         setSelectedFileId(nextSelectedFileId)
       }
@@ -207,16 +283,19 @@ export function AgentInstructionsModal({
       return
     }
 
-    setSelectedFileId(selectedSet.files[0]?.id ?? null)
+    const nextRuleFile = selectedSet.files.find((file) => !isContextDocument(file))
+    setSelectedFileId(nextRuleFile?.id ?? selectedSet.files[0]?.id ?? null)
   }, [selectedSetId, selectedSet, selectedFileId])
 
   useEffect(() => {
     if (!selectedFile) {
       setDraftContent('')
+      setDraftFileName('')
       return
     }
 
     setDraftContent(selectedFile.content)
+    setDraftFileName(getInstructionFileLabel(selectedFile))
   }, [selectedFile])
 
   const handleToggleTool = (toolId: CoreMcpToolId) => {
@@ -278,7 +357,7 @@ export function AgentInstructionsModal({
 
     try {
       await updateInstructionFile(supabase, selectedFile.id, {
-        file_name: selectedFile.file_name || DEFAULT_INSTRUCTION_FILE_NAME,
+        file_name: normalizeInstructionFileName(draftFileName, selectedFile),
         content: draftContent,
       })
 
@@ -289,6 +368,32 @@ export function AgentInstructionsModal({
     } catch (error) {
       console.error('Error saving instruction file:', error)
       setInstructionErrorMessage('Unable to save that instruction file.')
+    } finally {
+      setIsInstructionLoading(false)
+    }
+  }
+
+  const handleAddContextDocument = async () => {
+    if (!selectedSet) return
+
+    setIsInstructionLoading(true)
+    setInstructionErrorMessage(null)
+
+    try {
+      const fileName = buildNextContextFileName(selectedSet.files)
+      const createdFile = await createInstructionFile(supabase, {
+        set_id: selectedSet.id,
+        file_name: fileName,
+        content: `# ${getInstructionFileLabel({ file_name: fileName }).replace(/\.md$/i, '')}\n\n`,
+      })
+
+      await fetchInstructionSets({
+        selectedSetId: selectedSet.id,
+        selectedFileId: createdFile.id,
+      })
+    } catch (error) {
+      console.error('Error creating context document:', error)
+      setInstructionErrorMessage('Unable to create a context document right now.')
     } finally {
       setIsInstructionLoading(false)
     }
@@ -357,19 +462,20 @@ export function AgentInstructionsModal({
 
           {activeTab === 'instructions' ? (
             <div className="m-3 flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-inner">
-              {/* Sidebar for Files Config */}
-              <div className="w-80 border-r border-slate-200 bg-slate-50/50 p-5 overflow-y-auto flex flex-col shrink-0">
-                <div className="mb-5">
+              <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-slate-50/50 p-5">
+                <div>
                   <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">Sync Targets</h3>
-                  <p className="mt-2 text-xs text-slate-500 leading-relaxed">
-                    Toggle the target files for MCP clients to synchronize these instructions into.
+                  <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                    Toggle the target rules files for connected MCP clients.
                   </p>
                 </div>
-                <div className="space-y-3 flex-1 min-h-0">
+
+                <div className="mt-4 space-y-2">
                   {INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => (
-                    <div
+                    <button
                       key={target.id}
-                      className={`group cursor-pointer rounded-xl border p-4 transition-all duration-300 ${
+                      type="button"
+                      className={`group w-full rounded-lg border p-3 text-left transition-all ${
                         toolToggles[target.id]
                           ? 'border-primary/40 bg-zinc-50 shadow-sm'
                           : 'border-slate-200 bg-white hover:border-primary/20 hover:shadow-sm'
@@ -377,31 +483,90 @@ export function AgentInstructionsModal({
                       onClick={() => handleToggleSyncTarget(target.id)}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 overflow-hidden mt-0.5">
+                        <div className="min-w-0 flex-1 overflow-hidden">
                           <div className={`text-sm font-semibold ${toolToggles[target.id] ? 'text-primary' : 'text-slate-700'}`}>
                             {target.name}
                           </div>
-                          <div className="mt-1.5 font-mono truncate text-[11px] font-medium text-slate-600 bg-slate-100 rounded px-1.5 py-0.5 inline-block">
+                          <div className="mt-1 inline-block max-w-full truncate rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600">
                             {target.file_path}
                           </div>
                         </div>
                         <div
-                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-300 ${
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
                             toolToggles[target.id] ? 'bg-primary' : 'bg-slate-200 group-hover:bg-slate-300'
                           }`}
                         >
                           <span
-                            className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-300 ${
+                            className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
                               toolToggles[target.id] ? 'translate-x-4' : 'translate-x-1'
                             }`}
                           />
                         </div>
                       </div>
-                      <div className="mt-3 text-xs leading-5 text-slate-500 line-clamp-2">
-                        {target.description}
-                      </div>
-                    </div>
+                    </button>
                   ))}
+                </div>
+
+                <div className="mt-6 border-t border-slate-200 pt-5">
+                  <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Rules File
+                  </div>
+                  {ruleFiles.map((file) => (
+                    <button
+                      key={file.id}
+                      type="button"
+                      onClick={() => setSelectedFileId(file.id)}
+                      className={`mb-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
+                        selectedFileId === file.id
+                          ? 'border-primary/40 bg-primary/10 text-primary-foreground'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-primary/20'
+                      }`}
+                    >
+                      <FileText className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0 truncate">{getInstructionFileLabel(file)}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 border-t border-slate-200 pt-5">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Context Documents
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddContextDocument}
+                      disabled={!selectedSet || isInstructionLoading}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="Add context document"
+                    >
+                      <FilePlus2 className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {contextFiles.length > 0 ? (
+                      contextFiles.map((file) => (
+                        <button
+                          key={file.id}
+                          type="button"
+                          onClick={() => setSelectedFileId(file.id)}
+                          className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
+                            selectedFileId === file.id
+                              ? 'border-primary/40 bg-primary/10 text-primary-foreground'
+                              : 'border-slate-200 bg-white text-slate-700 hover:border-primary/20'
+                          }`}
+                        >
+                          <BookOpen className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 truncate">{getInstructionFileLabel(file)}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="rounded-lg border border-dashed border-slate-300 bg-white/60 px-3 py-3 text-xs leading-5 text-slate-500">
+                        Context docs sync as markdown files under .pinksundew/docs/.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -409,10 +574,20 @@ export function AgentInstructionsModal({
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 shrink-0">
                   <div className="flex items-center gap-2.5 text-foreground">
-                    <FileText className="h-5 w-5 text-primary" />
+                    {selectedFileIsContextDocument ? (
+                      <BookOpen className="h-5 w-5 text-primary" />
+                    ) : (
+                      <FileText className="h-5 w-5 text-primary" />
+                    )}
                     <div>
-                      <h3 className="font-semibold text-slate-800">Global Agent Instructions</h3>
-                      <p className="text-xs text-slate-500 hidden sm:block">Rules and guidelines applied to connected AI sessions.</p>
+                      <h3 className="font-semibold text-slate-800">
+                        {selectedFileIsContextDocument ? 'Project Context Document' : 'Global Agent Rules'}
+                      </h3>
+                      <p className="hidden text-xs text-slate-500 sm:block">
+                        {selectedFileIsContextDocument
+                          ? 'Knowledge for agents to read before architectural changes.'
+                          : 'Behavioral rules applied to connected AI sessions.'}
+                      </p>
                     </div>
                   </div>
 
@@ -428,11 +603,31 @@ export function AgentInstructionsModal({
 
                 <div className="flex min-h-0 flex-1 flex-col p-4 bg-slate-50">
                   {selectedFile ? (
-                    <div className="min-h-0 flex-1 flex flex-col rounded-xl overflow-hidden shadow-sm border border-slate-200">
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                      <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
+                        <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                          File
+                        </label>
+                        <div className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700">
+                          {selectedFileIsContextDocument ? (
+                            <span className="mr-1 shrink-0 text-slate-400">{CONTEXT_DOCS_DIR}</span>
+                          ) : null}
+                          <input
+                            value={draftFileName}
+                            onChange={(event) => setDraftFileName(event.target.value)}
+                            className="min-w-0 flex-1 bg-transparent outline-none"
+                            aria-label="Instruction file name"
+                          />
+                        </div>
+                      </div>
                       <textarea
                         value={draftContent}
                         onChange={(event) => setDraftContent(event.target.value)}
-                        placeholder="## Agent Notes\n\n- Read linked review thread first\n- Prefer smallest safe code change"
+                        placeholder={
+                          selectedFileIsContextDocument
+                            ? '# Architecture\n\nDescribe important domain, data, and product context here.'
+                            : `# Agent Rules\n\n${CONTEXT_DOCS_NOTE}`
+                        }
                         className="h-full min-h-0 w-full resize-none overflow-y-auto bg-white p-5 font-mono text-sm leading-loose text-slate-700 outline-none focus:ring-0"
                       />
                     </div>

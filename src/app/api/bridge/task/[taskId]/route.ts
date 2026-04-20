@@ -24,7 +24,11 @@ export async function GET(
     `
       *,
       task_tags(tags (*))
-    `
+    `,
+    {
+      recordMcpActivity: true,
+      requestPath: request.nextUrl.pathname,
+    }
   )
 
   if (taskResult.response) {

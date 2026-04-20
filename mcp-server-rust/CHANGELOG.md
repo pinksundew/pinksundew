@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0](https://github.com/pinksundew/pinksundew/compare/v2.4.0...v2.5.0) - 2026-04-20
+
+### Added
+
+- enhance agent instructions modal with context document handling
+
+### Other
+
+- update synchronization timestamps and enhance MCP client handling
+
 ## [2.4.0](https://github.com/pinksundew/pinksundew/compare/v2.3.0...v2.4.0) - 2026-04-18
 
 ### Added

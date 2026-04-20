@@ -10,6 +10,8 @@ import {
   TaskStatus,
   TaskWithTags,
 } from '@/domains/task/types'
+import { MarkdownContent } from '@/components/markdown/markdown-content'
+import { ConfirmModal } from './confirm-modal'
 
 type GuestTaskDetailsModalProps = {
   isOpen: boolean
@@ -55,6 +57,7 @@ export function GuestTaskDetailsModal({
   const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'todo')
   const [priority, setPriority] = useState<TaskPriority>(task?.priority ?? 'medium')
   const [dueDate, setDueDate] = useState(toDateInputValue(task?.due_date ?? null))
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
 
   if (!isOpen || !task) return null
 
@@ -111,12 +114,12 @@ export function GuestTaskDetailsModal({
   }
 
   const handleDelete = () => {
-    if (typeof window !== 'undefined') {
-      const shouldDelete = window.confirm('Delete this task from your guest board?')
-      if (!shouldDelete) return
-    }
+    setIsDeleteConfirmOpen(true)
+  }
 
+  const confirmDelete = () => {
     onDelete(task.id)
+    setIsDeleteConfirmOpen(false)
     onClose()
   }
 
@@ -124,6 +127,7 @@ export function GuestTaskDetailsModal({
     status === 'todo' ? 'Move To In Progress' : status === 'in-progress' ? 'Complete Task' : null
 
   return (
+    <>
     <AnimatePresence>
       <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
         <motion.div
@@ -173,6 +177,14 @@ export function GuestTaskDetailsModal({
                 className="min-h-28 w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 placeholder="Add details"
               />
+              {description.trim() ? (
+                <div className="mt-3 rounded-md border border-border bg-white p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Markdown Preview
+                  </div>
+                  <MarkdownContent content={description} />
+                </div>
+              ) : null}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -261,5 +273,16 @@ export function GuestTaskDetailsModal({
         </motion.div>
       </div>
     </AnimatePresence>
+    <ConfirmModal
+      isOpen={isDeleteConfirmOpen}
+      title="Delete Task"
+      message="This task will be removed from your guest board in this browser."
+      confirmText="Delete Task"
+      cancelText="Cancel"
+      isDestructive
+      onConfirm={confirmDelete}
+      onClose={() => setIsDeleteConfirmOpen(false)}
+    />
+    </>
   )
 }

@@ -15,6 +15,7 @@ import { TaskPriority, TaskStateMessage, TaskStatus, TaskWithTags } from '@/doma
 import { TaskPlan } from '@/domains/plan/types'
 import { getTaskPlans } from '@/domains/plan/queries'
 import { ConfirmModal } from './confirm-modal'
+import { MarkdownContent } from '@/components/markdown/markdown-content'
 
 type TaskDetailsModalProps = {
   isOpen: boolean
@@ -427,6 +428,14 @@ export function TaskDetailsModal({
                   onChange={(event) => setDescription(event.target.value)}
                   className="w-full rounded-md border border-border bg-white p-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 />
+                {description.trim() ? (
+                  <div className="mt-3 rounded-md border border-border bg-white p-3">
+                    <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      Markdown Preview
+                    </div>
+                    <MarkdownContent content={description} />
+                  </div>
+                ) : null}
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -564,13 +573,13 @@ export function TaskDetailsModal({
                                 </div>
                               </div>
                             ) : (
-                              <p
-                                className={`mt-2 whitespace-pre-wrap text-sm leading-6 ${
+                              <MarkdownContent
+                                content={message.message}
+                                tone={isCurrentUserMessage ? 'inverted' : 'default'}
+                                className={`mt-2 ${
                                   isAgentMessage ? 'text-foreground' : 'text-primary-foreground'
                                 }`}
-                              >
-                                {message.message}
-                              </p>
+                              />
                             )}
                           </div>
                         </div>
@@ -626,13 +635,13 @@ export function TaskDetailsModal({
                     {plans.map((plan) => (
                       <div
                         key={plan.id}
-                        className="whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-3 font-mono text-sm"
+                        className="rounded-md border border-border bg-muted/20 p-3 text-sm"
                       >
                         <div className="mb-2 flex items-center justify-between border-b border-border pb-1 text-xs text-muted-foreground">
                           <span>{plan.created_by}</span>
                           <span>{formatTimestamp(plan.created_at)}</span>
                         </div>
-                        {plan.content}
+                        <MarkdownContent content={plan.content} />
                       </div>
                     ))}
                   </div>

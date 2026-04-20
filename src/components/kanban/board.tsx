@@ -37,8 +37,10 @@ import { ConfirmModal } from '@/components/modals/confirm-modal'
 import { AbyssModal } from '@/components/modals/abyss-modal'
 import { ConnectMcpModal } from '@/components/modals/connect-mcp-modal'
 import { ProjectSettingsModal } from '@/components/modals/project-settings-modal'
-import { Download, FileText, Ghost, PlugZap, Settings, Trash2, X } from 'lucide-react'
+import { FileText, Ghost, Settings, Trash2, X } from 'lucide-react'
 import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility'
+import { DashboardStatusSection } from './dashboard-status-section'
+import type { ProjectDashboardStatus } from '@/domains/project/dashboard-status'
 import {
   GUEST_ACTIVE_TASK_LIMIT,
   countActiveGuestTasks,
@@ -52,6 +54,7 @@ type KanbanBoardProps = {
   projectName: string
   initialTasks: TaskWithTags[]
   mode?: 'authenticated' | 'guest'
+  dashboardStatus?: ProjectDashboardStatus | null
 }
 
 const COLUMNS: TaskStatus[] = ['todo', 'in-progress', 'done']
@@ -173,6 +176,7 @@ export function KanbanBoard({
   projectName,
   initialTasks,
   mode = 'authenticated',
+  dashboardStatus = null,
 }: KanbanBoardProps) {
   const isGuestMode = mode === 'guest'
   const [tasks, setTasks] = useState<TaskWithTags[]>(() =>
@@ -1089,114 +1093,105 @@ export function KanbanBoard({
   return (
     <div className="h-full flex flex-col items-start w-full relative">
       <div className="sticky top-0 z-30 mb-4 w-full shrink-0 bg-background/80 py-2 backdrop-blur-sm">
-         <div className="flex w-full flex-wrap items-center gap-2 sm:gap-3">
-             {/* Settings gear button with dropdown */}
-             <div ref={settingsMenuRef} className="relative">
-               <button
-                 type="button"
-                 onClick={() => setIsSettingsMenuOpen((prev) => !prev)}
-                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                 aria-label="Project settings"
-               >
-                 <motion.div
-                   animate={{ rotate: isSettingsMenuOpen ? 90 : 0 }}
-                   transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+         <div className="flex w-full justify-start xl:justify-center">
+           <DashboardStatusSection
+             status={dashboardStatus}
+             isGuestMode={isGuestMode}
+             isSelectionMode={isSelectionMode}
+             onOpenConnect={() => {
+               if (isGuestMode) {
+                 promptForAuth('Connecting MCP requires an account and an API key. Sign in to generate your key and keep your draft.')
+                 return
+               }
+
+               setIsConnectModalOpen(true)
+             }}
+             onOpenInstructions={() => {
+               if (isGuestMode) {
+                 promptForAuth('Agent instruction and controls are account features. Sign in to manage them.')
+                 return
+               }
+
+               setIsAgentInstructionsOpen(true)
+             }}
+             onStartExport={startSelectionMode}
+             settingsSlot={(
+               <div ref={settingsMenuRef} className="relative">
+                 <button
+                   type="button"
+                   onClick={() => setIsSettingsMenuOpen((prev) => !prev)}
+                   className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-white text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                   aria-label="Project settings"
                  >
-                   <Settings className="h-4 w-4" />
-                 </motion.div>
-               </button>
-               <AnimatePresence>
-                 {isSettingsMenuOpen && (
                    <motion.div
-                     initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                     exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                     transition={{ duration: 0.15, ease: [0.2, 0.8, 0.2, 1] }}
-                     className="absolute left-0 top-full z-50 mt-2 w-56 origin-top-left rounded-xl border border-border bg-white py-2 shadow-xl"
+                     animate={{ rotate: isSettingsMenuOpen ? 90 : 0 }}
+                     transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
                    >
-                     <button
-                       type="button"
-                       onClick={() => {
-                         setIsSettingsMenuOpen(false)
-                         if (isGuestMode) {
-                           promptForAuth('The Abyss history is account-backed. Sign in to keep deleted and archived task history.')
-                           return
-                         }
-                         setIsAbyssModalOpen(true)
-                       }}
-                       className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                     <Settings className="h-4 w-4" />
+                   </motion.div>
+                 </button>
+                 <AnimatePresence>
+                   {isSettingsMenuOpen && (
+                     <motion.div
+                       initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                       animate={{ opacity: 1, scale: 1, y: 0 }}
+                       exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                       transition={{ duration: 0.15, ease: [0.2, 0.8, 0.2, 1] }}
+                       className="absolute left-0 top-full z-50 mt-2 w-56 origin-top-left rounded-lg border border-border bg-white py-2 shadow-xl"
                      >
-                       <Ghost className="h-4 w-4 text-muted-foreground" />
-                       View The Abyss
-                     </button>
-                     <button
-                       type="button"
-                       onClick={() => {
-                         setIsSettingsMenuOpen(false)
-                         if (isGuestMode) {
-                           promptForAuth('Agent instruction and controls are account features. Sign in to manage them.')
-                           return
-                         }
-                         setIsAgentInstructionsOpen(true)
-                       }}
-                       className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
-                     >
-                       <FileText className="h-4 w-4 text-muted-foreground" />
-                       Agent Instructions & Controls
-                     </button>
-                     {!isGuestMode && (
                        <button
                          type="button"
                          onClick={() => {
                            setIsSettingsMenuOpen(false)
-                           setIsProjectSettingsOpen(true)
+                           if (isGuestMode) {
+                             promptForAuth('The Abyss history is account-backed. Sign in to keep deleted and archived task history.')
+                             return
+                           }
+                           setIsAbyssModalOpen(true)
                          }}
                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
                        >
-                         <Settings className="h-4 w-4 text-muted-foreground" />
-                         Project Settings
+                         <Ghost className="h-4 w-4 text-muted-foreground" />
+                         View The Abyss
                        </button>
-                     )}
-                   </motion.div>
-                 )}
-               </AnimatePresence>
-             </div>
-
-             <button
-               type="button"
-               onClick={() => {
-                 if (isGuestMode) {
-                   promptForAuth('Connecting MCP requires an account and an API key. Sign in to generate your key and keep your draft.')
-                   return
-                 }
-
-                 setIsConnectModalOpen(true)
-               }}
-               className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/40 bg-primary/10 px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/20"
-             >
-               <PlugZap className="h-4 w-4" />
-               <span className="hidden sm:inline">Connect to MCP</span>
-               <span className="sm:hidden">Connect</span>
-             </button>
-
-             <button
-              type="button"
-              onClick={startSelectionMode}
-              disabled={isSelectionMode}
-              className={`inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-full border px-4 text-sm font-semibold transition-colors ${
-                isSelectionMode
-                  ? 'border-rose-200 bg-rose-50 text-rose-700 opacity-70'
-                  : 'border-border text-foreground hover:bg-muted'
-              }`}
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Export to Agent</span>
-              <span className="sm:hidden">Export</span>
-            </button>
+                       <button
+                         type="button"
+                         onClick={() => {
+                           setIsSettingsMenuOpen(false)
+                           if (isGuestMode) {
+                             promptForAuth('Agent instruction and controls are account features. Sign in to manage them.')
+                             return
+                           }
+                           setIsAgentInstructionsOpen(true)
+                         }}
+                         className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                       >
+                         <FileText className="h-4 w-4 text-muted-foreground" />
+                         Agent Instructions & Controls
+                       </button>
+                       {!isGuestMode && (
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setIsSettingsMenuOpen(false)
+                             setIsProjectSettingsOpen(true)
+                           }}
+                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                         >
+                           <Settings className="h-4 w-4 text-muted-foreground" />
+                           Project Settings
+                         </button>
+                       )}
+                     </motion.div>
+                   )}
+                 </AnimatePresence>
+               </div>
+             )}
+           />
          </div>
 
          {/* Mobile Tab Bar */}
-         <div className="md:hidden mt-3 w-full flex items-center justify-between bg-muted/50 p-1 rounded-lg">
+         <div className="md:hidden mt-3 w-full max-w-full flex items-center justify-between bg-muted/50 p-1 rounded-lg">
            {COLUMNS.map((col) => {
              const count = tasks.filter((t) => t.status === col).length
              const isActive = activeMobileTab === col
@@ -1285,7 +1280,7 @@ export function KanbanBoard({
       >
         <div
           ref={boardScrollContainerRef}
-          className="flex justify-start xl:justify-center gap-6 w-full h-full pb-10 overflow-x-hidden md:overflow-x-auto min-viewport-p"
+          className="flex min-h-0 flex-1 justify-start xl:justify-center gap-6 w-full pb-10 overflow-x-hidden md:overflow-x-auto min-viewport-p"
         >
           {COLUMNS.map((columnId) => (
             <KanbanColumn

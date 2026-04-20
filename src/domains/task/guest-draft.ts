@@ -47,7 +47,7 @@ function createSeedGuestTasks(): TaskWithTags[] {
     {
       id: 'guest-readme-1',
       project_id: 'guest-board',
-      title: 'Stop copy-pasting context for AI agents.',
+      title: 'Control your agents with Pink Sundew',
       description:
         `Pink Sundew keeps your live board, review thread, and agent status in one place so your agent can read context directly instead of re-pasting instructions every run.`,
       status: 'todo',

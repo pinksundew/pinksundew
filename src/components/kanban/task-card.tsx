@@ -4,6 +4,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TaskWithTags } from '@/domains/task/types'
 import { Calendar, User, AlignLeft, CheckCircle2, Circle, GripVertical } from 'lucide-react'
+import { getMarkdownPlainTextPreview } from '@/components/markdown/markdown-content'
 
 type TaskCardProps = {
   task: TaskWithTags
@@ -75,6 +76,9 @@ export function TaskCard({
   const isAgentWorking = task.workflow_signal === 'agent_working'
   const dueDateLabel = formatDateLabel(task.due_date)
   const createdDateLabel = formatDateLabel(task.created_at)
+  const descriptionPreview = task.description
+    ? getMarkdownPlainTextPreview(task.description)
+    : null
   const datePrefix = dueDateLabel ? 'Due' : createdDateLabel ? 'Created' : null
   const visibleDateLabel = dueDateLabel ?? createdDateLabel ?? 'No date'
   const signalClassName = isNeedsHelp
@@ -153,10 +157,10 @@ export function TaskCard({
         {task.title}
       </h4>
 
-      {task.description && (
+      {descriptionPreview && (
         <div className="flex items-center gap-1.5 text-muted-foreground mb-3">
           <AlignLeft className="w-3.5 h-3.5" />
-          <span className="text-xs truncate max-w-[200px]">{task.description}</span>
+          <span className="text-xs truncate max-w-[200px]">{descriptionPreview}</span>
         </div>
       )}
 

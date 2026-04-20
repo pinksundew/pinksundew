@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import { ArrowRight, Play } from 'lucide-react'
+import { ArrowRight, Play, Kanban, MessageSquareText, RefreshCw } from 'lucide-react'
 
 const demoVideoSrc = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL ?? '/demo/HeroVid.mp4'
 
@@ -49,8 +49,24 @@ export function LandingPage() {
           </p>
         </div>
 
-        <div className="mx-auto mt-8 w-full max-w-5xl">
-          <div className="overflow-hidden rounded-[8px] border border-slate-200 bg-slate-950 shadow-2xl shadow-cyan-950/10">
+        <div className="mx-auto mt-12 grid w-full max-w-4xl gap-5 text-left sm:grid-cols-3">
+          {[
+            { title: 'Agent-Readable Board', desc: 'Plan work on a board your agent can inspect natively.', Icon: Kanban },
+            { title: 'Autonomous Updates', desc: 'Let agents post progress notes back to tickets.', Icon: MessageSquareText },
+            { title: 'Always in Sync', desc: 'Keep instructions securely synced into your workspace.', Icon: RefreshCw },
+          ].map(({ Icon, ...item }) => (
+            <div key={item.title} className="rounded-2xl border border-pink-200/50 bg-white/60 p-5 shadow-[0_8px_30px_rgb(236,72,153,0.06)] backdrop-blur-md transition-all hover:-translate-y-1 hover:bg-white/90 hover:shadow-[0_8px_30px_rgb(236,72,153,0.12)]">
+              <div className="mb-3 inline-flex rounded-lg bg-pink-100 p-2 text-pink-600">
+                <Icon className="h-5 w-5" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900">{item.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-600">{item.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="relative mx-auto mt-14 w-full max-w-[60rem]">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-950 shadow-2xl shadow-cyan-950/10">
             <video
               src={demoVideoSrc}
               autoPlay
@@ -77,18 +93,6 @@ export function LandingPage() {
               No account needed. The sandbox keeps a local board in this browser.
             </p>
           </div>
-        </div>
-
-        <div className="mx-auto mt-10 grid w-full max-w-5xl gap-3 text-sm text-slate-700 sm:grid-cols-3">
-          {[
-            'Plan work on a board your agent can inspect.',
-            'Let agents post progress notes back to tickets.',
-            'Keep instructions synced into your workspace.',
-          ].map((item) => (
-            <div key={item} className="border-l-2 border-primary bg-white/45 px-4 py-3 shadow-sm backdrop-blur">
-              {item}
-            </div>
-          ))}
         </div>
       </section>
     </main>

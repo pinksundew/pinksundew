@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown, PencilLine, Save, Trash2, X } from 'lucide-react'
 import {
@@ -16,6 +16,7 @@ import { TaskPlan } from '@/domains/plan/types'
 import { getTaskPlans } from '@/domains/plan/queries'
 import { ConfirmModal } from './confirm-modal'
 import { MarkdownContent } from '@/components/markdown/markdown-content'
+import { resolveMarkdownCaretOffsetFromEvent } from '@/lib/markdown-caret'
 
 type TaskDetailsModalProps = {
   isOpen: boolean
@@ -77,6 +78,9 @@ export function TaskDetailsModal({
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const pendingDescriptionCaretOffsetRef = useRef<number | null>(null)
+
   const [supabase] = useState(() => createClient())
 
   const fetchPlans = useCallback(async (taskId: string) => {
@@ -88,6 +92,26 @@ export function TaskDetailsModal({
       setPlans([])
     }
   }, [supabase])
+
+  useEffect(() => {
+    if (!isDescriptionEditing) return
+
+    const textarea = descriptionTextareaRef.current
+    if (!textarea) return
+
+    const pendingOffset = pendingDescriptionCaretOffsetRef.current
+    pendingDescriptionCaretOffsetRef.current = null
+
+    textarea.focus({ preventScroll: true })
+
+    if (pendingOffset !== null) {
+      const clamped = Math.min(Math.max(pendingOffset, 0), textarea.value.length)
+      textarea.setSelectionRange(clamped, clamped)
+    } else {
+      const end = textarea.value.length
+      textarea.setSelectionRange(end, end)
+    }
+  }, [isDescriptionEditing])
 
   const fetchSignalMessages = useCallback(async (taskId: string) => {
     try {
@@ -442,30 +466,38 @@ export function TaskDetailsModal({
                 </div>
                 {isDescriptionEditing ? (
                   <textarea
-                    rows={3}
+                    ref={descriptionTextareaRef}
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
                     onBlur={() => setIsDescriptionEditing(false)}
-                    autoFocus
-                    className="w-full rounded-md border border-border bg-white p-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block min-h-[5.75rem] w-full resize-y rounded-md border border-border bg-white p-3 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
                   />
                 ) : (
                   <div
                     role="button"
                     tabIndex={0}
-                    onClick={() => setIsDescriptionEditing(true)}
+                    onClick={(event) => {
+                      pendingDescriptionCaretOffsetRef.current = resolveMarkdownCaretOffsetFromEvent(
+                        event.currentTarget,
+                        event.clientX,
+                        event.clientY,
+                        description
+                      )
+                      setIsDescriptionEditing(true)
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
+                        pendingDescriptionCaretOffsetRef.current = null
                         setIsDescriptionEditing(true)
                       }
                     }}
-                    className="min-h-[5.75rem] cursor-text rounded-md border border-border bg-white p-3 text-left transition-colors hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="block min-h-[5.75rem] w-full cursor-text rounded-md border border-border bg-white p-3 text-left text-sm leading-6 transition-colors hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     {description.trim() ? (
                       <MarkdownContent content={description} />
                     ) : (
-                      <span className="text-sm text-muted-foreground">
+                      <span className="text-muted-foreground">
                         Click to add details. Markdown renders automatically when you click away.
                       </span>
                     )}

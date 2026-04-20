@@ -1,24 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
+import type { ComponentType, SVGProps } from 'react'
 import {
-  Bot,
   Clock3,
-  Code2,
-  Cpu,
   Download,
   FileText,
-  MousePointer2,
   PlugZap,
   Radio,
   Settings2,
-  Sparkles,
   Waves,
-  Wind,
   type LucideIcon,
 } from 'lucide-react'
 import type { ProjectDashboardStatus } from '@/domains/project/dashboard-status'
 import { getSetupClientLabel, isSetupClient } from '@/domains/setup-token/types'
+import { CLIENT_LOGOS, SYNC_TARGET_LOGOS } from '@/components/brand/client-logos'
 
 type DashboardStatusSectionProps = {
   projectId: string
@@ -42,23 +38,19 @@ const STATUS_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
 
 const DASHBOARD_REFRESH_INTERVAL_MS = 15_000
 
-const TARGET_ICONS: Record<string, LucideIcon> = {
-  sync_target_vscode: Code2,
-  sync_target_cursor: MousePointer2,
-  sync_target_codex: Bot,
-  sync_target_claude: Sparkles,
-  sync_target_windsurf: Wind,
-  sync_target_antigravity: Cpu,
-}
+type LogoComponent = ComponentType<SVGProps<SVGSVGElement>>
+type IconComponent = LucideIcon | LogoComponent
+
+const TARGET_ICONS: Record<string, IconComponent> = SYNC_TARGET_LOGOS
 
 type DashboardMcpClientId = ProjectDashboardStatus['mcp']['activeClients'][number]['id']
 
-const MCP_CLIENT_ICONS: Record<DashboardMcpClientId, LucideIcon> = {
-  cursor: MousePointer2,
-  codex: Bot,
-  'claude-code': Sparkles,
-  antigravity: Cpu,
-  vscode: Code2,
+const MCP_CLIENT_ICONS: Record<DashboardMcpClientId, IconComponent> = {
+  cursor: CLIENT_LOGOS.cursor,
+  codex: CLIENT_LOGOS.codex,
+  'claude-code': CLIENT_LOGOS['claude-code'],
+  antigravity: CLIENT_LOGOS.antigravity,
+  vscode: CLIENT_LOGOS.vscode,
 }
 
 function formatStatusTime(value: string | null | undefined) {
@@ -186,73 +178,34 @@ export function DashboardStatusSection({
 
   return (
     <section className="w-full md:w-[63rem] max-w-full">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 min-[520px]:grid-cols-2">
         <div
           role="button"
           tabIndex={0}
           onClick={onOpenConnect}
           onKeyDown={(event) => handleCardKeyDown(event, onOpenConnect)}
-          className="cursor-pointer rounded-lg border border-pink-200/70 bg-white p-4 shadow-sm transition-all hover:border-pink-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25"
+          className="cursor-pointer rounded-lg border border-pink-200/70 bg-white p-3 shadow-sm transition-all hover:border-pink-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25 sm:p-4"
         >
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/20 text-primary-foreground">
-                  <PlugZap className="h-4 w-4" />
-                </span>
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">MCP Server</h2>
-                  <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                    {isActive ? (
-                      <span className="relative flex h-2.5 w-2.5 shrink-0">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-primary" />
-                      </span>
-                    ) : (
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-slate-300" />
-                    )}
-                    <span className="font-medium text-foreground">
-                      {isActive ? 'Active and connected' : hasConnected ? 'Not currently active' : 'Setup required'}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/20 text-primary-foreground md:flex">
+                <PlugZap className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-foreground">MCP Server</h2>
+                <div className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  {isActive ? (
+                    <span className="relative flex h-2 w-2 shrink-0">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
                     </span>
-                  </div>
+                  ) : (
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-slate-300" />
+                  )}
+                  <span className="truncate font-medium text-foreground">
+                    {isActive ? 'Active and connected' : hasConnected ? 'Not currently active' : 'Setup required'}
+                  </span>
                 </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                {isActive && activeClients.length > 0 ? (
-                  <>
-                    <span className="font-medium text-foreground xl:hidden">{activeClientSummary}</span>
-                    <div className="hidden xl:flex xl:flex-wrap xl:items-center xl:gap-2">
-                      <span className="font-medium text-foreground">Active on</span>
-                      {activeClients.map((client) => {
-                        const ClientIcon = MCP_CLIENT_ICONS[client.id] ?? Waves
-
-                        return (
-                          <span
-                            key={client.id}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-pink-200 bg-pink-50 px-2.5 py-1 font-medium text-pink-800"
-                          >
-                            <ClientIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                            {client.name}
-                          </span>
-                        )
-                      })}
-                    </div>
-                  </>
-                ) : lastConnected ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    Last connected <time suppressHydrationWarning>{lastConnected}</time>
-                  </span>
-                ) : (
-                  <span>Use Set Up to connect this project.</span>
-                )}
-                {connectedClient ? (
-                  <span>
-                    {isActive && activeClients.length === 0 ? 'Active via' : 'Last setup via'}{' '}
-                    {connectedClient}
-                  </span>
-                ) : null}
               </div>
             </div>
 
@@ -262,11 +215,48 @@ export function DashboardStatusSection({
                 event.stopPropagation()
                 onOpenConnect()
               }}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border border-pink-300 bg-pink-100 px-4 text-sm font-semibold text-pink-900 shadow-sm transition-colors hover:bg-pink-200"
+              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full border border-pink-300 bg-pink-100 px-3 text-xs font-semibold text-pink-900 shadow-sm transition-colors hover:bg-pink-200 sm:h-9 sm:px-4 sm:text-sm"
             >
-              <Radio className="h-4 w-4" />
+              <Radio className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               {connectButtonLabel}
             </button>
+          </div>
+
+          <div className="mt-3 flex min-h-[1.5rem] flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
+            {isActive && activeClients.length > 0 ? (
+              <>
+                <div className="hidden flex-wrap items-center gap-1.5 lg:flex">
+                  <span className="font-medium text-foreground">Active on</span>
+                  {activeClients.map((client) => {
+                    const ClientIcon = MCP_CLIENT_ICONS[client.id] ?? Waves
+
+                    return (
+                      <span
+                        key={client.id}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-pink-200 bg-pink-50 px-2 py-0.5 font-medium text-pink-800"
+                      >
+                        <ClientIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                        {client.name}
+                      </span>
+                    )
+                  })}
+                </div>
+                <span className="font-medium text-foreground lg:hidden">{activeClientSummary}</span>
+              </>
+            ) : lastConnected ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Clock3 className="h-3.5 w-3.5" />
+                Last connected <time suppressHydrationWarning>{lastConnected}</time>
+              </span>
+            ) : (
+              <span>Use Set Up to connect this project.</span>
+            )}
+            {connectedClient ? (
+              <span className="hidden sm:inline">
+                {isActive && activeClients.length === 0 ? 'Active via' : 'Last setup via'}{' '}
+                {connectedClient}
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -275,55 +265,27 @@ export function DashboardStatusSection({
           tabIndex={0}
           onClick={onOpenInstructions}
           onKeyDown={(event) => handleCardKeyDown(event, onOpenInstructions)}
-          className="cursor-pointer rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25"
+          className="cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25 sm:p-4"
         >
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-cyan-50 text-cyan-700">
-                  <FileText className="h-4 w-4" />
-                </span>
-                <div>
-                  <h2 className="text-sm font-semibold text-foreground">Agent Instructions</h2>
-                  <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Clock3 className="h-3.5 w-3.5" />
-                    <span>
-                      {lastSync ? (
-                        <>
-                          Last sync <time suppressHydrationWarning>{lastSync}</time>
-                        </>
-                      ) : (
-                        'No sync yet'
-                      )}
-                    </span>
-                  </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-md bg-cyan-50 text-cyan-700 md:flex">
+                <FileText className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-foreground">Agent Instructions</h2>
+                <div className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <Clock3 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">
+                    {lastSync ? (
+                      <>
+                        Last sync <time suppressHydrationWarning>{lastSync}</time>
+                      </>
+                    ) : (
+                      'No sync yet'
+                    )}
+                  </span>
                 </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {enabledTargets.length > 0 ? (
-                  <>
-                    <span className="text-sm text-muted-foreground xl:hidden">{enabledTargetSummary}</span>
-                    <div className="hidden xl:flex xl:flex-wrap xl:gap-2">
-                      {enabledTargets.map((target) => {
-                        const TargetIcon = TARGET_ICONS[target.id] ?? Waves
-
-                        return (
-                          <span
-                            key={target.id}
-                            title={`${target.name} - ${target.filePath}`}
-                            aria-label={`${target.name} target enabled`}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-sm"
-                          >
-                            <TargetIcon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                        )
-                      })}
-                    </div>
-                  </>
-                ) : (
-                  <span className="text-sm text-muted-foreground">No targets selected</span>
-                )}
               </div>
             </div>
 
@@ -333,11 +295,37 @@ export function DashboardStatusSection({
                 event.stopPropagation()
                 onOpenInstructions()
               }}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border border-border bg-white px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+              className="inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-full border border-border bg-white px-3 text-xs font-semibold text-foreground transition-colors hover:bg-muted sm:h-9 sm:px-4 sm:text-sm"
             >
-              <Settings2 className="h-4 w-4" />
+              <Settings2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Manage
             </button>
+          </div>
+
+          <div className="mt-3 flex min-h-[1.5rem] flex-wrap items-center gap-2">
+            {enabledTargets.length > 0 ? (
+              <>
+                <div className="hidden flex-wrap gap-1.5 lg:flex">
+                  {enabledTargets.map((target) => {
+                    const TargetIcon = TARGET_ICONS[target.id] ?? Waves
+
+                    return (
+                      <span
+                        key={target.id}
+                        title={`${target.name} - ${target.filePath}`}
+                        aria-label={`${target.name} target enabled`}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm"
+                      >
+                        <TargetIcon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                    )
+                  })}
+                </div>
+                <span className="text-xs text-muted-foreground lg:hidden">{enabledTargetSummary}</span>
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">No targets selected</span>
+            )}
           </div>
         </div>
       </div>

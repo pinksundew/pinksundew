@@ -3,11 +3,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { hashApiKey } from '@/domains/api-key/mutations'
 import { getApiKeyByHash } from '@/domains/api-key/queries'
 import { updateLastUsed } from '@/domains/api-key/mutations'
-import {
-  inferSetupClientFromApiKeyName,
-  isSetupClient,
-  type SetupClient,
-} from '@/domains/setup-token/types'
+import { isSetupClient, type SetupClient } from '@/domains/setup-token/types'
 
 interface BridgeAuth {
   userId: string
@@ -49,9 +45,7 @@ export async function validateBridgeRequest(
   }
 
   const headerClient = request.headers.get('x-pinksundew-client')
-  const resolvedClient = isSetupClient(headerClient)
-    ? headerClient
-    : inferSetupClientFromApiKeyName(apiKey.name)
+  const resolvedClient: SetupClient | null = isSetupClient(headerClient) ? headerClient : null
   const adminClientWithBridgeContext = adminClient as SupabaseClientWithBridgeContext
   adminClientWithBridgeContext.__pinksundewBridgeClient = resolvedClient
 

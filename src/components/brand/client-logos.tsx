@@ -1,0 +1,127 @@
+import type { ReactElement, SVGProps } from 'react'
+
+type LogoProps = SVGProps<SVGSVGElement>
+type LogoComponent = (props: LogoProps) => ReactElement
+
+export function VsCodeLogo(props: LogoProps) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VS Code" {...props}>
+      <path
+        fill="#007ACC"
+        d="M23.15 2.587 18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352ZM18.004 17.448 10.826 12l7.178-5.448v10.896Z"
+      />
+    </svg>
+  )
+}
+
+export function CursorLogo(props: LogoProps) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cursor" {...props}>
+      <path
+        fill="#0F0F0F"
+        d="M11.925 24 22.35 18V6L11.925 0 1.5 6v12L11.925 24Zm0-2.317L3.503 16.84V7.16L11.925 2.317 20.348 7.16v9.68L11.925 21.683Z"
+      />
+      <path
+        fill="#0F0F0F"
+        d="m11.925 12 10.425-6L11.925 0v12Zm0 0L1.5 18l10.425 6V12Zm0 0L1.5 6l10.425 6Z"
+        opacity=".75"
+      />
+    </svg>
+  )
+}
+
+export function CodexLogo(props: LogoProps) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Codex" {...props}>
+      <path
+        fill="#0F0F0F"
+        d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.911 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.98 4.182a5.985 5.985 0 0 0-3.997 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.91 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073Zm-9.022 12.608a4.476 4.476 0 0 1-2.876-1.04l.142-.081 4.778-2.758a.795.795 0 0 0 .393-.682v-6.736l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.495 4.494Zm-9.66-4.125a4.471 4.471 0 0 1-.535-3.014l.142.085 4.783 2.758a.771.771 0 0 0 .78 0l5.843-3.368v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.499 4.499 0 0 1-6.14-1.646ZM2.341 7.896A4.485 4.485 0 0 1 4.706 5.923V11.6a.766.766 0 0 0 .388.676l5.814 3.354-2.02 1.17a.076.076 0 0 1-.07 0l-4.83-2.787a4.504 4.504 0 0 1-1.647-6.117Zm16.585 3.857L13.08 8.364l2.016-1.164a.076.076 0 0 1 .07 0l4.83 2.79a4.494 4.494 0 0 1-.676 8.105v-5.677a.79.79 0 0 0-.407-.666Zm2.01-3.023-.141-.085L16.06 5.825a.776.776 0 0 0-.785 0L9.41 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.499 4.499 0 0 1 6.68 4.66ZM8.307 12.863l-2.02-1.164a.08.08 0 0 1-.038-.057V6.074a4.499 4.499 0 0 1 7.375-3.454l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681Zm1.098-2.366 2.602-1.5 2.607 1.5v3l-2.597 1.504-2.607-1.5Z"
+      />
+    </svg>
+  )
+}
+
+export function ClaudeCodeLogo(props: LogoProps) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Claude Code" {...props}>
+      <path
+        fill="#D97757"
+        d="M4.709 15.955 9.43 13.308l.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.882l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.49-.364-.462-.158-1.008.655-.72.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.146-.103.018-.072-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.973 2.973 0 0 1-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.263 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.09.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.373-1.925-1.415-2.167-1.142-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.087-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006Z"
+      />
+    </svg>
+  )
+}
+
+export function AntigravityLogo(props: LogoProps) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Antigravity" {...props}>
+      <defs>
+        <linearGradient id="antigravity-orbit-a" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#4285F4" />
+          <stop offset="1" stopColor="#34A853" />
+        </linearGradient>
+        <linearGradient id="antigravity-orbit-b" x1="24" y1="0" x2="0" y2="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#EA4335" />
+          <stop offset="1" stopColor="#FBBC04" />
+        </linearGradient>
+      </defs>
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="10"
+        ry="4"
+        fill="none"
+        stroke="url(#antigravity-orbit-a)"
+        strokeWidth="1.5"
+        transform="rotate(35 12 12)"
+      />
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="10"
+        ry="4"
+        fill="none"
+        stroke="url(#antigravity-orbit-b)"
+        strokeWidth="1.5"
+        transform="rotate(-35 12 12)"
+      />
+      <circle cx="12" cy="12" r="2.4" fill="#4285F4" />
+    </svg>
+  )
+}
+
+export function WindsurfLogo(props: LogoProps) {
+  return (
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Windsurf" {...props}>
+      <path
+        fill="#09B587"
+        d="M1.5 15.6c3.4-1.3 5.2-1.3 8.6 0s5.2 1.3 8.6 0c1.4-.5 2.7-.7 3.8-.6v3.5c-3.4 1.3-5.2 1.3-8.6 0s-5.2-1.3-8.6 0c-1.4.5-2.7.7-3.8.6v-3.5Z"
+      />
+      <path
+        fill="#0B1C3F"
+        d="M11.5 2.2a.5.5 0 0 1 .9 0l3.6 8.5a.5.5 0 0 1-.5.7H8.4a.5.5 0 0 1-.5-.7l3.6-8.5Z"
+      />
+    </svg>
+  )
+}
+
+export const CLIENT_LOGOS: Record<
+  'cursor' | 'codex' | 'claude-code' | 'antigravity' | 'vscode' | 'windsurf',
+  LogoComponent
+> = {
+  cursor: CursorLogo,
+  codex: CodexLogo,
+  'claude-code': ClaudeCodeLogo,
+  antigravity: AntigravityLogo,
+  vscode: VsCodeLogo,
+  windsurf: WindsurfLogo,
+}
+
+export const SYNC_TARGET_LOGOS: Record<string, LogoComponent> = {
+  sync_target_vscode: VsCodeLogo,
+  sync_target_cursor: CursorLogo,
+  sync_target_codex: CodexLogo,
+  sync_target_claude: ClaudeCodeLogo,
+  sync_target_windsurf: WindsurfLogo,
+  sync_target_antigravity: AntigravityLogo,
+}

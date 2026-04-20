@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { BookOpen, FilePlus2, FileText, Save, Shield, X } from 'lucide-react'
+import { SYNC_TARGET_LOGOS } from '@/components/brand/client-logos'
 import { createClient } from '@/lib/supabase/client'
 import {
   AgentInstructionFile,
@@ -509,67 +510,75 @@ export function AgentInstructionsModal({
 
           {activeTab !== 'controls' ? (
             <div className="m-3 flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-inner">
-              <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-slate-50/50 p-5">
+              <div className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-slate-50/50 p-4">
                 {isGlobalTab ? (
-                  <>
-                    <div>
-                      <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
-                        Sync Targets
-                      </h3>
-                      <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                        Toggle the target rules files for connected MCP clients.
-                      </p>
-                    </div>
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                      Sync Targets
+                    </h3>
+                    <p className="mt-1.5 text-xs leading-snug text-slate-500">
+                      Toggle the target rules files for connected MCP clients.
+                    </p>
 
-                    <div className="mt-4 space-y-2">
-                      {INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => (
-                        <button
-                          key={target.id}
-                          type="button"
-                          className={`group w-full rounded-lg border p-3 text-left transition-all ${
-                            toolToggles[target.id]
-                              ? 'border-primary/40 bg-zinc-50 shadow-sm'
-                              : 'border-slate-200 bg-white hover:border-primary/20 hover:shadow-sm'
-                          }`}
-                          onClick={() => handleToggleSyncTarget(target.id)}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1 overflow-hidden">
+                    <div className="mt-3 space-y-1.5">
+                      {INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => {
+                        const TargetLogo = SYNC_TARGET_LOGOS[target.id]
+                        const isEnabled = toolToggles[target.id]
+
+                        return (
+                          <button
+                            key={target.id}
+                            type="button"
+                            onClick={() => handleToggleSyncTarget(target.id)}
+                            className={`group flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2 text-left transition-all ${
+                              isEnabled
+                                ? 'border-primary/40 bg-white shadow-sm'
+                                : 'border-slate-200 bg-white/70 hover:border-primary/20 hover:bg-white'
+                            }`}
+                          >
+                            <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                              {TargetLogo ? (
+                                <TargetLogo className="h-5 w-5" />
+                              ) : (
+                                <FileText className="h-4 w-4 text-slate-500" />
+                              )}
+                            </span>
+                            <div className="min-w-0 flex-1">
                               <div
-                                className={`text-sm font-semibold ${
-                                  toolToggles[target.id] ? 'text-primary' : 'text-slate-700'
+                                className={`text-sm font-semibold leading-tight ${
+                                  isEnabled ? 'text-primary' : 'text-slate-700'
                                 }`}
                               >
                                 {target.name}
                               </div>
-                              <div className="mt-1 inline-block max-w-full truncate rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600">
+                              <div className="truncate font-mono text-[10px] leading-tight text-slate-500">
                                 {target.file_path}
                               </div>
                             </div>
                             <div
-                              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                                toolToggles[target.id]
+                              className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
+                                isEnabled
                                   ? 'bg-primary'
                                   : 'bg-slate-200 group-hover:bg-slate-300'
                               }`}
                             >
                               <span
-                                className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
-                                  toolToggles[target.id] ? 'translate-x-4' : 'translate-x-1'
+                                className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform ${
+                                  isEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
                                 }`}
                               />
                             </div>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        )
+                      })}
                     </div>
-                  </>
+                  </div>
                 ) : (
                   <div>
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                       Custom Files
                     </h3>
-                    <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                    <p className="mt-1.5 text-xs leading-snug text-slate-500">
                       These files sync separately into .pinksundew/docs/ and are not appended to
                       your global rules file.
                     </p>
@@ -577,48 +586,37 @@ export function AgentInstructionsModal({
                       type="button"
                       onClick={handleAddContextDocument}
                       disabled={!selectedSet || isInstructionLoading}
-                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <FilePlus2 className="h-4 w-4" />
                       New File
                     </button>
+
+                    <div className="mt-4 space-y-1.5">
+                      {currentInstructionFiles.length > 0 ? (
+                        currentInstructionFiles.map((file) => (
+                          <button
+                            key={file.id}
+                            type="button"
+                            onClick={() => setSelectedFileId(file.id)}
+                            className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
+                              selectedFileId === file.id
+                                ? 'border-primary/40 bg-primary/10 text-primary-foreground'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-primary/20'
+                            }`}
+                          >
+                            <BookOpen className="h-4 w-4 shrink-0" />
+                            <span className="min-w-0 truncate">{getInstructionFileLabel(file)}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-slate-300 bg-white/60 px-3 py-3 text-xs leading-5 text-slate-500">
+                          Create a markdown file to keep architecture, schema, or product context separate from the global rules file.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-
-                <div className={`border-slate-200 pt-5 ${isGlobalTab ? 'mt-6 border-t' : 'mt-4'}`}>
-                  <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">
-                    {isGlobalTab ? 'Rules File' : 'Custom Instructions'}
-                  </div>
-                  <div className="space-y-2">
-                    {currentInstructionFiles.length > 0 ? (
-                      currentInstructionFiles.map((file) => (
-                        <button
-                          key={file.id}
-                          type="button"
-                          onClick={() => setSelectedFileId(file.id)}
-                          className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
-                            selectedFileId === file.id
-                              ? 'border-primary/40 bg-primary/10 text-primary-foreground'
-                              : 'border-slate-200 bg-white text-slate-700 hover:border-primary/20'
-                          }`}
-                        >
-                          {isGlobalTab ? (
-                            <FileText className="h-4 w-4 shrink-0" />
-                          ) : (
-                            <BookOpen className="h-4 w-4 shrink-0" />
-                          )}
-                          <span className="min-w-0 truncate">{getInstructionFileLabel(file)}</span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-slate-300 bg-white/60 px-3 py-3 text-xs leading-5 text-slate-500">
-                        {isGlobalTab
-                          ? 'A default global rules file will be created automatically.'
-                          : 'Create a markdown file to keep architecture, schema, or product context separate from the global rules file.'}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
 
               <div className="flex min-h-0 flex-1 flex-col">
@@ -649,22 +647,22 @@ export function AgentInstructionsModal({
                 <div className="flex min-h-0 flex-1 flex-col bg-slate-50 p-4">
                   {selectedFile ? (
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                      <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
-                        <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
-                          File
-                        </label>
-                        <div className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700">
-                          {!isGlobalTab ? (
+                      {!isGlobalTab ? (
+                        <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
+                          <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
+                            File
+                          </label>
+                          <div className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700">
                             <span className="mr-1 shrink-0 text-slate-400">{CONTEXT_DOCS_DIR}</span>
-                          ) : null}
-                          <input
-                            value={draftFileName}
-                            onChange={(event) => setDraftFileName(event.target.value)}
-                            className="min-w-0 flex-1 bg-transparent outline-none"
-                            aria-label="Instruction file name"
-                          />
+                            <input
+                              value={draftFileName}
+                              onChange={(event) => setDraftFileName(event.target.value)}
+                              className="min-w-0 flex-1 bg-transparent outline-none"
+                              aria-label="Instruction file name"
+                            />
+                          </div>
                         </div>
-                      </div>
+                      ) : null}
                       <textarea
                         value={draftContent}
                         onChange={(event) => setDraftContent(event.target.value)}

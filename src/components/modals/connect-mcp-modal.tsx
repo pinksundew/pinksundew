@@ -529,6 +529,22 @@ export function ConnectMcpModal({ isOpen, onClose, projectId }: ConnectMcpModalP
                         <div className="p-3"><code className="font-semibold text-slate-800 mr-2">status</code> Diagnose current authentication and MCP registration status.</div>
                       </div>
                     </div>
+
+                    <div className="space-y-3">
+                      <strong className="text-sm">Updating With Homebrew</strong>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 text-xs text-slate-700">
+                        <p className="leading-relaxed">
+                          If you installed the MCP server with Homebrew, update it with:
+                        </p>
+                        <pre className="mt-3 overflow-x-auto rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-900">
+                          <code>brew upgrade pinksundew/tap/pinksundew-mcp</code>
+                        </pre>
+                        <p className="mt-3 leading-relaxed text-slate-600">
+                          After upgrading, restart your IDE or reconnect MCP so the client launches
+                          the newest binary.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

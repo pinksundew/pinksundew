@@ -179,10 +179,14 @@ export function DashboardStatusSection({
   const enabledTargets =
     currentStatus?.instructionSync.targets.filter((target) => target.enabled) ?? []
   const connectButtonLabel = isGuestMode || !hasConnected ? 'Set Up' : isActive ? 'Connected' : 'Reconnect'
+  const activeClientSummary =
+    activeClients.length === 1 ? '1 environment active' : `${activeClients.length} environments active`
+  const enabledTargetSummary =
+    enabledTargets.length === 1 ? '1 target enabled' : `${enabledTargets.length} targets enabled`
 
   return (
     <section className="w-full md:w-[63rem] max-w-full">
-      <div className="grid gap-3 lg:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div
           role="button"
           tabIndex={0}
@@ -190,7 +194,7 @@ export function DashboardStatusSection({
           onKeyDown={(event) => handleCardKeyDown(event, onOpenConnect)}
           className="cursor-pointer rounded-lg border border-pink-200/70 bg-white p-4 shadow-sm transition-all hover:border-pink-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25"
         >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/20 text-primary-foreground">
@@ -217,20 +221,23 @@ export function DashboardStatusSection({
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
                 {isActive && activeClients.length > 0 ? (
                   <>
-                    <span className="font-medium text-foreground">Active on</span>
-                    {activeClients.map((client) => {
-                      const ClientIcon = MCP_CLIENT_ICONS[client.id] ?? Waves
+                    <span className="font-medium text-foreground xl:hidden">{activeClientSummary}</span>
+                    <div className="hidden xl:flex xl:flex-wrap xl:items-center xl:gap-2">
+                      <span className="font-medium text-foreground">Active on</span>
+                      {activeClients.map((client) => {
+                        const ClientIcon = MCP_CLIENT_ICONS[client.id] ?? Waves
 
-                      return (
-                        <span
-                          key={client.id}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-pink-200 bg-pink-50 px-2.5 py-1 font-medium text-pink-800"
-                        >
-                          <ClientIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                          {client.name}
-                        </span>
-                      )
-                    })}
+                        return (
+                          <span
+                            key={client.id}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-pink-200 bg-pink-50 px-2.5 py-1 font-medium text-pink-800"
+                          >
+                            <ClientIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                            {client.name}
+                          </span>
+                        )
+                      })}
+                    </div>
                   </>
                 ) : lastConnected ? (
                   <span className="inline-flex items-center gap-1.5">
@@ -270,7 +277,7 @@ export function DashboardStatusSection({
           onKeyDown={(event) => handleCardKeyDown(event, onOpenInstructions)}
           className="cursor-pointer rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25"
         >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-cyan-50 text-cyan-700">
@@ -295,20 +302,25 @@ export function DashboardStatusSection({
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {enabledTargets.length > 0 ? (
-                  enabledTargets.map((target) => {
-                    const TargetIcon = TARGET_ICONS[target.id] ?? Waves
+                  <>
+                    <span className="text-sm text-muted-foreground xl:hidden">{enabledTargetSummary}</span>
+                    <div className="hidden xl:flex xl:flex-wrap xl:gap-2">
+                      {enabledTargets.map((target) => {
+                        const TargetIcon = TARGET_ICONS[target.id] ?? Waves
 
-                    return (
-                      <span
-                        key={target.id}
-                        title={`${target.name} - ${target.filePath}`}
-                        aria-label={`${target.name} target enabled`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-sm"
-                      >
-                        <TargetIcon className="h-4 w-4" aria-hidden="true" />
-                      </span>
-                    )
-                  })
+                        return (
+                          <span
+                            key={target.id}
+                            title={`${target.name} - ${target.filePath}`}
+                            aria-label={`${target.name} target enabled`}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-700 shadow-sm"
+                          >
+                            <TargetIcon className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </>
                 ) : (
                   <span className="text-sm text-muted-foreground">No targets selected</span>
                 )}

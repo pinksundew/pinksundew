@@ -566,26 +566,22 @@ export function AgentInstructionsModal({
                   </>
                 ) : (
                   <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <div>
-                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
-                          Custom Files
-                        </h3>
-                        <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                          These files sync separately into .pinksundew/docs/ and are not appended to
-                          your global rules file.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleAddContextDocument}
-                        disabled={!selectedSet || isInstructionLoading}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="Add custom instruction file"
-                      >
-                        <FilePlus2 className="h-4 w-4" />
-                      </button>
-                    </div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+                      Custom Files
+                    </h3>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                      These files sync separately into .pinksundew/docs/ and are not appended to
+                      your global rules file.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleAddContextDocument}
+                      disabled={!selectedSet || isInstructionLoading}
+                      className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <FilePlus2 className="h-4 w-4" />
+                      New File
+                    </button>
                   </div>
                 )}
 

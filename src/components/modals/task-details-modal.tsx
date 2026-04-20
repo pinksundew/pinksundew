@@ -190,6 +190,9 @@ export function TaskDetailsModal({
 
     setLoading(true)
     try {
+      if (editingMessageId) {
+        await persistEditedMessageDraft(editingMessageId)
+      }
       const nextTask = await persistTask(status)
       if (nextTask) {
         onClose()
@@ -300,32 +303,37 @@ export function TaskDetailsModal({
     setEditingMessageText('')
   }
 
-  const handleSaveEditedMessage = async (messageId: string) => {
+  const persistEditedMessageDraft = async (messageId: string) => {
     const trimmedMessage = editingMessageText.trim()
-    if (!trimmedMessage) return
+    if (!trimmedMessage) return false
 
     const latestEditableMessageId = task
       ? getLatestEditableMessageId(buildThreadMessages(task, signalMessages), currentUserId)
       : null
     if (!latestEditableMessageId || latestEditableMessageId !== messageId) {
       handleCancelEditingMessage()
-      return
+      return false
     }
 
+    const updatedMessage = await updateTaskStateMessage(supabase, {
+      messageId,
+      message: trimmedMessage,
+    })
+
+    setSignalMessages((previousMessages) =>
+      previousMessages.map((message) =>
+        message.id === updatedMessage.id ? updatedMessage : message
+      )
+    )
+
+    handleCancelEditingMessage()
+    return true
+  }
+
+  const handleSaveEditedMessage = async (messageId: string) => {
     setLoading(true)
     try {
-      const updatedMessage = await updateTaskStateMessage(supabase, {
-        messageId,
-        message: trimmedMessage,
-      })
-
-      setSignalMessages((previousMessages) =>
-        previousMessages.map((message) =>
-          message.id === updatedMessage.id ? updatedMessage : message
-        )
-      )
-
-      handleCancelEditingMessage()
+      await persistEditedMessageDraft(messageId)
     } catch (error) {
       console.error('Error editing task reply:', error)
     } finally {

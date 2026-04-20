@@ -8,14 +8,20 @@ pub struct BridgeClient {
     client: reqwest::Client,
     base_url: String,
     api_key: String,
+    mcp_client: Option<String>,
 }
 
 impl BridgeClient {
     pub fn new(base_url: String, api_key: String) -> Self {
+        Self::with_client(base_url, api_key, None)
+    }
+
+    pub fn with_client(base_url: String, api_key: String, mcp_client: Option<String>) -> Self {
         Self {
             client: reqwest::Client::new(),
             base_url,
             api_key,
+            mcp_client,
         }
     }
 
@@ -55,6 +61,10 @@ impl BridgeClient {
             .request(method, &url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json");
+
+        if let Some(client) = &self.mcp_client {
+            request = request.header("X-PinkSundew-Client", client);
+        }
 
         if let Some(payload) = body {
             request = request.json(payload);

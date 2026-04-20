@@ -285,6 +285,7 @@ export type Database = {
       }
       project_mcp_activity: {
         Row: {
+          client: string
           created_at: string
           last_request_path: string | null
           last_seen_at: string
@@ -292,6 +293,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          client?: string
           created_at?: string
           last_request_path?: string | null
           last_seen_at?: string
@@ -299,6 +301,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          client?: string
           created_at?: string
           last_request_path?: string | null
           last_seen_at?: string

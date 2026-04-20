@@ -5,7 +5,12 @@ import {
   type InstructionSyncTargetId,
 } from '@/domains/agent-control/types'
 import { getProjectInstructionSetMetadata } from '@/domains/agent-instruction/queries'
-import { getProjectMcpActivity } from '@/domains/project/mcp-activity'
+import { getProjectMcpActivities, type ProjectMcpActivity } from '@/domains/project/mcp-activity'
+import {
+  getSetupClientLabel,
+  isSetupClient,
+  type SetupClient,
+} from '@/domains/setup-token/types'
 
 const ACTIVE_MCP_WINDOW_MS = 2 * 60 * 1000
 
@@ -16,8 +21,16 @@ export type InstructionSyncTargetStatus = {
   enabled: boolean
 }
 
+export type ProjectMcpClientStatus = {
+  id: SetupClient
+  isActive: boolean
+  lastSeenAt: string
+  name: string
+}
+
 export type ProjectDashboardStatus = {
   mcp: {
+    activeClients: ProjectMcpClientStatus[]
     hasConnected: boolean
     isActive: boolean
     lastConnectedAt: string | null
@@ -47,15 +60,45 @@ function getLatestIso(values: Array<string | null | undefined>) {
   }, null)
 }
 
+function isClientActive(lastSeenAt: string) {
+  const timestamp = new Date(lastSeenAt).getTime()
+  if (Number.isNaN(timestamp)) {
+    return false
+  }
+
+  return Date.now() - timestamp <= ACTIVE_MCP_WINDOW_MS
+}
+
+function buildMcpClientStatuses(activities: ProjectMcpActivity[]): ProjectMcpClientStatus[] {
+  const latestByClient = new Map<SetupClient, string>()
+
+  for (const activity of activities) {
+    if (!isSetupClient(activity.client) || latestByClient.has(activity.client)) {
+      continue
+    }
+
+    latestByClient.set(activity.client, activity.last_seen_at)
+  }
+
+  return Array.from(latestByClient.entries())
+    .map(([clientId, lastSeenAt]) => ({
+      id: clientId,
+      isActive: isClientActive(lastSeenAt),
+      lastSeenAt,
+      name: getSetupClientLabel(clientId),
+    }))
+    .sort((left, right) => new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime())
+}
+
 export async function getProjectDashboardStatus(
   client: SupabaseClient,
   projectId: string,
   userId: string
 ): Promise<ProjectDashboardStatus> {
-  const [agentControls, instructionSets, activity, setupTokenResult] = await Promise.all([
+  const [agentControls, instructionSets, activities, setupTokenResult] = await Promise.all([
     getProjectAgentControls(client, projectId),
     getProjectInstructionSetMetadata(client, projectId),
-    getProjectMcpActivity(client, projectId, userId),
+    getProjectMcpActivities(client, projectId, userId),
     client
       .from('cli_setup_tokens')
       .select('client, used_at')
@@ -73,7 +116,7 @@ export async function getProjectDashboardStatus(
 
   const latestSetupToken = setupTokenResult.data as UsedSetupTokenRow | null
   const lastSetupAt = latestSetupToken?.used_at ?? null
-  const latestProjectActivity = activity?.last_seen_at ?? null
+  const latestProjectActivity = activities[0]?.last_seen_at ?? null
   const lastInstructionFileUpdate = getLatestIso(
     instructionSets.flatMap((instructionSet) =>
       instructionSet.files.map((file) => file.updated_at)
@@ -84,16 +127,15 @@ export async function getProjectDashboardStatus(
     lastInstructionFileUpdate,
   ])
   const lastConnectedAt = getLatestIso([latestProjectActivity, lastSetupAt])
-  const latestProjectActivityTime = latestProjectActivity
-    ? new Date(latestProjectActivity).getTime()
-    : null
-  const isActive =
-    latestProjectActivity !== null &&
-    latestProjectActivityTime !== null &&
-    Date.now() - latestProjectActivityTime <= ACTIVE_MCP_WINDOW_MS
+  const clientStatuses = buildMcpClientStatuses(activities)
+  const activeClients = clientStatuses.filter((activity) => activity.isActive)
+  const isActive = Boolean(
+    (latestProjectActivity && isClientActive(latestProjectActivity)) || activeClients.length > 0
+  )
 
   return {
     mcp: {
+      activeClients,
       hasConnected: Boolean(lastSetupAt || latestProjectActivity),
       isActive,
       lastConnectedAt,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
   Bot,
   Clock3,
@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ProjectDashboardStatus } from '@/domains/project/dashboard-status'
+import { getSetupClientLabel, isSetupClient } from '@/domains/setup-token/types'
 
 type DashboardStatusSectionProps = {
   projectId: string
@@ -39,6 +40,8 @@ const STATUS_TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
   hour12: true,
 })
 
+const DASHBOARD_REFRESH_INTERVAL_MS = 15_000
+
 const TARGET_ICONS: Record<string, LucideIcon> = {
   sync_target_vscode: Code2,
   sync_target_cursor: MousePointer2,
@@ -46,6 +49,16 @@ const TARGET_ICONS: Record<string, LucideIcon> = {
   sync_target_claude: Sparkles,
   sync_target_windsurf: Wind,
   sync_target_antigravity: Cpu,
+}
+
+type DashboardMcpClientId = ProjectDashboardStatus['mcp']['activeClients'][number]['id']
+
+const MCP_CLIENT_ICONS: Record<DashboardMcpClientId, LucideIcon> = {
+  cursor: MousePointer2,
+  codex: Bot,
+  'claude-code': Sparkles,
+  antigravity: Cpu,
+  vscode: Code2,
 }
 
 function formatStatusTime(value: string | null | undefined) {
@@ -57,13 +70,28 @@ function formatStatusTime(value: string | null | undefined) {
   return STATUS_TIME_FORMATTER.format(date)
 }
 
-function formatClientLabel(value: string | null | undefined) {
-  if (!value) return null
+function formatConnectedClient(value: string | null | undefined) {
+  if (!value) {
+    return null
+  }
+
+  if (isSetupClient(value)) {
+    return getSetupClientLabel(value)
+  }
 
   return value
     .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
+}
+
+function handleCardKeyDown(event: KeyboardEvent<HTMLDivElement>, onActivate: () => void) {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return
+  }
+
+  event.preventDefault()
+  onActivate()
 }
 
 export function DashboardStatusSection({
@@ -113,16 +141,31 @@ export function DashboardStatusSection({
   useEffect(() => {
     if (isGuestMode) return
 
-    const initialRefresh = window.setTimeout(() => {
+    const refreshSoon = () => {
       void refreshDashboardStatus()
+    }
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refreshSoon()
+      }
+    }
+
+    const initialRefresh = window.setTimeout(() => {
+      refreshSoon()
     }, 0)
     const interval = window.setInterval(() => {
-      void refreshDashboardStatus()
-    }, 30_000)
+      refreshSoon()
+    }, DASHBOARD_REFRESH_INTERVAL_MS)
+
+    window.addEventListener('focus', refreshSoon)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       window.clearTimeout(initialRefresh)
       window.clearInterval(interval)
+      window.removeEventListener('focus', refreshSoon)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [isGuestMode, refreshDashboardStatus])
 
@@ -131,7 +174,8 @@ export function DashboardStatusSection({
   const isActive = Boolean(mcp?.isActive)
   const lastConnected = formatStatusTime(mcp?.lastConnectedAt)
   const lastSync = formatStatusTime(currentStatus?.instructionSync.lastSyncedAt)
-  const connectedClient = formatClientLabel(mcp?.lastSetupClient)
+  const connectedClient = formatConnectedClient(mcp?.lastSetupClient)
+  const activeClients = mcp?.activeClients ?? []
   const enabledTargets =
     currentStatus?.instructionSync.targets.filter((target) => target.enabled) ?? []
   const connectButtonLabel = isGuestMode || !hasConnected ? 'Set Up' : isActive ? 'Connected' : 'Reconnect'
@@ -139,7 +183,13 @@ export function DashboardStatusSection({
   return (
     <section className="w-full md:w-[63rem] max-w-full">
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-lg border border-pink-200/70 bg-white p-4 shadow-sm">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onOpenConnect}
+          onKeyDown={(event) => handleCardKeyDown(event, onOpenConnect)}
+          className="cursor-pointer rounded-lg border border-pink-200/70 bg-white p-4 shadow-sm transition-all hover:border-pink-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25"
+        >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -165,22 +215,47 @@ export function DashboardStatusSection({
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                {lastConnected ? (
+                {isActive && activeClients.length > 0 ? (
+                  <>
+                    <span className="font-medium text-foreground">Active on</span>
+                    {activeClients.map((client) => {
+                      const ClientIcon = MCP_CLIENT_ICONS[client.id] ?? Waves
+
+                      return (
+                        <span
+                          key={client.id}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-pink-200 bg-pink-50 px-2.5 py-1 font-medium text-pink-800"
+                        >
+                          <ClientIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                          {client.name}
+                        </span>
+                      )
+                    })}
+                  </>
+                ) : lastConnected ? (
                   <span className="inline-flex items-center gap-1.5">
                     <Clock3 className="h-3.5 w-3.5" />
                     Last connected <time suppressHydrationWarning>{lastConnected}</time>
                   </span>
                 ) : (
-                  <span>No connection recorded</span>
+                  <span>Use Set Up to connect this project.</span>
                 )}
-                {connectedClient ? <span>{connectedClient}</span> : null}
+                {connectedClient ? (
+                  <span>
+                    {isActive && activeClients.length === 0 ? 'Active via' : 'Last setup via'}{' '}
+                    {connectedClient}
+                  </span>
+                ) : null}
               </div>
             </div>
 
             <button
               type="button"
-              onClick={onOpenConnect}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border border-primary/40 bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              onClick={(event) => {
+                event.stopPropagation()
+                onOpenConnect()
+              }}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border border-pink-300 bg-pink-100 px-4 text-sm font-semibold text-pink-900 shadow-sm transition-colors hover:bg-pink-200"
             >
               <Radio className="h-4 w-4" />
               {connectButtonLabel}
@@ -188,7 +263,13 @@ export function DashboardStatusSection({
           </div>
         </div>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onOpenInstructions}
+          onKeyDown={(event) => handleCardKeyDown(event, onOpenInstructions)}
+          className="cursor-pointer rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25"
+        >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -236,7 +317,10 @@ export function DashboardStatusSection({
 
             <button
               type="button"
-              onClick={onOpenInstructions}
+              onClick={(event) => {
+                event.stopPropagation()
+                onOpenInstructions()
+              }}
               className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-full border border-border bg-white px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
             >
               <Settings2 className="h-4 w-4" />

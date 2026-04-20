@@ -31,8 +31,6 @@ type ReviewThreadMessage = Pick<
   'id' | 'signal' | 'message' | 'created_at' | 'created_by'
 >
 
-type DescriptionMode = 'edit' | 'preview'
-
 function toDateInputValue(value: string | null) {
   if (!value) return ''
 
@@ -65,7 +63,7 @@ export function TaskDetailsModal({
 }: TaskDetailsModalProps) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [descriptionMode, setDescriptionMode] = useState<DescriptionMode>('edit')
+  const [isDescriptionEditing, setIsDescriptionEditing] = useState(false)
   const [status, setStatus] = useState<TaskStatus>('todo')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [dueDate, setDueDate] = useState('')
@@ -106,7 +104,7 @@ export function TaskDetailsModal({
       setPlans([])
       setSignalMessages([])
       setDueDate('')
-      setDescriptionMode('edit')
+      setIsDescriptionEditing(false)
       setReplyMessage('')
       setEditingMessageId(null)
       setEditingMessageText('')
@@ -118,7 +116,7 @@ export function TaskDetailsModal({
 
     setTitle(task.title)
     setDescription(task.description || '')
-    setDescriptionMode('edit')
+    setIsDescriptionEditing(false)
     setStatus(task.status)
     setPriority(task.priority)
     setDueDate(toDateInputValue(task.due_date))
@@ -428,36 +426,40 @@ export function TaskDetailsModal({
               <div>
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <label className="block text-sm font-medium text-foreground">Description</label>
-                  <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5">
-                    {(['edit', 'preview'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setDescriptionMode(mode)}
-                        className={`rounded px-2.5 py-1 text-xs font-semibold capitalize transition-colors ${
-                          descriptionMode === mode
-                            ? 'bg-white text-foreground shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground'
-                        }`}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {isDescriptionEditing
+                      ? 'Click away to render markdown'
+                      : 'Click the description to edit'}
+                  </span>
                 </div>
-                {descriptionMode === 'edit' ? (
+                {isDescriptionEditing ? (
                   <textarea
                     rows={3}
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
+                    onBlur={() => setIsDescriptionEditing(false)}
+                    autoFocus
                     className="w-full rounded-md border border-border bg-white p-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 ) : (
-                  <div className="min-h-[5.75rem] rounded-md border border-border bg-white p-3">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setIsDescriptionEditing(true)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        setIsDescriptionEditing(true)
+                      }
+                    }}
+                    className="min-h-[5.75rem] cursor-text rounded-md border border-border bg-white p-3 text-left transition-colors hover:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
                     {description.trim() ? (
                       <MarkdownContent content={description} />
                     ) : (
-                      <span className="text-sm text-muted-foreground">Nothing to preview yet.</span>
+                      <span className="text-sm text-muted-foreground">
+                        Click to add details. Markdown renders automatically when you click away.
+                      </span>
                     )}
                   </div>
                 )}

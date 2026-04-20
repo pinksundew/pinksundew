@@ -3,10 +3,19 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { hashApiKey } from '@/domains/api-key/mutations'
 import { getApiKeyByHash } from '@/domains/api-key/queries'
 import { updateLastUsed } from '@/domains/api-key/mutations'
+import {
+  inferSetupClientFromApiKeyName,
+  isSetupClient,
+  type SetupClient,
+} from '@/domains/setup-token/types'
 
 interface BridgeAuth {
   userId: string
   supabase: SupabaseClient
+}
+
+type SupabaseClientWithBridgeContext = SupabaseClient & {
+  __pinksundewBridgeClient?: SetupClient | null
 }
 
 /**
@@ -38,6 +47,13 @@ export async function validateBridgeRequest(
   if (!apiKey) {
     return NextResponse.json({ error: 'Invalid or revoked API key' }, { status: 401 })
   }
+
+  const headerClient = request.headers.get('x-pinksundew-client')
+  const resolvedClient = isSetupClient(headerClient)
+    ? headerClient
+    : inferSetupClientFromApiKeyName(apiKey.name)
+  const adminClientWithBridgeContext = adminClient as SupabaseClientWithBridgeContext
+  adminClientWithBridgeContext.__pinksundewBridgeClient = resolvedClient
 
   // Update last_used_at (fire and forget)
   updateLastUsed(adminClient, apiKey.id).catch(() => {})

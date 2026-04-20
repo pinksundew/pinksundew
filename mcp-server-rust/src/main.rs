@@ -90,7 +90,11 @@ async fn run_server() -> Result<()> {
         config.project_scope.project_id()
     );
 
-    let bridge = BridgeClient::new(config.base_url.clone(), config.api_key.clone());
+    let bridge = BridgeClient::with_client(
+        config.base_url.clone(),
+        config.api_key.clone(),
+        config.client.clone(),
+    );
     let resources = ResourceService::new(bridge.clone(), config.project_scope.clone());
     let tools = ToolService::new(
         bridge.clone(),

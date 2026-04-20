@@ -4,7 +4,7 @@ import type { Database } from '@/lib/supabase/database.types'
 import { requireProjectMembership } from '@/lib/bridge-access'
 import { createApiKey } from '@/domains/api-key/mutations'
 import { hashSetupToken } from '@/domains/setup-token/mutations'
-import { isSetupClient } from '@/domains/setup-token/types'
+import { getSetupClientLabel, isSetupClient, type SetupClient } from '@/domains/setup-token/types'
 
 type SetupTokenRow = {
   id: string
@@ -25,12 +25,8 @@ function createAdminClient() {
   )
 }
 
-function setupKeyName(client: string) {
-  const label = client
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-  return `MCP ${label} setup`
+function setupKeyName(client: SetupClient) {
+  return `MCP ${getSetupClientLabel(client)} setup`
 }
 
 export async function POST(request: NextRequest) {
@@ -97,7 +93,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const results = await Promise.all([
-      createApiKey(adminClient, row.user_id, setupKeyName(row.client)),
+      createApiKey(adminClient, row.user_id, setupKeyName(row.client as SetupClient)),
       adminClient
         .from('projects')
         .select('id, name')

@@ -11,8 +11,13 @@ type TaskAccessResult<T extends ProjectTaskRow> =
   | { task?: undefined; response: NextResponse }
 
 type ProjectActivityOptions = {
+  client?: string | null
   recordMcpActivity?: boolean
   requestPath?: string | null
+}
+
+type SupabaseClientWithBridgeContext = SupabaseClient & {
+  __pinksundewBridgeClient?: string | null
 }
 
 export async function requireProjectMembership(
@@ -33,9 +38,15 @@ export async function requireProjectMembership(
   }
 
   if (options?.recordMcpActivity) {
+    const activityClient =
+      options.client ??
+      (client as SupabaseClientWithBridgeContext).__pinksundewBridgeClient ??
+      null
+
     recordProjectMcpActivity(client, {
       projectId,
       userId,
+      client: activityClient,
       requestPath: options.requestPath ?? null,
     }).catch(() => {})
   }

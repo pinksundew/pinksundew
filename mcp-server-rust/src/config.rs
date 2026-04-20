@@ -14,6 +14,7 @@ pub const WORKSPACE_LINK_FILE: &str = "project.json";
 pub struct AppConfig {
     pub api_key: String,
     pub base_url: String,
+    pub client: Option<String>,
     pub project_scope: ProjectScope,
     pub panic_policy: PanicPolicy,
     pub log_level: String,
@@ -58,6 +59,10 @@ impl AppConfig {
             .map(|value| value.trim().trim_end_matches('/').to_string())
             .filter(|value| !value.is_empty())
             .unwrap_or(auth.base_url.clone());
+        let client = std::env::var("PINKSUNDEW_CLIENT")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
 
         let project_scope = ProjectScope::from_workspace(&cwd)?;
 
@@ -76,6 +81,7 @@ impl AppConfig {
         Ok(Self {
             api_key: auth.api_key,
             base_url,
+            client,
             project_scope,
             panic_policy,
             log_level,

@@ -17,6 +17,7 @@ use std::path::{Path, PathBuf};
 use toml_edit::{value, Array, DocumentMut, Item, Table};
 
 const API_KEY_ENV: &str = "PINKSUNDEW_API_KEY";
+const CLIENT_ENV: &str = "PINKSUNDEW_CLIENT";
 const PROJECT_ID_ENV: &str = "PINKSUNDEW_PROJECT_ID";
 const DISTRIBUTION_CHANNEL_ENV: &str = "PINKSUNDEW_MCP_DISTRIBUTION_CHANNEL";
 const NATIVE_MCP_COMMAND: &str = "pinksundew-mcp";
@@ -600,10 +601,16 @@ fn render_codex_config(
         .ok_or_else(|| anyhow!("`mcp_servers.pinksundew` could not be treated as a table"))?;
     pinksundew.insert("command", value(config.command_tuple.command.clone()));
     pinksundew.insert("args", value(args_array(&config.command_tuple.args)));
-    if let Some(env) = pinksundew.get_mut("env").and_then(Item::as_table_like_mut) {
-        env.remove(API_KEY_ENV);
-        env.remove(PROJECT_ID_ENV);
+    if !pinksundew.contains_key("env") {
+        pinksundew.insert("env", Item::Table(Table::new()));
     }
+    let env = pinksundew
+        .get_mut("env")
+        .and_then(Item::as_table_like_mut)
+        .ok_or_else(|| anyhow!("`mcp_servers.pinksundew.env` could not be treated as a table"))?;
+    env.remove(API_KEY_ENV);
+    env.remove(PROJECT_ID_ENV);
+    env.insert(CLIENT_ENV, value(client_slug(config.client)));
 
     let preview = format!(
         "[mcp_servers.pinksundew]\ncommand = {}\nargs = {:?}",
@@ -705,6 +712,12 @@ fn build_stdio_server_object(
             Value::String("${workspaceFolder}".to_string()),
         );
     }
+    let mut env = Map::new();
+    env.insert(
+        CLIENT_ENV.to_string(),
+        Value::String(client_slug(config.client).to_string()),
+    );
+    object.insert("env".to_string(), Value::Object(env));
     Value::Object(object)
 }
 
@@ -1227,10 +1240,11 @@ PINKSUNDEW_PROJECT_ID = "8cd4fe92-63ad-49af-ae3a-c404f4576cc7"
         assert!(rendered.content.contains("[mcp_servers.pinksundew]"));
         assert!(!rendered.content.contains(API_KEY_ENV));
         assert!(!rendered.content.contains(PROJECT_ID_ENV));
+        assert!(rendered.content.contains(CLIENT_ENV));
     }
 
     #[test]
-    fn mcp_json_render_has_no_env_secrets() {
+    fn mcp_json_render_sets_client_env_only() {
         let config = ResolvedRegisterConfig {
             client: Client::Antigravity,
             target_file: PathBuf::from(".mcp.json"),
@@ -1246,7 +1260,16 @@ PINKSUNDEW_PROJECT_ID = "8cd4fe92-63ad-49af-ae3a-c404f4576cc7"
             .pointer("/mcpServers/pinksundew")
             .and_then(Value::as_object)
             .expect("server object");
-        assert!(!server.contains_key("env"));
+        let env = server
+            .get("env")
+            .and_then(Value::as_object)
+            .expect("env object");
+        assert_eq!(
+            env.get(CLIENT_ENV).and_then(Value::as_str),
+            Some(client_slug(config.client))
+        );
+        assert!(!env.contains_key(API_KEY_ENV));
+        assert!(!env.contains_key(PROJECT_ID_ENV));
     }
 
     #[test]

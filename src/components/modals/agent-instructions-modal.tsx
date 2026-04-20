@@ -32,7 +32,7 @@ type AgentInstructionsModalProps = {
   projectId: string
 }
 
-type AgentSettingsTab = 'instructions' | 'controls'
+type AgentSettingsTab = 'global' | 'custom' | 'controls'
 const CONTEXT_DOCS_DIR = '.pinksundew/docs/'
 const CONTEXT_DOCS_NOTE =
   'Project context documents live in .pinksundew/docs/. Read them before making architectural changes.'
@@ -134,7 +134,7 @@ export function AgentInstructionsModal({
   onClose,
   projectId,
 }: AgentInstructionsModalProps) {
-  const [activeTab, setActiveTab] = useState<AgentSettingsTab>('instructions')
+  const [activeTab, setActiveTab] = useState<AgentSettingsTab>('global')
 
   const [instructionSets, setInstructionSets] = useState<AgentInstructionSetWithFiles[]>([])
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
@@ -260,7 +260,7 @@ export function AgentInstructionsModal({
     if (!isOpen) {
       setInstructionErrorMessage(null)
       setControlsErrorMessage(null)
-      setActiveTab('instructions')
+      setActiveTab('global')
       return
     }
 
@@ -297,6 +297,26 @@ export function AgentInstructionsModal({
     setDraftContent(selectedFile.content)
     setDraftFileName(getInstructionFileLabel(selectedFile))
   }, [selectedFile])
+
+  useEffect(() => {
+    if (activeTab === 'global') {
+      if (selectedFileIsContextDocument && ruleFiles.length > 0) {
+        setSelectedFileId(ruleFiles[0].id)
+      }
+      return
+    }
+
+    if (activeTab === 'custom') {
+      if (contextFiles.length === 0) {
+        setSelectedFileId(null)
+        return
+      }
+
+      if (!selectedFileIsContextDocument) {
+        setSelectedFileId(contextFiles[0].id)
+      }
+    }
+  }, [activeTab, contextFiles, ruleFiles, selectedFileIsContextDocument])
 
   const handleToggleTool = (toolId: CoreMcpToolId) => {
     setToolToggles((previous) => ({
@@ -406,6 +426,21 @@ export function AgentInstructionsModal({
     await Promise.all(promises)
   }
 
+  const isGlobalTab = activeTab === 'global'
+  const currentInstructionFiles = isGlobalTab ? ruleFiles : contextFiles
+  const currentInstructionIcon = isGlobalTab ? FileText : BookOpen
+  const currentInstructionTitle = isGlobalTab ? 'Global Agent Rules' : 'Custom Context Document'
+  const currentInstructionDescription = isGlobalTab
+    ? 'Behavioral rules applied to connected AI sessions.'
+    : 'Custom markdown documents sync as separate files in .pinksundew/docs/.'
+  const currentInstructionPlaceholder = isGlobalTab
+    ? `# Agent Rules\n\n${CONTEXT_DOCS_NOTE}`
+    : '# Architecture\n\nDescribe important domain, data, and product context here.'
+  const emptyInstructionState = isGlobalTab
+    ? 'Preparing your global instruction file...'
+    : 'Create a custom file on the left to start writing context for agents.'
+  const CurrentInstructionIcon = currentInstructionIcon
+
   if (!isOpen) return null
 
   return (
@@ -428,19 +463,31 @@ export function AgentInstructionsModal({
             <div>
               <h2 className="text-xl font-semibold">Agent Instructions</h2>
               <p className="text-sm text-muted-foreground">
-                Configure instruction bundles and what MCP agents are allowed to do on this board.
+                Configure global rules, custom context documents, and what MCP agents are allowed
+                to do on this board.
               </p>
               <div className="mt-3 inline-flex rounded-lg border border-border bg-muted/20 p-1">
                 <button
                   type="button"
-                  onClick={() => setActiveTab('instructions')}
+                  onClick={() => setActiveTab('global')}
                   className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
-                    activeTab === 'instructions'
+                    activeTab === 'global'
                       ? 'bg-white text-foreground shadow-sm'
                       : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  Instruction Files
+                  Global Instructions
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('custom')}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    activeTab === 'custom'
+                      ? 'bg-white text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Custom Instructions
                 </button>
                 <button
                   type="button"
@@ -460,93 +507,95 @@ export function AgentInstructionsModal({
             </button>
           </div>
 
-          {activeTab === 'instructions' ? (
+          {activeTab !== 'controls' ? (
             <div className="m-3 flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-inner">
               <div className="flex w-80 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-slate-50/50 p-5">
-                <div>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">Sync Targets</h3>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                    Toggle the target rules files for connected MCP clients.
-                  </p>
-                </div>
-
-                <div className="mt-4 space-y-2">
-                  {INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => (
-                    <button
-                      key={target.id}
-                      type="button"
-                      className={`group w-full rounded-lg border p-3 text-left transition-all ${
-                        toolToggles[target.id]
-                          ? 'border-primary/40 bg-zinc-50 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-primary/20 hover:shadow-sm'
-                      }`}
-                      onClick={() => handleToggleSyncTarget(target.id)}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1 overflow-hidden">
-                          <div className={`text-sm font-semibold ${toolToggles[target.id] ? 'text-primary' : 'text-slate-700'}`}>
-                            {target.name}
-                          </div>
-                          <div className="mt-1 inline-block max-w-full truncate rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600">
-                            {target.file_path}
-                          </div>
-                        </div>
-                        <div
-                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                            toolToggles[target.id] ? 'bg-primary' : 'bg-slate-200 group-hover:bg-slate-300'
-                          }`}
-                        >
-                          <span
-                            className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
-                              toolToggles[target.id] ? 'translate-x-4' : 'translate-x-1'
-                            }`}
-                          />
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-6 border-t border-slate-200 pt-5">
-                  <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">
-                    Rules File
-                  </div>
-                  {ruleFiles.map((file) => (
-                    <button
-                      key={file.id}
-                      type="button"
-                      onClick={() => setSelectedFileId(file.id)}
-                      className={`mb-2 flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm font-medium transition-colors ${
-                        selectedFileId === file.id
-                          ? 'border-primary/40 bg-primary/10 text-primary-foreground'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-primary/20'
-                      }`}
-                    >
-                      <FileText className="h-4 w-4 shrink-0" />
-                      <span className="min-w-0 truncate">{getInstructionFileLabel(file)}</span>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-4 border-t border-slate-200 pt-5">
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                      Context Documents
+                {isGlobalTab ? (
+                  <>
+                    <div>
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+                        Sync Targets
+                      </h3>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                        Toggle the target rules files for connected MCP clients.
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleAddContextDocument}
-                      disabled={!selectedSet || isInstructionLoading}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="Add context document"
-                    >
-                      <FilePlus2 className="h-4 w-4" />
-                    </button>
-                  </div>
 
+                    <div className="mt-4 space-y-2">
+                      {INSTRUCTION_SYNC_TARGET_CATALOG.map((target) => (
+                        <button
+                          key={target.id}
+                          type="button"
+                          className={`group w-full rounded-lg border p-3 text-left transition-all ${
+                            toolToggles[target.id]
+                              ? 'border-primary/40 bg-zinc-50 shadow-sm'
+                              : 'border-slate-200 bg-white hover:border-primary/20 hover:shadow-sm'
+                          }`}
+                          onClick={() => handleToggleSyncTarget(target.id)}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1 overflow-hidden">
+                              <div
+                                className={`text-sm font-semibold ${
+                                  toolToggles[target.id] ? 'text-primary' : 'text-slate-700'
+                                }`}
+                              >
+                                {target.name}
+                              </div>
+                              <div className="mt-1 inline-block max-w-full truncate rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-slate-600">
+                                {target.file_path}
+                              </div>
+                            </div>
+                            <div
+                              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                                toolToggles[target.id]
+                                  ? 'bg-primary'
+                                  : 'bg-slate-200 group-hover:bg-slate-300'
+                              }`}
+                            >
+                              <span
+                                className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                                  toolToggles[target.id] ? 'translate-x-4' : 'translate-x-1'
+                                }`}
+                              />
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800">
+                          Custom Files
+                        </h3>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                          These files sync separately into .pinksundew/docs/ and are not appended to
+                          your global rules file.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddContextDocument}
+                        disabled={!selectedSet || isInstructionLoading}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-primary/10 text-primary-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="Add custom instruction file"
+                      >
+                        <FilePlus2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className={`border-slate-200 pt-5 ${isGlobalTab ? 'mt-6 border-t' : 'mt-4'}`}>
+                  <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">
+                    {isGlobalTab ? 'Rules File' : 'Custom Instructions'}
+                  </div>
                   <div className="space-y-2">
-                    {contextFiles.length > 0 ? (
-                      contextFiles.map((file) => (
+                    {currentInstructionFiles.length > 0 ? (
+                      currentInstructionFiles.map((file) => (
                         <button
                           key={file.id}
                           type="button"
@@ -557,36 +606,33 @@ export function AgentInstructionsModal({
                               : 'border-slate-200 bg-white text-slate-700 hover:border-primary/20'
                           }`}
                         >
-                          <BookOpen className="h-4 w-4 shrink-0" />
+                          {isGlobalTab ? (
+                            <FileText className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <BookOpen className="h-4 w-4 shrink-0" />
+                          )}
                           <span className="min-w-0 truncate">{getInstructionFileLabel(file)}</span>
                         </button>
                       ))
                     ) : (
                       <div className="rounded-lg border border-dashed border-slate-300 bg-white/60 px-3 py-3 text-xs leading-5 text-slate-500">
-                        Context docs sync as markdown files under .pinksundew/docs/.
+                        {isGlobalTab
+                          ? 'A default global rules file will be created automatically.'
+                          : 'Create a markdown file to keep architecture, schema, or product context separate from the global rules file.'}
                       </div>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Main Text Editor */}
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-4 shrink-0">
                   <div className="flex items-center gap-2.5 text-foreground">
-                    {selectedFileIsContextDocument ? (
-                      <BookOpen className="h-5 w-5 text-primary" />
-                    ) : (
-                      <FileText className="h-5 w-5 text-primary" />
-                    )}
+                    <CurrentInstructionIcon className="h-5 w-5 text-primary" />
                     <div>
-                      <h3 className="font-semibold text-slate-800">
-                        {selectedFileIsContextDocument ? 'Project Context Document' : 'Global Agent Rules'}
-                      </h3>
+                      <h3 className="font-semibold text-slate-800">{currentInstructionTitle}</h3>
                       <p className="hidden text-xs text-slate-500 sm:block">
-                        {selectedFileIsContextDocument
-                          ? 'Knowledge for agents to read before architectural changes.'
-                          : 'Behavioral rules applied to connected AI sessions.'}
+                        {currentInstructionDescription}
                       </p>
                     </div>
                   </div>
@@ -594,14 +640,17 @@ export function AgentInstructionsModal({
                   <button
                     type="button"
                     onClick={handleSaveAll}
-                    disabled={(!selectedFile && !controlsDirty) || isInstructionLoading || isControlsSaving}
+                    disabled={
+                      (!selectedFile && !controlsDirty) || isInstructionLoading || isControlsSaving
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:shadow disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:shadow-none"
                   >
-                    <Save className="h-4 w-4" /> {(isInstructionLoading || isControlsSaving) ? 'Saving...' : 'Save Settings'}
+                    <Save className="h-4 w-4" />{' '}
+                    {isInstructionLoading || isControlsSaving ? 'Saving...' : 'Save Settings'}
                   </button>
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col p-4 bg-slate-50">
+                <div className="flex min-h-0 flex-1 flex-col bg-slate-50 p-4">
                   {selectedFile ? (
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                       <div className="border-b border-slate-200 bg-slate-50/70 px-4 py-3">
@@ -609,7 +658,7 @@ export function AgentInstructionsModal({
                           File
                         </label>
                         <div className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700">
-                          {selectedFileIsContextDocument ? (
+                          {!isGlobalTab ? (
                             <span className="mr-1 shrink-0 text-slate-400">{CONTEXT_DOCS_DIR}</span>
                           ) : null}
                           <input
@@ -623,17 +672,13 @@ export function AgentInstructionsModal({
                       <textarea
                         value={draftContent}
                         onChange={(event) => setDraftContent(event.target.value)}
-                        placeholder={
-                          selectedFileIsContextDocument
-                            ? '# Architecture\n\nDescribe important domain, data, and product context here.'
-                            : `# Agent Rules\n\n${CONTEXT_DOCS_NOTE}`
-                        }
+                        placeholder={currentInstructionPlaceholder}
                         className="h-full min-h-0 w-full resize-none overflow-y-auto bg-white p-5 font-mono text-sm leading-loose text-slate-700 outline-none focus:ring-0"
                       />
                     </div>
                   ) : (
                     <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/50 px-6 text-center text-sm text-slate-500">
-                      Preparing your instruction file...
+                      {emptyInstructionState}
                     </div>
                   )}
 
@@ -642,7 +687,7 @@ export function AgentInstructionsModal({
                       {instructionErrorMessage}
                     </div>
                   ) : null}
-                  {controlsErrorMessage && activeTab === 'instructions' ? (
+                  {controlsErrorMessage ? (
                     <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 shadow-sm">
                       {controlsErrorMessage}
                     </div>

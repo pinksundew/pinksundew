@@ -3,11 +3,12 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const requestUrl = new URL(request.url)
+  const { searchParams, origin } = requestUrl
   const code = searchParams.get('code')
-  // if "next" is in param, use it as the redirect URL
   const rawNext = searchParams.get('next') ?? '/'
   const next = rawNext.startsWith('/') ? rawNext : '/'
+  const isClaim = searchParams.get('claim') === '1'
 
   if (code) {
     const cookieStore = await cookies()
@@ -31,20 +32,27 @@ export async function GET(request: Request) {
         },
       }
     )
-    
+
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      const forwardedHost = request.headers.get('x-forwarded-host') 
+      const forwardedHost = request.headers.get('x-forwarded-host')
       const isLocalhost = process.env.NODE_ENV === 'development'
 
+      let redirectBase: string
       if (isLocalhost) {
-        // we can be sure that there is no load balancer in between, so no need to watch for X-Forwarded-Host
-        return NextResponse.redirect(`${origin}${next}`)
+        redirectBase = origin
       } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`)
+        redirectBase = `https://${forwardedHost}`
       } else {
-        return NextResponse.redirect(`${origin}${next}`)
+        redirectBase = origin
       }
+
+      const redirectUrl = new URL(next, redirectBase)
+      if (isClaim && !redirectUrl.searchParams.has('claim')) {
+        redirectUrl.searchParams.set('claim', '1')
+      }
+
+      return NextResponse.redirect(redirectUrl.toString())
     }
   }
 

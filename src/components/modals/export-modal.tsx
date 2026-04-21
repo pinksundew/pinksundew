@@ -34,7 +34,6 @@ type ExportModalProps = {
   onClose: () => void
   tasks: TaskWithTags[]
   projectName: string
-  mode?: 'authenticated' | 'guest'
 }
 
 type ExportFormat = 'numbered' | 'bullets' | 'checkboxes' | 'compact'
@@ -132,14 +131,12 @@ export function ExportModal({
   onClose,
   tasks,
   projectName,
-  mode = 'authenticated',
 }: ExportModalProps) {
-  const isGuestMode = mode === 'guest'
   const [orderedTasks, setOrderedTasks] = useState<TaskWithTags[]>(tasks)
   const [format, setFormat] = useState<ExportFormat>('numbered')
-  const [includeTags, setIncludeTags] = useState(!isGuestMode)
+  const [includeTags, setIncludeTags] = useState(true)
   const [includePriority, setIncludePriority] = useState(true)
-  const [includeTicketNumber, setIncludeTicketNumber] = useState(!isGuestMode)
+  const [includeTicketNumber, setIncludeTicketNumber] = useState(true)
   const [exportCopied, setExportCopied] = useState(false)
   
   // Card expansion states - all collapsed by default
@@ -157,11 +154,11 @@ export function ExportModal({
     () =>
       generateExportText(orderedTasks, {
         format,
-        includeTags: isGuestMode ? false : includeTags,
+        includeTags,
         includePriority,
-        includeTicketNumber: isGuestMode ? false : includeTicketNumber,
+        includeTicketNumber,
       }),
-    [orderedTasks, format, includeTags, includePriority, includeTicketNumber, isGuestMode]
+    [orderedTasks, format, includeTags, includePriority, includeTicketNumber]
   )
 
   const toggleCard = (card: keyof typeof expandedCards) => {
@@ -184,10 +181,9 @@ export function ExportModal({
     posthog.capture('export_prompt_copied', {
       task_count: orderedTasks.length,
       format,
-      mode,
-      include_tags: isGuestMode ? false : includeTags,
+      include_tags: includeTags,
       include_priority: includePriority,
-      include_ticket_number: isGuestMode ? false : includeTicketNumber,
+      include_ticket_number: includeTicketNumber,
     })
     setExportCopied(true)
     window.setTimeout(() => {
@@ -270,12 +266,6 @@ export function ExportModal({
                         className="overflow-hidden"
                       >
                         <div className="mt-4 space-y-4">
-                          {isGuestMode ? (
-                            <p className="rounded-md border border-rose-100 bg-rose-50 px-2.5 py-2 text-xs text-rose-700">
-                              Guest exports always omit ticket numbers and tags.
-                            </p>
-                          ) : null}
-
                           <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-center">
                             <label className="text-sm font-medium text-foreground" htmlFor="export-format">
                               Format
@@ -295,28 +285,24 @@ export function ExportModal({
                           </div>
 
                           <div className="mt-4 flex flex-col gap-3">
-                            {!isGuestMode ? (
-                              <>
-                                <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                                  <input
-                                    type="checkbox"
-                                    checked={includeTicketNumber}
-                                    onChange={(event) => setIncludeTicketNumber(event.target.checked)}
-                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                                  />
-                                  Include ticket number
-                                </label>
-                                <label className="inline-flex items-center gap-2 text-sm text-foreground">
-                                  <input
-                                    type="checkbox"
-                                    checked={includeTags}
-                                    onChange={(event) => setIncludeTags(event.target.checked)}
-                                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
-                                  />
-                                  Include tags
-                                </label>
-                              </>
-                            ) : null}
+                            <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={includeTicketNumber}
+                                onChange={(event) => setIncludeTicketNumber(event.target.checked)}
+                                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                              />
+                              Include ticket number
+                            </label>
+                            <label className="inline-flex items-center gap-2 text-sm text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={includeTags}
+                                onChange={(event) => setIncludeTags(event.target.checked)}
+                                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                              />
+                              Include tags
+                            </label>
                             <label className="inline-flex items-center gap-2 text-sm text-foreground">
                               <input
                                 type="checkbox"

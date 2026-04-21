@@ -3,6 +3,7 @@ import { validateBridgeRequest, isBridgeAuthError } from '@/lib/bridge-auth'
 import { requireTaskAccess } from '@/lib/bridge-access'
 import { createTask } from '@/domains/task/mutations'
 import { isTaskPriority } from '@/domains/task/types'
+import { ANONYMOUS_ACTIVE_TASK_LIMIT, isAnonymousTaskLimitMessage } from '@/lib/anon-limits'
 
 type ParentTaskRow = {
   project_id: string
@@ -40,25 +41,42 @@ export async function POST(
   const taskData = parentTaskResult.task
 
   const created = []
-  for (let i = 0; i < body.subtasks.length; i++) {
-    const sub = body.subtasks[i]
+  try {
+    for (let i = 0; i < body.subtasks.length; i++) {
+      const sub = body.subtasks[i]
 
-    if (sub.priority !== undefined && !isTaskPriority(sub.priority)) {
-      return NextResponse.json({ error: 'Invalid priority in subtasks payload' }, { status: 400 })
+      if (sub.priority !== undefined && !isTaskPriority(sub.priority)) {
+        return NextResponse.json({ error: 'Invalid priority in subtasks payload' }, { status: 400 })
+      }
+
+      const task = await createTask(auth.supabase, {
+        project_id: taskData.project_id,
+        title: sub.title,
+        description: sub.description ?? null,
+        status: 'todo',
+        priority: sub.priority ?? 'medium',
+        assignee_id: null,
+        due_date: null,
+        predecessor_id: taskId,
+        position: i,
+      })
+      created.push(task)
     }
-
-    const task = await createTask(auth.supabase, {
-      project_id: taskData.project_id,
-      title: sub.title,
-      description: sub.description ?? null,
-      status: 'todo',
-      priority: sub.priority ?? 'medium',
-      assignee_id: null,
-      due_date: null,
-      predecessor_id: taskId,
-      position: i,
-    })
-    created.push(task)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create subtasks'
+    if (isAnonymousTaskLimitMessage(message)) {
+      return NextResponse.json(
+        {
+          error: message,
+          code: 'anonymous_task_limit_reached',
+          limit: ANONYMOUS_ACTIVE_TASK_LIMIT,
+          action: 'claim_account',
+          created_before_limit: created,
+        },
+        { status: 402 }
+      )
+    }
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 
   return NextResponse.json(created, { status: 201 })

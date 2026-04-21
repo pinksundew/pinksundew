@@ -1,10 +1,10 @@
 /**
  * Generated Supabase Database Types
- * 
+ *
  * This file is auto-generated from the Supabase schema.
  * Do not edit manually - regenerate using:
  *   supabase gen types typescript --project-id <id> > src/lib/supabase/database.types.ts
- * 
+ *
  * Or via MCP: mcp_supabase_generate_typescript_types
  */
 
@@ -183,49 +183,11 @@ export type Database = {
           },
         ]
       }
-      guest_import_runs: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          id: string
-          import_id: string
-          payload_hash: string
-          project_id: string | null
-          user_id: string
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          id?: string
-          import_id: string
-          payload_hash: string
-          project_id?: string | null
-          user_id: string
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          id?: string
-          import_id?: string
-          payload_hash?: string
-          project_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "guest_import_runs_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           avatar_url: string | null
           created_at: string | null
-          email: string
+          email: string | null
           full_name: string | null
           id: string
           updated_at: string | null
@@ -233,7 +195,7 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string | null
-          email: string
+          email?: string | null
           full_name?: string | null
           id: string
           updated_at?: string | null
@@ -241,7 +203,7 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string | null
-          email?: string
+          email?: string | null
           full_name?: string | null
           id?: string
           updated_at?: string | null
@@ -360,6 +322,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           id: string
+          is_guest: boolean
           name: string
           updated_at: string | null
         }
@@ -368,6 +331,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_guest?: boolean
           name: string
           updated_at?: string | null
         }
@@ -376,6 +340,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           id?: string
+          is_guest?: boolean
           name?: string
           updated_at?: string | null
         }
@@ -611,13 +576,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      import_guest_board: {
-        Args: {
-          p_import_id: string
-          p_payload_hash: string
-          p_project_name: string
-          p_tasks: Json
-        }
+      bootstrap_guest_project: { Args: Record<string, never>; Returns: string }
+      merge_anonymous_into: {
+        Args: { p_anon_user_id: string; p_target_user_id: string }
         Returns: Json
       }
       reorder_project_tasks: {
@@ -775,4 +736,3 @@ export type ProjectAgentControlsRow = Tables<'project_agent_controls'>
 export type ProjectMcpActivityRow = Tables<'project_mcp_activity'>
 export type AgentInstructionSetRow = Tables<'agent_instruction_sets'>
 export type AgentInstructionSetFileRow = Tables<'agent_instruction_set_files'>
-export type GuestImportRunRow = Tables<'guest_import_runs'>

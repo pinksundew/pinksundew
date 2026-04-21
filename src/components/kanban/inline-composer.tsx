@@ -8,8 +8,7 @@ import { TaskStatus, TaskPriority, TaskWithTags } from '@/domains/task/types'
 type InlineComposerProps = {
   projectId: string
   status: TaskStatus
-  isGuestMode?: boolean
-  guestTaskLimitReached?: boolean
+  anonymousTaskLimitReached?: boolean
   onPromptAuth?: (message: string) => void
   onCreateTask: (task: CreateTaskInput) => Promise<TaskWithTags>
   onUpdateTaskTitle?: (taskId: string, title: string) => Promise<void>
@@ -33,7 +32,7 @@ const DRAFTING_PLACEHOLDER = 'Drafting...'
 export function InlineComposer({
   projectId,
   status,
-  guestTaskLimitReached = false,
+  anonymousTaskLimitReached = false,
   onPromptAuth,
   onCreateTask,
   onUpdateTaskTitle,
@@ -84,8 +83,8 @@ export function InlineComposer({
   }, [isComposing, titleText, descriptionText])
 
   const handlePillClick = () => {
-    if (guestTaskLimitReached && onPromptAuth) {
-      onPromptAuth('Guest boards have a task limit. Sign in to add more tasks.')
+    if (anonymousTaskLimitReached && onPromptAuth) {
+      onPromptAuth('Anonymous boards have a task limit. Claim your account to add more tasks.')
       return
     }
     setIsComposing(true)

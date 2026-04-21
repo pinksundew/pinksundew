@@ -4,6 +4,7 @@ import { requireProjectMembership } from '@/lib/bridge-access'
 import { createTask } from '@/domains/task/mutations'
 import { isTaskPriority, isTaskStatus } from '@/domains/task/types'
 import { getPostHogClient } from '@/lib/posthog-server'
+import { ANONYMOUS_ACTIVE_TASK_LIMIT, isAnonymousTaskLimitMessage } from '@/lib/anon-limits'
 
 export async function POST(request: NextRequest) {
   const auth = await validateBridgeRequest(request)
@@ -62,9 +63,20 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(task, { status: 201 })
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create task' },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Failed to create task'
+
+    if (isAnonymousTaskLimitMessage(message)) {
+      return NextResponse.json(
+        {
+          error: message,
+          code: 'anonymous_task_limit_reached',
+          limit: ANONYMOUS_ACTIVE_TASK_LIMIT,
+          action: 'claim_account',
+        },
+        { status: 402 }
+      )
+    }
+
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

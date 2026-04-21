@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Ellipsis, FolderKanban, Pencil, PlusSquare, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -15,8 +15,6 @@ type SidebarProject = Pick<Project, 'id' | 'name'>
 type DashboardSidebarProps = {
   projects: SidebarProject[]
   userEmail?: string | null
-  mode?: 'authenticated' | 'guest'
-  onRequireAuth?: (message: string, nextPath?: string) => void
 }
 
 const PROJECT_TAB_OPEN_EVENT = 'pinksundew:open-project-tab'
@@ -26,12 +24,7 @@ function getProjectIdFromPath(pathname: string) {
   return firstSegment ?? null
 }
 
-export function DashboardSidebar({
-  projects,
-  userEmail,
-  mode = 'authenticated',
-  onRequireAuth,
-}: DashboardSidebarProps) {
+export function DashboardSidebar({ projects, userEmail }: DashboardSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [supabase] = useState(() => createClient())
@@ -44,38 +37,14 @@ export function DashboardSidebar({
   const [renameError, setRenameError] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
-  const isGuestMode = mode === 'guest'
   const currentProjectId = getProjectIdFromPath(pathname)
   const projectIdSet = useMemo(() => new Set(projects.map((project) => project.id)), [projects])
 
-  const activeProjectId = isGuestMode
-    ? projects[0]?.id ?? null
-    : currentProjectId && projectIdSet.has(currentProjectId)
-      ? currentProjectId
-      : null
-
-  const requireAuth = (message: string, nextPath: string = '/guest') => {
-    if (!isGuestMode) {
-      return false
-    }
-
-    onRequireAuth?.(message, nextPath)
-    return true
-  }
-
-  const handleCreateProjectClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (
-      requireAuth(
-        'Creating additional projects requires an account. Sign in to unlock full multi-project support.',
-        '/create-project'
-      )
-    ) {
-      event.preventDefault()
-    }
-  }
+  const activeProjectId =
+    currentProjectId && projectIdSet.has(currentProjectId) ? currentProjectId : null
 
   const handleProjectClick = (projectId: string) => {
-    if (typeof window === 'undefined' || isGuestMode) {
+    if (typeof window === 'undefined') {
       return
     }
 
@@ -87,7 +56,7 @@ export function DashboardSidebar({
   }
 
   const handleDeleteProject = async () => {
-    if (!projectToDelete || isGuestMode) {
+    if (!projectToDelete) {
       return
     }
 
@@ -149,7 +118,7 @@ export function DashboardSidebar({
   }
 
   const handleRenameProject = async () => {
-    if (!projectToRename || isGuestMode) {
+    if (!projectToRename) {
       return
     }
 
@@ -199,7 +168,7 @@ export function DashboardSidebar({
             <div className="h-full space-y-1.5 overflow-y-auto pb-3 pr-1 pt-0.5">
               {projects.map((project) => {
                 const isActive = project.id === activeProjectId
-                const projectHref = isGuestMode ? '/guest' : `/${project.id}`
+                const projectHref = `/${project.id}`
                 const isMenuOpen = projectMenuId === project.id
 
                 return (
@@ -230,67 +199,64 @@ export function DashboardSidebar({
                       </span>
                     </Link>
 
-                    {!isGuestMode ? (
-                      <div ref={isMenuOpen ? menuRef : null} className="relative hidden shrink-0 group-hover/sidebar:block">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            setProjectMenuId((currentId) => (currentId === project.id ? null : project.id))
-                            setDeleteError(null)
-                            setRenameError(null)
-                          }}
-                          className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                          aria-haspopup="menu"
-                          aria-expanded={isMenuOpen}
-                          aria-label={`Project actions for ${project.name}`}
-                        >
-                          <Ellipsis className="h-3.5 w-3.5" />
-                        </button>
+                    <div ref={isMenuOpen ? menuRef : null} className="relative hidden shrink-0 group-hover/sidebar:block">
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setProjectMenuId((currentId) => (currentId === project.id ? null : project.id))
+                          setDeleteError(null)
+                          setRenameError(null)
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        aria-haspopup="menu"
+                        aria-expanded={isMenuOpen}
+                        aria-label={`Project actions for ${project.name}`}
+                      >
+                        <Ellipsis className="h-3.5 w-3.5" />
+                      </button>
 
-                        <AnimatePresence>
-                          {isMenuOpen ? (
-                            <motion.div
-                              initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                              transition={{ duration: 0.16, ease: 'easeOut' }}
-                              className="absolute right-0 top-9 z-20 w-40 overflow-hidden rounded-xl border border-border bg-white p-1.5 shadow-lg shadow-black/5"
-                              role="menu"
+                      <AnimatePresence>
+                        {isMenuOpen ? (
+                          <motion.div
+                            initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                            transition={{ duration: 0.16, ease: 'easeOut' }}
+                            className="absolute right-0 top-9 z-20 w-40 overflow-hidden rounded-xl border border-border bg-white p-1.5 shadow-lg shadow-black/5"
+                            role="menu"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => openRenameDialog(project)}
+                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                              role="menuitem"
                             >
-                              <button
-                                type="button"
-                                onClick={() => openRenameDialog(project)}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                                role="menuitem"
-                              >
-                                <Pencil className="h-3.5 w-3.5 text-sky-700" />
-                                Rename
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setProjectMenuId(null)
-                                  setProjectToDelete(project)
-                                }}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50"
-                                role="menuitem"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Delete
-                              </button>
-                            </motion.div>
-                          ) : null}
-                        </AnimatePresence>
-                      </div>
-                    ) : null}
+                              <Pencil className="h-3.5 w-3.5 text-sky-700" />
+                              Rename
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setProjectMenuId(null)
+                                setProjectToDelete(project)
+                              }}
+                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-rose-700 transition-colors hover:bg-rose-50"
+                              role="menuitem"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </button>
+                          </motion.div>
+                        ) : null}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 )
               })}
 
               <Link
                 href="/create-project"
-                onClick={handleCreateProjectClick}
                 className="group/project-row mt-2 flex h-11 items-center justify-center gap-0 rounded-xl border border-dashed border-primary/35 p-0.5 text-primary transition-colors hover:border-primary/55 hover:bg-primary/10 group-hover/sidebar:justify-start group-hover/sidebar:gap-2 group-hover/sidebar:px-1.5"
               >
                 <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary transition-transform duration-200 group-hover/project-row:scale-110">
@@ -311,108 +277,104 @@ export function DashboardSidebar({
             ) : null}
 
             <p className="max-w-0 overflow-hidden truncate whitespace-nowrap py-2 text-center text-xs text-muted-foreground opacity-0 transition-all duration-200 group-hover/sidebar:max-w-[190px] group-hover/sidebar:opacity-100">
-              {isGuestMode ? 'Guest Mode' : userEmail || 'Signed in'}
+              {userEmail || 'Signed in'}
             </p>
           </div>
         </div>
       </aside>
 
-      {!isGuestMode ? (
-        <ConfirmModal
-          isOpen={projectToDelete !== null}
-          title="Delete Project"
-          message={
-            projectToDelete
-              ? `Delete \"${projectToDelete.name}\"? This action cannot be undone.`
-              : 'Delete this project?'
-          }
-          confirmText="Delete Project"
-          cancelText="Keep Project"
-          isDestructive
-          onConfirm={handleDeleteProject}
-          onClose={() => setProjectToDelete(null)}
-        />
-      ) : null}
+      <ConfirmModal
+        isOpen={projectToDelete !== null}
+        title="Delete Project"
+        message={
+          projectToDelete
+            ? `Delete \"${projectToDelete.name}\"? This action cannot be undone.`
+            : 'Delete this project?'
+        }
+        confirmText="Delete Project"
+        cancelText="Keep Project"
+        isDestructive
+        onConfirm={handleDeleteProject}
+        onClose={() => setProjectToDelete(null)}
+      />
 
-      {!isGuestMode ? (
-        <AnimatePresence>
-          {projectToRename ? (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => {
-                  if (isRenamingProject) {
-                    return
-                  }
+      <AnimatePresence>
+        {projectToRename ? (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (isRenamingProject) {
+                  return
+                }
 
-                  setProjectToRename(null)
-                  setRenameValue('')
-                  setRenameError(null)
-                }}
-                className="fixed inset-0 bg-black/40 backdrop-blur-sm"
-              />
-              <motion.form
-                initial={{ opacity: 0, y: 10, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void handleRenameProject()
-                }}
-                className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-white shadow-xl shadow-black/10"
-              >
-                <div className="border-b border-border bg-muted/30 px-5 py-4">
-                  <h2 className="text-lg font-semibold text-foreground">Rename Project</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Update the project name shown in the sidebar and open tabs.
-                  </p>
+                setProjectToRename(null)
+                setRenameValue('')
+                setRenameError(null)
+              }}
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.form
+              initial={{ opacity: 0, y: 10, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              onSubmit={(event) => {
+                event.preventDefault()
+                void handleRenameProject()
+              }}
+              className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-white shadow-xl shadow-black/10"
+            >
+              <div className="border-b border-border bg-muted/30 px-5 py-4">
+                <h2 className="text-lg font-semibold text-foreground">Rename Project</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Update the project name shown in the sidebar and open tabs.
+                </p>
+              </div>
+
+              <div className="space-y-3 px-5 py-4">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-foreground">Project Name</label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={renameValue}
+                    onChange={(event) => setRenameValue(event.target.value)}
+                    className="w-full rounded-md border border-border px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Project name"
+                  />
                 </div>
+                {renameError ? <p className="text-sm font-medium text-rose-700">{renameError}</p> : null}
+              </div>
 
-                <div className="space-y-3 px-5 py-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-foreground">Project Name</label>
-                    <input
-                      type="text"
-                      required
-                      autoFocus
-                      value={renameValue}
-                      onChange={(event) => setRenameValue(event.target.value)}
-                      className="w-full rounded-md border border-border px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                      placeholder="Project name"
-                    />
-                  </div>
-                  {renameError ? <p className="text-sm font-medium text-rose-700">{renameError}</p> : null}
-                </div>
-
-                <div className="flex gap-3 border-t border-border bg-muted/20 px-5 py-4">
-                  <button
-                    type="button"
-                    disabled={isRenamingProject}
-                    onClick={() => {
-                      setProjectToRename(null)
-                      setRenameValue('')
-                      setRenameError(null)
-                    }}
-                    className="flex-1 rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isRenamingProject}
-                    className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {isRenamingProject ? 'Renaming...' : 'Rename Project'}
-                  </button>
-                </div>
-              </motion.form>
-            </div>
-          ) : null}
-        </AnimatePresence>
-      ) : null}
+              <div className="flex gap-3 border-t border-border bg-muted/20 px-5 py-4">
+                <button
+                  type="button"
+                  disabled={isRenamingProject}
+                  onClick={() => {
+                    setProjectToRename(null)
+                    setRenameValue('')
+                    setRenameError(null)
+                  }}
+                  className="flex-1 rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRenamingProject}
+                  className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isRenamingProject ? 'Renaming...' : 'Rename Project'}
+                </button>
+              </div>
+            </motion.form>
+          </div>
+        ) : null}
+      </AnimatePresence>
     </>
   )
 }

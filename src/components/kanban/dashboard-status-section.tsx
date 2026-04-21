@@ -19,7 +19,6 @@ import { CLIENT_LOGOS, SYNC_TARGET_LOGOS } from '@/components/brand/client-logos
 type DashboardStatusSectionProps = {
   projectId: string
   status?: ProjectDashboardStatus | null
-  isGuestMode: boolean
   isSelectionMode: boolean
   settingsSlot: ReactNode
   onOpenConnect: () => void
@@ -89,7 +88,6 @@ function handleCardKeyDown(event: KeyboardEvent<HTMLDivElement>, onActivate: () 
 export function DashboardStatusSection({
   projectId,
   status,
-  isGuestMode,
   isSelectionMode,
   settingsSlot,
   onOpenConnect,
@@ -111,8 +109,6 @@ export function DashboardStatusSection({
   }, [status])
 
   const refreshDashboardStatus = useCallback(async () => {
-    if (isGuestMode) return
-
     try {
       const response = await fetch(
         `/api/projects/${encodeURIComponent(projectId)}/dashboard-status`,
@@ -128,11 +124,9 @@ export function DashboardStatusSection({
     } catch (error) {
       console.error('Error refreshing dashboard status:', error)
     }
-  }, [isGuestMode, projectId])
+  }, [projectId])
 
   useEffect(() => {
-    if (isGuestMode) return
-
     const refreshSoon = () => {
       void refreshDashboardStatus()
     }
@@ -159,7 +153,7 @@ export function DashboardStatusSection({
       window.removeEventListener('focus', refreshSoon)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [isGuestMode, refreshDashboardStatus])
+  }, [refreshDashboardStatus])
 
   const mcp = currentStatus?.mcp
   const hasConnected = Boolean(mcp?.hasConnected)
@@ -170,7 +164,7 @@ export function DashboardStatusSection({
   const activeClients = mcp?.activeClients ?? []
   const enabledTargets =
     currentStatus?.instructionSync.targets.filter((target) => target.enabled) ?? []
-  const connectButtonLabel = isGuestMode || !hasConnected ? 'Set Up' : isActive ? 'Connected' : 'Reconnect'
+  const connectButtonLabel = !hasConnected ? 'Set Up' : isActive ? 'Connected' : 'Reconnect'
   const activeClientSummary =
     activeClients.length === 1 ? '1 environment active' : `${activeClients.length} environments active`
   const enabledTargetSummary =

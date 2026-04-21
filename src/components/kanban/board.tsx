@@ -30,7 +30,6 @@ import { deleteTask, persistTaskOrderWithKeepalive } from '@/domains/task/mutati
 import { getProjectTasks } from '@/domains/task/queries'
 import { AgentInstructionsModal } from '@/components/modals/agent-instructions-modal'
 import { TaskDetailsModal } from '@/components/modals/task-details-modal'
-import { GuestTaskDetailsModal } from '@/components/modals/guest-task-details-modal'
 import { TagManagerModal } from '@/components/modals/tag-manager-modal'
 import { ExportModal } from '@/components/modals/export-modal'
 import { ConfirmModal } from '@/components/modals/confirm-modal'
@@ -42,18 +41,19 @@ import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility
 import { DashboardStatusSection } from './dashboard-status-section'
 import type { ProjectDashboardStatus } from '@/domains/project/dashboard-status'
 import {
-  GUEST_ACTIVE_TASK_LIMIT,
-  countActiveGuestTasks,
-  createGuestTask,
-  loadGuestDraft,
-  saveGuestDraft,
-} from '@/domains/task/guest-draft'
+  ANONYMOUS_ACTIVE_TASK_LIMIT,
+  countActiveAnonymousTasks,
+  isAnonymousTaskLimitMessage,
+} from '@/lib/anon-limits'
 
 type KanbanBoardProps = {
   projectId: string
   projectName: string
   initialTasks: TaskWithTags[]
-  mode?: 'authenticated' | 'guest'
+  viewer?: {
+    id: string
+    isAnonymous: boolean
+  } | null
   dashboardStatus?: ProjectDashboardStatus | null
 }
 
@@ -175,10 +175,10 @@ export function KanbanBoard({
   projectId,
   projectName,
   initialTasks,
-  mode = 'authenticated',
+  viewer = null,
   dashboardStatus = null,
 }: KanbanBoardProps) {
-  const isGuestMode = mode === 'guest'
+  const isAnonymousUser = Boolean(viewer?.isAnonymous)
   const [tasks, setTasks] = useState<TaskWithTags[]>(() =>
     normalizeVisibleTasks(initialTasks)
   )
@@ -222,7 +222,6 @@ export function KanbanBoard({
     payload: PersistedTaskOrder[]
   } | null>(null)
   const isPersistLoopRunningRef = useRef(false)
-  const hasGuestDraftRef = useRef(false)
   const isAutoRefreshRunningRef = useRef(false)
   const isDragOverProcessingRef = useRef(false)
   const dragPreviewFrameRef = useRef<number | null>(null)
@@ -240,12 +239,6 @@ export function KanbanBoard({
     taskToDelete !== null ||
     authPromptMessage !== null
 
-  const persistGuestTasks = (taskList: TaskWithTags[]) => {
-    saveGuestDraft(projectName, taskList)
-    hasGuestDraftRef.current = taskList.length > 0
-    lastPersistedTasksRef.current = taskList
-  }
-
   const promptForAuth = (message: string) => {
     setAuthPromptMessage(message)
   }
@@ -256,27 +249,13 @@ export function KanbanBoard({
   }
 
   useEffect(() => {
-    if (isGuestMode) {
-      const draft = loadGuestDraft(projectName)
-      const nextTasks = normalizeVisibleTasks(draft.tasks)
-      setTasks(nextTasks)
-      tasksRef.current = nextTasks
-      lastPersistedTasksRef.current = nextTasks
-      hasGuestDraftRef.current = nextTasks.length > 0
-      return
-    }
-
     const nextTasks = normalizeVisibleTasks(initialTasks)
     setTasks(nextTasks)
     tasksRef.current = nextTasks
     lastPersistedTasksRef.current = nextTasks
-  }, [initialTasks, isGuestMode, projectName])
+  }, [initialTasks])
 
   useEffect(() => {
-    if (isGuestMode) {
-      return
-    }
-
     const channel = supabase.channel(`tasks_${projectId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `project_id=eq.${projectId}` }, (payload) => {
         setTasks(prev => {
@@ -324,13 +303,9 @@ export function KanbanBoard({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [projectId, supabase, isGuestMode])
+  }, [projectId, supabase])
 
   useEffect(() => {
-    if (isGuestMode) {
-      return
-    }
-
     const refreshBoardTasks = async () => {
       if (isAutoRefreshRunningRef.current) {
         return
@@ -380,7 +355,7 @@ export function KanbanBoard({
     return () => {
       window.clearInterval(refreshInterval)
     }
-  }, [activeTask, isGuestMode, projectId, supabase])
+  }, [activeTask, projectId, supabase])
 
   useEffect(() => {
     tasksRef.current = tasks
@@ -388,12 +363,6 @@ export function KanbanBoard({
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (isGuestMode && hasGuestDraftRef.current) {
-        event.preventDefault()
-        event.returnValue = ''
-        return
-      }
-
       if (!isPersistingOrderRef.current) return
       event.preventDefault()
       event.returnValue = ''
@@ -404,7 +373,7 @@ export function KanbanBoard({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
-  }, [isGuestMode])
+  }, [])
 
   useEffect(() => {
     if (!isAnyModalOpen || typeof document === 'undefined') {
@@ -614,12 +583,6 @@ export function KanbanBoard({
       return
     }
 
-    if (isGuestMode) {
-      setSelectedTask(task)
-      setIsDetailsModalOpen(true)
-      return
-    }
-
     setSelectedTask(task)
     setIsDetailsModalOpen(true)
   }
@@ -640,8 +603,10 @@ export function KanbanBoard({
   }
 
   const openCreateFromPill = (draft: { title: string; description: string }) => {
-    if (guestTaskLimitReached) {
-      promptForAuth(`Guest boards are limited to ${GUEST_ACTIVE_TASK_LIMIT} active tasks. Sign in to add more tasks.`)
+    if (anonymousTaskLimitReached) {
+      promptForAuth(
+        `Anonymous boards are limited to ${ANONYMOUS_ACTIVE_TASK_LIMIT} active tasks. Claim your account to add more tasks.`
+      )
       return
     }
 
@@ -666,52 +631,29 @@ export function KanbanBoard({
       position: computedPosition,
     }
 
-    let newTask: TaskWithTags
-
-    if (isGuestMode) {
-      newTask = await createGuestTask({
-        projectId: newTaskData.project_id,
-        title: newTaskData.title,
-        description: newTaskData.description,
-        status: newTaskData.status,
-        priority: newTaskData.priority,
-        position: newTaskData.position,
-        predecessorId: newTaskData.predecessor_id,
-      })
-    } else {
-      const { createTask: createDbTask } = await import('@/domains/task/mutations')
+    const { createTask: createDbTask } = await import('@/domains/task/mutations')
+    try {
       const created = await createDbTask(supabase, newTaskData)
-      newTask = { ...created, tags: [] }
-    }
+      const newTask: TaskWithTags = { ...created, tags: [] }
 
-    setTasks((prev) => {
-      const nextTasks = normalizeVisibleTasks([...prev, newTask])
-      tasksRef.current = nextTasks
-      if (isGuestMode) {
-        persistGuestTasks(nextTasks)
-      } else {
+      setTasks((prev) => {
+        const nextTasks = normalizeVisibleTasks([...prev, newTask])
+        tasksRef.current = nextTasks
         lastPersistedTasksRef.current = nextTasks
-      }
-      return nextTasks
-    })
+        return nextTasks
+      })
 
-    return newTask
+      return newTask
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create task'
+      if (isAnonymousTaskLimitMessage(message)) {
+        promptForAuth(message)
+      }
+      throw error
+    }
   }
 
   const handleUpdateTaskTitle = async (taskId: string, title: string) => {
-    if (isGuestMode) {
-      // Update guest task in local state
-      setTasks((prev) => {
-        const nextTasks = prev.map((task) =>
-          task.id === taskId ? { ...task, title } : task
-        )
-        tasksRef.current = nextTasks
-        persistGuestTasks(nextTasks)
-        return nextTasks
-      })
-      return
-    }
-
     try {
       const { updateTask } = await import('@/domains/task/mutations')
       await updateTask(supabase, taskId, { title })
@@ -825,11 +767,6 @@ export function KanbanBoard({
   }
 
   const queuePersistTaskOrder = (taskList: TaskWithTags[]) => {
-    if (isGuestMode) {
-      persistGuestTasks(taskList)
-      return
-    }
-
     pendingPersistRef.current = {
       tasks: taskList,
       payload: toPersistedTaskOrder(taskList),
@@ -1044,16 +981,6 @@ export function KanbanBoard({
     tasksRef.current = remainingTasks
     setTasks(remainingTasks)
 
-    if (isGuestMode) {
-      persistGuestTasks(remainingTasks)
-      setDeletingTaskIds((prev) => {
-        const next = new Set(prev)
-        next.delete(id)
-        return next
-      })
-      return
-    }
-
     try {
       await deleteTask(supabase, id)
       lastPersistedTasksRef.current = remainingTasks
@@ -1084,8 +1011,8 @@ export function KanbanBoard({
     }
   }
 
-  const guestTaskLimitReached =
-    isGuestMode && countActiveGuestTasks(tasks) >= GUEST_ACTIVE_TASK_LIMIT
+  const anonymousTaskLimitReached =
+    isAnonymousUser && countActiveAnonymousTasks(tasks) >= ANONYMOUS_ACTIVE_TASK_LIMIT
 
   const shouldShowActionPill = !isSelectionMode && !isAnyModalOpen
   const shouldShowSelectionPill = isSelectionMode && !isAnyModalOpen
@@ -1097,24 +1024,9 @@ export function KanbanBoard({
            <DashboardStatusSection
              projectId={projectId}
              status={dashboardStatus}
-             isGuestMode={isGuestMode}
              isSelectionMode={isSelectionMode}
-             onOpenConnect={() => {
-               if (isGuestMode) {
-                 promptForAuth('Connecting MCP requires an account and an API key. Sign in to generate your key and keep your draft.')
-                 return
-               }
-
-               setIsConnectModalOpen(true)
-             }}
-             onOpenInstructions={() => {
-               if (isGuestMode) {
-                 promptForAuth('Agent instruction and controls are account features. Sign in to manage them.')
-                 return
-               }
-
-               setIsAgentInstructionsOpen(true)
-             }}
+             onOpenConnect={() => setIsConnectModalOpen(true)}
+             onOpenInstructions={() => setIsAgentInstructionsOpen(true)}
              onStartExport={startSelectionMode}
              settingsSlot={(
                <div ref={settingsMenuRef} className="relative">
@@ -1144,10 +1056,6 @@ export function KanbanBoard({
                          type="button"
                          onClick={() => {
                            setIsSettingsMenuOpen(false)
-                           if (isGuestMode) {
-                             promptForAuth('The Abyss history is account-backed. Sign in to keep deleted and archived task history.')
-                             return
-                           }
                            setIsAbyssModalOpen(true)
                          }}
                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
@@ -1159,10 +1067,6 @@ export function KanbanBoard({
                          type="button"
                          onClick={() => {
                            setIsSettingsMenuOpen(false)
-                           if (isGuestMode) {
-                             promptForAuth('Agent instruction and controls are account features. Sign in to manage them.')
-                             return
-                           }
                            setIsAgentInstructionsOpen(true)
                          }}
                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
@@ -1170,19 +1074,17 @@ export function KanbanBoard({
                          <FileText className="h-4 w-4 text-muted-foreground" />
                          Agent Instructions & Controls
                        </button>
-                       {!isGuestMode && (
-                         <button
-                           type="button"
-                           onClick={() => {
-                             setIsSettingsMenuOpen(false)
-                             setIsProjectSettingsOpen(true)
-                           }}
-                           className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
-                         >
-                           <Settings className="h-4 w-4 text-muted-foreground" />
-                           Project Settings
-                         </button>
-                       )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSettingsMenuOpen(false)
+                          setIsProjectSettingsOpen(true)
+                        }}
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
+                      >
+                        <Settings className="h-4 w-4 text-muted-foreground" />
+                        Project Settings
+                      </button>
                      </motion.div>
                    )}
                  </AnimatePresence>
@@ -1233,36 +1135,11 @@ export function KanbanBoard({
         initialDescription={createModalDraft?.description ?? ''}
         initialPredecessorTask={followUpSourceTask}
         onUpdateTaskTitle={handleUpdateTaskTitle}
-        onCreateTask={
-          isGuestMode
-            ? async (taskInput) => {
-                if (countActiveGuestTasks(tasksRef.current) >= GUEST_ACTIVE_TASK_LIMIT) {
-                  throw new Error(
-                    `Guest boards are limited to ${GUEST_ACTIVE_TASK_LIMIT} active tasks. Sign in to continue.`
-                  )
-                }
-
-                return createGuestTask({
-                  projectId: taskInput.project_id,
-                  title: taskInput.title,
-                  description: taskInput.description,
-                  status: taskInput.status,
-                  priority: taskInput.priority,
-                  predecessorId: taskInput.predecessor_id,
-                  position: taskInput.position,
-                })
-              }
-            : undefined
-        }
         onSuccess={(newTask) => {
           setTasks((prev) => {
             const nextTasks = normalizeVisibleTasks([...prev, newTask])
             tasksRef.current = nextTasks
-            if (isGuestMode) {
-              persistGuestTasks(nextTasks)
-            } else {
-              lastPersistedTasksRef.current = nextTasks
-            }
+            lastPersistedTasksRef.current = nextTasks
             return nextTasks
           })
           setFollowUpSourceTask(null)
@@ -1327,8 +1204,7 @@ export function KanbanBoard({
                   <InlineComposer
                     projectId={projectId}
                     status={activeMobileTab}
-                    isGuestMode={isGuestMode}
-                    guestTaskLimitReached={guestTaskLimitReached}
+                    anonymousTaskLimitReached={anonymousTaskLimitReached}
                     onPromptAuth={promptForAuth}
                     onCreateTask={createTaskInline}
                     onUpdateTaskTitle={handleUpdateTaskTitle}
@@ -1398,11 +1274,6 @@ export function KanbanBoard({
         ref={abyssCtaButtonRef}
         type="button"
         onClick={() => {
-          if (isGuestMode) {
-            promptForAuth('The Abyss history is account-backed. Sign in to keep deleted and archived task history.')
-            return
-          }
-
           setIsAbyssModalOpen(true)
         }}
         className="mt-4 hidden w-full shrink-0 items-center justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/90 px-5 py-4 text-left transition-colors hover:border-slate-400 hover:bg-slate-100 md:flex"
@@ -1422,75 +1293,42 @@ export function KanbanBoard({
           Restore / Review
         </span>
       </button>
-      {!isGuestMode ? (
-        <TaskDetailsModal
-          isOpen={isDetailsModalOpen}
-          onClose={() => { setIsDetailsModalOpen(false); setSelectedTask(null); }}
-          task={selectedTask}
-          onUpdate={(updated) => {
-            setSelectedTask(updated)
-            setTasks((prev) => {
-              if (!isVisibleOnBoard(updated)) {
-                const nextTasks = prev.filter((task) => task.id !== updated.id)
-                tasksRef.current = nextTasks
-                lastPersistedTasksRef.current = nextTasks
-                return nextTasks
-              }
-
-              const nextTasks = normalizeVisibleTasks(
-                prev.some((task) => task.id === updated.id)
-                  ? prev.map((task) => (task.id === updated.id ? updated : task))
-                  : [...prev, updated]
-              )
+      <TaskDetailsModal
+        isOpen={isDetailsModalOpen}
+        onClose={() => {
+          setIsDetailsModalOpen(false)
+          setSelectedTask(null)
+        }}
+        task={selectedTask}
+        onUpdate={(updated) => {
+          setSelectedTask(updated)
+          setTasks((prev) => {
+            if (!isVisibleOnBoard(updated)) {
+              const nextTasks = prev.filter((task) => task.id !== updated.id)
               tasksRef.current = nextTasks
               lastPersistedTasksRef.current = nextTasks
               return nextTasks
-            })
-          }}
-          onDelete={(taskId) => setTasks((prev) => {
+            }
+
+            const nextTasks = normalizeVisibleTasks(
+              prev.some((task) => task.id === updated.id)
+                ? prev.map((task) => (task.id === updated.id ? updated : task))
+                : [...prev, updated]
+            )
+            tasksRef.current = nextTasks
+            lastPersistedTasksRef.current = nextTasks
+            return nextTasks
+          })
+        }}
+        onDelete={(taskId) =>
+          setTasks((prev) => {
             const nextTasks = prev.filter((task) => task.id !== taskId)
             tasksRef.current = nextTasks
             lastPersistedTasksRef.current = nextTasks
             return nextTasks
           })}
-          onCompleteAndFollowUp={(task) => openCreateModal({ id: task.id, title: task.title })}
-        />
-      ) : null}
-      {isGuestMode ? (
-        <GuestTaskDetailsModal
-          key={selectedTask?.id ?? 'guest-task-details'}
-          isOpen={isDetailsModalOpen}
-          onClose={() => {
-            setIsDetailsModalOpen(false)
-            setSelectedTask(null)
-          }}
-          task={selectedTask}
-          onSave={(updated) => {
-            setSelectedTask(updated)
-            setTasks((prev) => {
-              if (!isVisibleOnBoard(updated)) {
-                const nextTasks = prev.filter((task) => task.id !== updated.id)
-                tasksRef.current = nextTasks
-                persistGuestTasks(nextTasks)
-                return nextTasks
-              }
-
-              const nextTasks = normalizeVisibleTasks(
-                prev.some((task) => task.id === updated.id)
-                  ? prev.map((task) => (task.id === updated.id ? updated : task))
-                  : [...prev, updated]
-              )
-              tasksRef.current = nextTasks
-              persistGuestTasks(nextTasks)
-              return nextTasks
-            })
-          }}
-          onDelete={(taskId) => {
-            setTaskToDelete(taskId)
-          }}
-          onCompleteAndFollowUp={(task) => openCreateModal({ id: task.id, title: task.title })}
-        />
-      ) : null}
+        onCompleteAndFollowUp={(task) => openCreateModal({ id: task.id, title: task.title })}
+      />
       <TagManagerModal
         isOpen={isTagModalOpen}
         onClose={() => setIsTagModalOpen(false)}
@@ -1507,18 +1345,13 @@ export function KanbanBoard({
           onClose={() => setIsExportModalOpen(false)}
           tasks={selectedTasks}
           projectName={projectName}
-          mode={mode}
         />
       ) : null}
       <ConfirmModal
         isOpen={taskToDelete !== null}
-        title={isGuestMode ? 'Delete Task' : 'Move Task To The Abyss'}
-        message={
-          isGuestMode
-            ? 'This task will be removed from your guest board in this browser.'
-            : 'This task will be hidden from the board and can be restored later from the abyss.'
-        }
-        confirmText={isGuestMode ? 'Delete Task' : 'Move Task'}
+        title="Move Task To The Abyss"
+        message="This task will be hidden from the board and can be restored later from the abyss."
+        confirmText="Move Task"
         isDestructive
         onConfirm={handleConfirmDelete}
         onClose={() => setTaskToDelete(null)}
@@ -1533,14 +1366,12 @@ export function KanbanBoard({
         onClose={() => setIsConnectModalOpen(false)}
         projectId={projectId}
       />
-      {!isGuestMode && (
-        <ProjectSettingsModal
-          isOpen={isProjectSettingsOpen}
-          projectId={projectId}
-          projectName={projectName}
-          onClose={() => setIsProjectSettingsOpen(false)}
-        />
-      )}
+      <ProjectSettingsModal
+        isOpen={isProjectSettingsOpen}
+        projectId={projectId}
+        projectName={projectName}
+        onClose={() => setIsProjectSettingsOpen(false)}
+      />
       <ConfirmModal
         isOpen={authPromptMessage !== null}
         title="Sign In Required"

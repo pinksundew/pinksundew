@@ -34,11 +34,18 @@ export default async function ProjectBoardPage({
   let initialTasks: import('@/domains/task/types').TaskWithTags[] = []
   let projectName = 'Project'
   let dashboardStatus: import('@/domains/project/dashboard-status').ProjectDashboardStatus | null = null
+  let viewer: { id: string; isAnonymous: boolean } | null = null
 
   try {
     const {
       data: { user },
     } = await supabase.auth.getUser()
+    if (user) {
+      viewer = {
+        id: user.id,
+        isAnonymous: Boolean(user.is_anonymous),
+      }
+    }
     const project = await getProject(supabase, pageParams.projectId)
     initialTasks = await getProjectTasks(supabase, pageParams.projectId)
     projectName = project?.name || projectName
@@ -61,6 +68,7 @@ export default async function ProjectBoardPage({
         projectName={projectName}
         initialTasks={initialTasks}
         dashboardStatus={dashboardStatus}
+        viewer={viewer}
       />
     </div>
   )

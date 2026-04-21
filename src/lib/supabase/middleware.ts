@@ -31,12 +31,18 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith('/login') ||
-    request.nextUrl.pathname.startsWith('/signup') ||
-    request.nextUrl.pathname.startsWith('/callback')
+  const pathname = request.nextUrl.pathname
 
-  if (user && isAuthRoute) {
+  const isAuthRoute =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/callback')
+
+  // Anonymous users are "signed in" but should still be allowed to reach the
+  // auth pages so they can claim or switch into a real account.
+  const isRealUser = Boolean(user) && !user?.is_anonymous
+
+  if (isRealUser && isAuthRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)

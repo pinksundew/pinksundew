@@ -6,6 +6,7 @@ export type Project = {
   description: string | null
   created_by: string
   created_at: string
+  is_guest: boolean
   updated_at: string
 }
 

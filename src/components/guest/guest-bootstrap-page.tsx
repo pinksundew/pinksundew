@@ -7,6 +7,10 @@ import { useRouter } from 'next/navigation'
 import { AlertCircle, Loader2, RefreshCcw } from 'lucide-react'
 import { PlannerBackdrop } from '@/components/auth/planner-backdrop'
 import { createClient } from '@/lib/supabase/client'
+import {
+  getCurrentSessionUser,
+  getOrCreateGuestSessionUser,
+} from '@/lib/supabase/guest-session'
 import { ensureGuestProject } from '@/domains/project/ensure-guest-project'
 
 function AppLogo({ className }: { className?: string }) {
@@ -31,6 +35,10 @@ function getBootstrapErrorMessage(error: unknown) {
     return 'Guest mode is not enabled in Supabase Auth yet. Turn on Anonymous Sign-Ins in the dashboard, then try again.'
   }
 
+  if (error.message.includes('Auth session missing')) {
+    return 'Guest mode is still initializing its Supabase session. Try again in a moment.'
+  }
+
   return error.message || 'Guest mode could not be started right now.'
 }
 
@@ -47,33 +55,14 @@ export function GuestBootstrapPage() {
       setErrorMessage(null)
 
       try {
-        const {
-          data: { user: currentUser },
-          error: userError,
-        } = await supabase.auth.getUser()
-
-        if (userError) {
-          throw userError
-        }
-
+        const currentUser = await getCurrentSessionUser(supabase.auth)
         if (currentUser && !currentUser.is_anonymous) {
           router.replace('/')
           router.refresh()
           return
         }
 
-        let user = currentUser
-        if (!user) {
-          const { data, error } = await supabase.auth.signInAnonymously()
-          if (error) {
-            throw error
-          }
-          user = data.user
-        }
-
-        if (!user) {
-          throw new Error('Unable to create a guest session.')
-        }
+        const user = currentUser ?? (await getOrCreateGuestSessionUser(supabase.auth))
 
         const project = await ensureGuestProject(supabase, user.id)
         if (isCancelled) {

@@ -25,7 +25,7 @@ export function AnonymousClaimBanner({ anonymousUserId }: AnonymousClaimBannerPr
           className="inline-flex items-center gap-1 rounded-full bg-amber-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700"
         >
           <ShieldCheck className="h-3.5 w-3.5" />
-          Claim account
+          Save your board
         </button>
       </div>
 

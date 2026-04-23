@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { BookOpen, FilePlus2, FileText, Save, Shield, X } from 'lucide-react'
+import { BookOpen, FilePlus2, FileText, Save, Shield, Trash2, X } from 'lucide-react'
 import { SYNC_TARGET_LOGOS } from '@/components/brand/client-logos'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -14,10 +14,12 @@ import { getProjectInstructionSets } from '@/domains/agent-instruction/queries'
 import {
   createInstructionFile,
   createInstructionSet,
+  deleteInstructionFile,
   updateInstructionFile,
 } from '@/domains/agent-instruction/mutations'
 import { upsertProjectAgentControls } from '@/domains/agent-control/mutations'
 import { getProjectAgentControls } from '@/domains/agent-control/queries'
+import { ConfirmModal } from './confirm-modal'
 import {
   CORE_MCP_TOOL_CATALOG,
   CoreMcpToolId,
@@ -151,6 +153,9 @@ export function AgentInstructionsModal({
   const [instructionErrorMessage, setInstructionErrorMessage] = useState<string | null>(null)
   const [controlsErrorMessage, setControlsErrorMessage] = useState<string | null>(null)
   const [isInstructionLoading, setIsInstructionLoading] = useState(false)
+  const [isInstructionDeleteLoading, setIsInstructionDeleteLoading] = useState(false)
+  const [instructionFilePendingDelete, setInstructionFilePendingDelete] =
+    useState<AgentInstructionFile | null>(null)
   const [isControlsSaving, setIsControlsSaving] = useState(false)
   const [supabase] = useState(() => createClient())
 
@@ -420,6 +425,32 @@ export function AgentInstructionsModal({
     }
   }
 
+  const handleDeleteContextDocument = async () => {
+    if (!selectedSet || !instructionFilePendingDelete) return
+
+    setIsInstructionDeleteLoading(true)
+    setInstructionErrorMessage(null)
+
+    try {
+      const nextSelectedContextFile =
+        contextFiles.find((file) => file.id !== instructionFilePendingDelete.id) ?? null
+
+      await deleteInstructionFile(supabase, instructionFilePendingDelete.id)
+
+      await fetchInstructionSets({
+        selectedSetId: selectedSet.id,
+        selectedFileId: nextSelectedContextFile?.id ?? null,
+      })
+
+      setInstructionFilePendingDelete(null)
+    } catch (error) {
+      console.error('Error deleting context document:', error)
+      setInstructionErrorMessage('Unable to delete that context document right now.')
+    } finally {
+      setIsInstructionDeleteLoading(false)
+    }
+  }
+
   const handleSaveAll = async () => {
     const promises = []
     if (selectedFile) promises.push(handleSaveFile())
@@ -652,14 +683,25 @@ export function AgentInstructionsModal({
                           <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-slate-600">
                             File
                           </label>
-                          <div className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700">
-                            <span className="mr-1 shrink-0 text-slate-400">{CONTEXT_DOCS_DIR}</span>
-                            <input
-                              value={draftFileName}
-                              onChange={(event) => setDraftFileName(event.target.value)}
-                              className="min-w-0 flex-1 bg-transparent outline-none"
-                              aria-label="Instruction file name"
-                            />
+                          <div className="flex items-center gap-2">
+                            <div className="flex min-w-0 flex-1 items-center rounded-md border border-slate-200 bg-white px-3 py-2 font-mono text-sm text-slate-700">
+                              <span className="mr-1 shrink-0 text-slate-400">{CONTEXT_DOCS_DIR}</span>
+                              <input
+                                value={draftFileName}
+                                onChange={(event) => setDraftFileName(event.target.value)}
+                                className="min-w-0 flex-1 bg-transparent outline-none"
+                                aria-label="Instruction file name"
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setInstructionFilePendingDelete(selectedFile)}
+                              disabled={isInstructionLoading || isInstructionDeleteLoading}
+                              className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </button>
                           </div>
                         </div>
                       ) : null}
@@ -781,6 +823,25 @@ export function AgentInstructionsModal({
         </motion.div>
       </div>
 
+      <ConfirmModal
+        isOpen={instructionFilePendingDelete !== null}
+        title="Delete Context File"
+        message={
+          instructionFilePendingDelete
+            ? `Delete "${getInstructionFileLabel(instructionFilePendingDelete)}"? It will stop syncing into ${CONTEXT_DOCS_DIR}.`
+            : 'Delete this context file?'
+        }
+        confirmText={isInstructionDeleteLoading ? 'Deleting...' : 'Delete File'}
+        cancelText="Keep File"
+        isDestructive
+        onConfirm={() => {
+          void handleDeleteContextDocument()
+        }}
+        onClose={() => {
+          if (isInstructionDeleteLoading) return
+          setInstructionFilePendingDelete(null)
+        }}
+      />
     </AnimatePresence>
   )
 }

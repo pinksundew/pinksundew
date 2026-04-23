@@ -47,13 +47,15 @@ export default async function DashboardLayout({
 
           <div className="flex items-center gap-3">
             {isAnonymousUser ? <AnonymousClaimBanner anonymousUserId={user.id} /> : null}
-            <Link
-              href="/profile"
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <User className="h-4 w-4" />
-              <span className="sr-only">Profile</span>
-            </Link>
+            {!isAnonymousUser ? (
+              <Link
+                href="/profile"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-white text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <User className="h-4 w-4" />
+                <span className="sr-only">Profile</span>
+              </Link>
+            ) : null}
           </div>
         </header>
       ) : null}

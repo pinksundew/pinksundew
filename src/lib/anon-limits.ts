@@ -4,6 +4,10 @@ export const ANONYMOUS_ACTIVE_TASK_LIMIT = 10
 
 type TaskVisibilityFields = Pick<Task, 'status' | 'is_deleted'>
 
+export function getAnonymousTaskLimitPrompt() {
+  return `Anonymous boards are limited to ${ANONYMOUS_ACTIVE_TASK_LIMIT} active tasks. Save your board to add more tasks.`
+}
+
 /**
  * Mirrors the logic of private.enforce_anonymous_task_cap() in Postgres:
  * an "active" task is any task that is not soft-deleted and whose status is
@@ -19,7 +23,10 @@ export function countActiveAnonymousTasks(tasks: TaskVisibilityFields[]) {
 }
 
 export function isAnonymousTaskLimitMessage(message: string) {
-  return message.includes(
-    `Anonymous boards are limited to ${ANONYMOUS_ACTIVE_TASK_LIMIT} active tasks`
+  return (
+    message.includes(
+      `Anonymous boards are limited to ${ANONYMOUS_ACTIVE_TASK_LIMIT} active tasks`
+    ) ||
+    message.includes(getAnonymousTaskLimitPrompt())
   )
 }

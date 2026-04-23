@@ -43,8 +43,10 @@ import type { ProjectDashboardStatus } from '@/domains/project/dashboard-status'
 import {
   ANONYMOUS_ACTIVE_TASK_LIMIT,
   countActiveAnonymousTasks,
+  getAnonymousTaskLimitPrompt,
   isAnonymousTaskLimitMessage,
 } from '@/lib/anon-limits'
+import { GLOBAL_OVERLAY_EVENT, type GlobalOverlayDetail } from '@/lib/global-overlay'
 
 type KanbanBoardProps = {
   projectId: string
@@ -208,6 +210,7 @@ export function KanbanBoard({
   const [pillAnchorX, setPillAnchorX] = useState<number | null>(null)
   const [pillWidth, setPillWidth] = useState<number | null>(null)
   const [floatingPillBottom, setFloatingPillBottom] = useState(BASE_FLOATING_PILL_BOTTOM)
+  const [isGlobalOverlayOpen, setIsGlobalOverlayOpen] = useState(false)
   const [supabase] = useState(() => createClient())
   const tasksRef = useRef<TaskWithTags[]>(normalizeVisibleTasks(initialTasks))
   const dragStartTasksRef = useRef<TaskWithTags[] | null>(null)
@@ -237,7 +240,8 @@ export function KanbanBoard({
     isConnectModalOpen ||
     isProjectSettingsOpen ||
     taskToDelete !== null ||
-    authPromptMessage !== null
+    authPromptMessage !== null ||
+    isGlobalOverlayOpen
 
   const promptForAuth = (message: string) => {
     setAuthPromptMessage(message)
@@ -247,6 +251,20 @@ export function KanbanBoard({
     if (typeof window === 'undefined') return
     window.location.href = '/login?next=/guest'
   }
+
+  useEffect(() => {
+    const handleGlobalOverlay = (event: Event) => {
+      const detail = (event as CustomEvent<GlobalOverlayDetail>).detail
+      if (!detail) {
+        return
+      }
+
+      setIsGlobalOverlayOpen(detail.open)
+    }
+
+    window.addEventListener(GLOBAL_OVERLAY_EVENT, handleGlobalOverlay)
+    return () => window.removeEventListener(GLOBAL_OVERLAY_EVENT, handleGlobalOverlay)
+  }, [])
 
   useEffect(() => {
     const nextTasks = normalizeVisibleTasks(initialTasks)
@@ -604,9 +622,7 @@ export function KanbanBoard({
 
   const openCreateFromPill = (draft: { title: string; description: string }) => {
     if (anonymousTaskLimitReached) {
-      promptForAuth(
-        `Anonymous boards are limited to ${ANONYMOUS_ACTIVE_TASK_LIMIT} active tasks. Claim your account to add more tasks.`
-      )
+      promptForAuth(getAnonymousTaskLimitPrompt())
       return
     }
 
@@ -647,7 +663,7 @@ export function KanbanBoard({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create task'
       if (isAnonymousTaskLimitMessage(message)) {
-        promptForAuth(message)
+        promptForAuth(getAnonymousTaskLimitPrompt())
       }
       throw error
     }
@@ -1374,12 +1390,12 @@ export function KanbanBoard({
       />
       <ConfirmModal
         isOpen={authPromptMessage !== null}
-        title="Sign In Required"
+        title="Save Your Board"
         message={
           authPromptMessage ??
-          'This action needs an account. Your guest progress is saved in this browser until you sign in.'
+          'Save this guest board to an account so you can keep working without anonymous limits.'
         }
-        confirmText="Sign In / Create Account"
+        confirmText="Save Your Board"
         cancelText="Keep Editing"
         onConfirm={redirectToAuth}
         onClose={() => setAuthPromptMessage(null)}

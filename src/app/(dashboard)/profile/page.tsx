@@ -4,7 +4,7 @@ import { getProfile } from '@/domains/profile/queries'
 import { updateProfile } from '@/domains/profile/mutations'
 import { getUserApiKeys } from '@/domains/api-key/queries'
 import { revalidatePath } from 'next/cache'
-import { Mail, User } from 'lucide-react'
+import { LogOut, Mail, User } from 'lucide-react'
 import ApiKeyManager from '@/components/api-key-manager'
 
 export default async function ProfilePage() {
@@ -28,7 +28,7 @@ export default async function ProfilePage() {
 
     const fullName = formData.get('fullName') as string
     await updateProfile(supabase, user.id, { full_name: fullName })
-    
+
     revalidatePath('/profile')
   }
 
@@ -57,6 +57,16 @@ export default async function ProfilePage() {
               Email updates are currently handled by support.
             </p>
           </div>
+
+          <form action="/api/auth/signout" method="post">
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-white px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              <LogOut className="h-4 w-4 text-muted-foreground" />
+              Log Out
+            </button>
+          </form>
         </div>
       </section>
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Maximize2, Send } from 'lucide-react'
 import { TaskStatus, TaskPriority, TaskWithTags } from '@/domains/task/types'
+import { getAnonymousTaskLimitPrompt } from '@/lib/anon-limits'
 
 type InlineComposerProps = {
   projectId: string
@@ -84,7 +85,7 @@ export function InlineComposer({
 
   const handlePillClick = () => {
     if (anonymousTaskLimitReached && onPromptAuth) {
-      onPromptAuth('Anonymous boards have a task limit. Claim your account to add more tasks.')
+      onPromptAuth(getAnonymousTaskLimitPrompt())
       return
     }
     setIsComposing(true)

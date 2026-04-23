@@ -7,7 +7,7 @@ export default async function IndexRedirect() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
+  if (!user || user.is_anonymous) {
     return <LandingPage />
   }
 

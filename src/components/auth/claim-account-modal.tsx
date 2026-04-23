@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Check, Mail, ShieldCheck, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { stashPendingAnonMerge } from '@/lib/anon-merge'
+import { dispatchGlobalOverlay } from '@/lib/global-overlay'
 import posthog from 'posthog-js'
 
 type ClaimAccountModalProps = {
@@ -17,15 +18,19 @@ type Mode = 'idle' | 'linking' | 'otp-sent'
 
 type LinkProvider = 'github' | 'google'
 
-function buildClaimCallbackUrl() {
+function buildClaimCallbackUrl(mode: 'email' | 'oauth') {
   if (typeof window === 'undefined') {
-    return '/callback?claim=1'
+    return `/callback?claim=${mode}`
   }
 
   const url = new URL('/callback', window.location.origin)
   url.searchParams.set('next', window.location.pathname + window.location.search)
-  url.searchParams.set('claim', '1')
+  url.searchParams.set('claim', mode)
   return url.toString()
+}
+
+function isManualLinkingDisabledError(message: string) {
+  return message.toLowerCase().includes('manual linking is disabled')
 }
 
 export function ClaimAccountModal({ isOpen, onClose, anonymousUserId }: ClaimAccountModalProps) {
@@ -44,6 +49,14 @@ export function ClaimAccountModal({ isOpen, onClose, anonymousUserId }: ClaimAcc
       setInfoMsg(null)
       setBusyProvider(null)
       setBusyEmail(false)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    dispatchGlobalOverlay({ id: 'claim-account', open: isOpen })
+
+    return () => {
+      dispatchGlobalOverlay({ id: 'claim-account', open: false })
     }
   }, [isOpen])
 
@@ -69,15 +82,32 @@ export function ClaimAccountModal({ isOpen, onClose, anonymousUserId }: ClaimAcc
       stashPendingAnonMerge(anonymousUserId)
 
       try {
+        const claimCallbackUrl = buildClaimCallbackUrl('oauth')
+        const providerOptions = {
+          redirectTo: claimCallbackUrl,
+          scopes: provider === 'github' ? 'repo' : undefined,
+        }
+
         const { error } = await supabase.auth.linkIdentity({
           provider,
-          options: {
-            redirectTo: buildClaimCallbackUrl(),
-            scopes: provider === 'github' ? 'repo' : undefined,
-          },
+          options: providerOptions,
         })
 
         if (error) {
+          if (isManualLinkingDisabledError(error.message)) {
+            posthog.capture('guest_claim_fallback_to_oauth_signin', { provider })
+            const { error: oauthError } = await supabase.auth.signInWithOAuth({
+              provider,
+              options: providerOptions,
+            })
+
+            if (oauthError) {
+              setErrorMsg(oauthError.message)
+              setBusyProvider(null)
+            }
+            return
+          }
+
           posthog.capture('guest_claim_failed', { method: provider, reason: error.message })
           setErrorMsg(error.message)
           setBusyProvider(null)
@@ -115,7 +145,7 @@ export function ClaimAccountModal({ isOpen, onClose, anonymousUserId }: ClaimAcc
       try {
         const { error } = await supabase.auth.updateUser(
           { email: trimmed },
-          { emailRedirectTo: buildClaimCallbackUrl() }
+          { emailRedirectTo: buildClaimCallbackUrl('email') }
         )
 
         if (error) {
@@ -175,10 +205,10 @@ export function ClaimAccountModal({ isOpen, onClose, anonymousUserId }: ClaimAcc
                   Save Your Board
                 </div>
                 <h2 id="claim-account-title" className="text-xl font-semibold text-foreground">
-                  Claim your account
+                  Save your board
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Keep this project and your API key. Nothing moves—your board stays exactly as it is.
+                  Keep this project and your API key. Choose GitHub, Google, or email and we&apos;ll save this workspace to the account you use.
                 </p>
               </div>
               <button
@@ -289,7 +319,7 @@ export function ClaimAccountModal({ isOpen, onClose, anonymousUserId }: ClaimAcc
               </form>
 
               <p className="text-center text-[11px] text-muted-foreground">
-                We&apos;ll link this identity to your existing anonymous workspace. No data will be migrated or duplicated.
+                Existing accounts merge automatically. New accounts keep this board and API key intact.
               </p>
             </div>
           </motion.div>

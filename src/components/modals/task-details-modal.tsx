@@ -32,6 +32,8 @@ type ReviewThreadMessage = Pick<
   'id' | 'signal' | 'message' | 'created_at' | 'created_by'
 >
 
+const DESCRIPTION_EDITOR_MIN_HEIGHT = 92
+
 function toDateInputValue(value: string | null) {
   if (!value) return ''
 
@@ -71,6 +73,9 @@ export function TaskDetailsModal({
   const [replyMessage, setReplyMessage] = useState('')
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingMessageText, setEditingMessageText] = useState('')
+  const [descriptionEditorMinHeight, setDescriptionEditorMinHeight] = useState(
+    DESCRIPTION_EDITOR_MIN_HEIGHT
+  )
   const [loading, setLoading] = useState(false)
   const [plans, setPlans] = useState<TaskPlan[]>([])
   const [signalMessages, setSignalMessages] = useState<TaskStateMessage[]>([])
@@ -93,6 +98,19 @@ export function TaskDetailsModal({
     }
   }, [supabase])
 
+  const resizeDescriptionTextarea = useCallback(
+    (textarea: HTMLTextAreaElement | null = descriptionTextareaRef.current) => {
+      if (!textarea) return
+
+      textarea.style.height = '0px'
+      textarea.style.height = `${Math.max(
+        textarea.scrollHeight,
+        descriptionEditorMinHeight
+      )}px`
+    },
+    [descriptionEditorMinHeight]
+  )
+
   useEffect(() => {
     if (!isDescriptionEditing) return
 
@@ -103,6 +121,7 @@ export function TaskDetailsModal({
     pendingDescriptionCaretOffsetRef.current = null
 
     textarea.focus({ preventScroll: true })
+    resizeDescriptionTextarea(textarea)
 
     if (pendingOffset !== null) {
       const clamped = Math.min(Math.max(pendingOffset, 0), textarea.value.length)
@@ -111,7 +130,12 @@ export function TaskDetailsModal({
       const end = textarea.value.length
       textarea.setSelectionRange(end, end)
     }
-  }, [isDescriptionEditing])
+  }, [isDescriptionEditing, resizeDescriptionTextarea])
+
+  useEffect(() => {
+    if (!isDescriptionEditing) return
+    resizeDescriptionTextarea()
+  }, [description, isDescriptionEditing, resizeDescriptionTextarea])
 
   const fetchSignalMessages = useCallback(async (taskId: string) => {
     try {
@@ -132,6 +156,7 @@ export function TaskDetailsModal({
       setReplyMessage('')
       setEditingMessageId(null)
       setEditingMessageText('')
+      setDescriptionEditorMinHeight(DESCRIPTION_EDITOR_MIN_HEIGHT)
       setIsInProgressActionMenuOpen(false)
       setIsDeleteConfirmOpen(false)
       setCurrentUserId(null)
@@ -141,6 +166,7 @@ export function TaskDetailsModal({
     setTitle(task.title)
     setDescription(task.description || '')
     setIsDescriptionEditing(false)
+    setDescriptionEditorMinHeight(DESCRIPTION_EDITOR_MIN_HEIGHT)
     setStatus(task.status)
     setPriority(task.priority)
     setDueDate(toDateInputValue(task.due_date))
@@ -217,7 +243,9 @@ export function TaskDetailsModal({
       if (editingMessageId) {
         await persistEditedMessageDraft(editingMessageId)
       }
-      const nextTask = await persistTask(status)
+
+      const hasPendingReply = task.workflow_signal && replyMessage.trim().length > 0
+      const nextTask = hasPendingReply ? await persistPendingReply() : await persistTask(status)
       if (nextTask) {
         onClose()
       }
@@ -274,39 +302,49 @@ export function TaskDetailsModal({
 
     setLoading(true)
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      const reply = await createTaskStateMessage(supabase, {
-        taskId: task.id,
-        signal: 'note',
-        message: trimmedReply,
-        createdBy: user?.id ?? null,
-      })
-
-      setSignalMessages((prev) =>
-        prev.some((message) => message.id === reply.id) ? prev : [reply, ...prev]
-      )
-
-      const shouldReopenForWork =
-        task.workflow_signal === 'ready_for_review' && status === 'done'
-      const nextStatus = shouldReopenForWork ? 'in-progress' : status
-
-      const nextTask = await persistTask(nextStatus, {
-        clearSignal: true,
-        updatedBy: user?.id ?? null,
-      })
-
-      if (nextTask) {
-        setStatus(nextTask.status)
-        setReplyMessage('')
-      }
+      await persistPendingReply()
     } catch (error) {
       console.error('Error replying to task signal:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const persistPendingReply = async () => {
+    if (!task || !task.workflow_signal) return null
+
+    const trimmedReply = replyMessage.trim()
+    if (!trimmedReply) return null
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    const reply = await createTaskStateMessage(supabase, {
+      taskId: task.id,
+      signal: 'note',
+      message: trimmedReply,
+      createdBy: user?.id ?? null,
+    })
+
+    setSignalMessages((prev) =>
+      prev.some((message) => message.id === reply.id) ? prev : [reply, ...prev]
+    )
+
+    const shouldReopenForWork = task.workflow_signal === 'ready_for_review' && status === 'done'
+    const nextStatus = shouldReopenForWork ? 'in-progress' : status
+
+    const nextTask = await persistTask(nextStatus, {
+      clearSignal: true,
+      updatedBy: user?.id ?? null,
+    })
+
+    if (nextTask) {
+      setStatus(nextTask.status)
+      setReplyMessage('')
+    }
+
+    return nextTask
   }
 
   const handleStartEditingMessage = (message: ReviewThreadMessage) => {
@@ -468,15 +506,25 @@ export function TaskDetailsModal({
                   <textarea
                     ref={descriptionTextareaRef}
                     value={description}
-                    onChange={(event) => setDescription(event.target.value)}
+                    onChange={(event) => {
+                      setDescription(event.target.value)
+                      resizeDescriptionTextarea(event.currentTarget)
+                    }}
                     onBlur={() => setIsDescriptionEditing(false)}
-                    className="block min-h-[5.75rem] w-full resize-y rounded-md border border-border bg-white p-3 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
+                    style={{ minHeight: `${descriptionEditorMinHeight}px` }}
+                    className="block w-full resize-y rounded-md border border-border bg-white p-3 text-sm leading-6 text-foreground outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
                   />
                 ) : (
                   <div
                     role="button"
                     tabIndex={0}
                     onClick={(event) => {
+                      setDescriptionEditorMinHeight(
+                        Math.max(
+                          event.currentTarget.getBoundingClientRect().height,
+                          DESCRIPTION_EDITOR_MIN_HEIGHT
+                        )
+                      )
                       pendingDescriptionCaretOffsetRef.current = resolveMarkdownCaretOffsetFromEvent(
                         event.currentTarget,
                         event.clientX,
@@ -488,6 +536,12 @@ export function TaskDetailsModal({
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
+                        setDescriptionEditorMinHeight(
+                          Math.max(
+                            event.currentTarget.getBoundingClientRect().height,
+                            DESCRIPTION_EDITOR_MIN_HEIGHT
+                          )
+                        )
                         pendingDescriptionCaretOffsetRef.current = null
                         setIsDescriptionEditing(true)
                       }

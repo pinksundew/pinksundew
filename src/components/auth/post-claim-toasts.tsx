@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import posthog from 'posthog-js'
 
 type ToastState = 'prompt' | 'entering-password' | 'saving' | 'saved' | 'error'
+type ClaimMode = 'email' | 'oauth'
 
 const DISMISSED_STORAGE_KEY = 'pinksundew:claim-set-password-dismissed'
 
@@ -17,13 +18,14 @@ export function PostClaimToasts() {
   const supabase = useMemo(() => createClient(), [])
 
   const [show, setShow] = useState(false)
+  const [claimMode, setClaimMode] = useState<ClaimMode | null>(null)
   const [state, setState] = useState<ToastState>('prompt')
   const [password, setPassword] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
     const claimFlag = searchParams.get('claim')
-    if (claimFlag !== '1') {
+    if (claimFlag !== 'email' && claimFlag !== 'oauth') {
       return
     }
 
@@ -39,7 +41,8 @@ export function PostClaimToasts() {
     }
 
     setShow(true)
-    posthog.capture('guest_claim_completed')
+    setClaimMode(claimFlag)
+    posthog.capture('guest_claim_completed', { method: claimFlag })
 
     const params = new URLSearchParams(Array.from(searchParams.entries()))
     params.delete('claim')
@@ -50,6 +53,7 @@ export function PostClaimToasts() {
 
   const dismiss = () => {
     setShow(false)
+    setClaimMode(null)
     try {
       if (typeof window !== 'undefined') {
         window.sessionStorage.setItem(DISMISSED_STORAGE_KEY, '1')
@@ -101,7 +105,7 @@ export function PostClaimToasts() {
                 <Check className="h-4 w-4" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-foreground">Account claimed</p>
+                <p className="text-sm font-semibold text-foreground">Board saved</p>
                 <p className="text-xs text-muted-foreground">Your board and API key are saved.</p>
               </div>
             </div>
@@ -118,6 +122,10 @@ export function PostClaimToasts() {
           <div className="space-y-3 px-4 py-3">
             {state === 'saved' ? (
               <p className="text-sm text-emerald-700">Password saved. See you next time!</p>
+            ) : claimMode === 'oauth' ? (
+              <p className="text-sm text-foreground">
+                You&apos;re signed in with your linked account. No password setup is needed.
+              </p>
             ) : (
               <>
                 <p className="text-sm text-foreground">

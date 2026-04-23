@@ -3,6 +3,71 @@ type CaretPositionSupport = {
   caretRangeFromPoint?: (x: number, y: number) => Range | null
 }
 
+function getFirstTextDescendant(node: Node | null): Text | null {
+  if (!node) return null
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node as Text
+  }
+
+  for (const child of Array.from(node.childNodes)) {
+    const textNode = getFirstTextDescendant(child)
+    if (textNode) {
+      return textNode
+    }
+  }
+
+  return null
+}
+
+function getLastTextDescendant(node: Node | null): Text | null {
+  if (!node) return null
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node as Text
+  }
+
+  const children = Array.from(node.childNodes)
+  for (let index = children.length - 1; index >= 0; index -= 1) {
+    const textNode = getLastTextDescendant(children[index])
+    if (textNode) {
+      return textNode
+    }
+  }
+
+  return null
+}
+
+function coerceTextCaret(
+  container: HTMLElement,
+  node: Node,
+  offset: number
+): { node: Text; offset: number } | null {
+  if (!container.contains(node)) {
+    return null
+  }
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    const textNode = node as Text
+    return {
+      node: textNode,
+      offset: Math.min(Math.max(offset, 0), textNode.data.length),
+    }
+  }
+
+  const clampedOffset = Math.max(0, Math.min(offset, node.childNodes.length))
+  const nextTextNode = getFirstTextDescendant(node.childNodes[clampedOffset] ?? null)
+  if (nextTextNode) {
+    return { node: nextTextNode, offset: 0 }
+  }
+
+  const previousTextNode = getLastTextDescendant(node.childNodes[clampedOffset - 1] ?? null)
+  if (previousTextNode) {
+    return { node: previousTextNode, offset: previousTextNode.data.length }
+  }
+
+  const fallbackNode = getFirstTextDescendant(node)
+  return fallbackNode ? { node: fallbackNode, offset: 0 } : null
+}
+
 export function getRenderedOffsetAtPoint(
   container: HTMLElement,
   clientX: number,
@@ -12,15 +77,21 @@ export function getRenderedOffsetAtPoint(
 
   if (typeof support.caretPositionFromPoint === 'function') {
     const result = support.caretPositionFromPoint(clientX, clientY)
-    if (result && result.offsetNode.nodeType === Node.TEXT_NODE && container.contains(result.offsetNode)) {
-      return { node: result.offsetNode as Text, offset: result.offset }
+    if (result) {
+      const caret = coerceTextCaret(container, result.offsetNode, result.offset)
+      if (caret) {
+        return caret
+      }
     }
   }
 
   if (typeof support.caretRangeFromPoint === 'function') {
     const range = support.caretRangeFromPoint(clientX, clientY)
-    if (range && range.startContainer.nodeType === Node.TEXT_NODE && container.contains(range.startContainer)) {
-      return { node: range.startContainer as Text, offset: range.startOffset }
+    if (range) {
+      const caret = coerceTextCaret(container, range.startContainer, range.startOffset)
+      if (caret) {
+        return caret
+      }
     }
   }
 

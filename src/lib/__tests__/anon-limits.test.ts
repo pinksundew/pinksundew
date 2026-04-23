@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ANONYMOUS_ACTIVE_TASK_LIMIT,
   countActiveAnonymousTasks,
+  getAnonymousTaskLimitPrompt,
   isAnonymousTaskLimitMessage,
 } from '@/lib/anon-limits'
 
@@ -41,6 +42,10 @@ describe('countActiveAnonymousTasks', () => {
 })
 
 describe('isAnonymousTaskLimitMessage', () => {
+  it('matches the current save-your-board prompt copy', () => {
+    expect(isAnonymousTaskLimitMessage(getAnonymousTaskLimitPrompt())).toBe(true)
+  })
+
   it('matches the exact server/trigger message for the limit', () => {
     const message = `Anonymous boards are limited to ${ANONYMOUS_ACTIVE_TASK_LIMIT} active tasks. Claim your account to add more tasks.`
     expect(isAnonymousTaskLimitMessage(message)).toBe(true)

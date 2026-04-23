@@ -8,7 +8,10 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const rawNext = searchParams.get('next') ?? '/'
   const next = rawNext.startsWith('/') ? rawNext : '/'
-  const isClaim = searchParams.get('claim') === '1'
+  const claimMode =
+    searchParams.get('claim') === 'email' || searchParams.get('claim') === 'oauth'
+      ? searchParams.get('claim')
+      : null
 
   if (code) {
     const cookieStore = await cookies()
@@ -48,8 +51,8 @@ export async function GET(request: Request) {
       }
 
       const redirectUrl = new URL(next, redirectBase)
-      if (isClaim && !redirectUrl.searchParams.has('claim')) {
-        redirectUrl.searchParams.set('claim', '1')
+      if (claimMode && !redirectUrl.searchParams.has('claim')) {
+        redirectUrl.searchParams.set('claim', claimMode)
       }
 
       return NextResponse.redirect(redirectUrl.toString())

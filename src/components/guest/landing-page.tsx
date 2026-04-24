@@ -55,7 +55,7 @@ function HeroWorkflowCards() {
               <div className="min-w-0 pt-px">
                 <p className="text-sm font-black leading-tight text-slate-950">Sync</p>
                 <p className="text-[10px] font-semibold leading-snug text-slate-600 sm:text-[11px]">
-                  Same rules in Cursor, Codex, VS Code, Antigravity—no drift.
+                  Same rules in Cursor, Codex, VS Code, Antigravity and more. No drift.
                 </p>
               </div>
             </div>
@@ -80,7 +80,7 @@ function HeroWorkflowCards() {
               <div className="min-w-0 pt-px">
                 <p className="text-sm font-black leading-tight text-slate-950">Connect</p>
                 <p className="text-[10px] font-semibold leading-snug text-slate-600 sm:text-[11px]">
-                  Your agent and your board stay in sync—without pasting links into chat.
+                  Seamlessly connect your agent to your board.
                 </p>
               </div>
             </div>

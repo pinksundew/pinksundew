@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Trash2, X } from 'lucide-react'
+import { ListChecks, Settings, Trash2, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ConfirmModal } from './confirm-modal'
+import { SHOW_ONBOARDING_GUIDE_EVENT } from '@/components/onboarding/onboarding-tour'
 
 type ProjectSettingsModalProps = {
   isOpen: boolean
@@ -145,6 +146,27 @@ export function ProjectSettingsModal({
               >
                 {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
+
+              {/* Onboarding Guide */}
+              <div className="border-t border-border pt-6">
+                <h3 className="mb-1 text-sm font-semibold text-foreground">Onboarding Guide</h3>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Bring back the get-started checklist for this board.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent(SHOW_ONBOARDING_GUIDE_EVENT))
+                    }
+                    onClose()
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+                >
+                  <ListChecks className="h-4 w-4 text-pink-700" />
+                  Show Guide
+                </button>
+              </div>
 
               {/* Danger Zone */}
               <div className="border-t border-border pt-6">

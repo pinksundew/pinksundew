@@ -176,6 +176,7 @@ export function DashboardStatusSection({
         <div
           role="button"
           tabIndex={0}
+          data-tour-target="agent-sync"
           onClick={onOpenConnect}
           onKeyDown={(event) => handleCardKeyDown(event, onOpenConnect)}
           className="cursor-pointer rounded-lg border border-pink-200/70 bg-white p-3 shadow-sm transition-all hover:border-pink-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25 sm:p-4"
@@ -257,6 +258,7 @@ export function DashboardStatusSection({
         <div
           role="button"
           tabIndex={0}
+          data-tour-target="agent-instructions"
           onClick={onOpenInstructions}
           onKeyDown={(event) => handleCardKeyDown(event, onOpenInstructions)}
           className="cursor-pointer rounded-lg border border-slate-200 bg-white p-3 shadow-sm transition-all hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary/25 sm:p-4"

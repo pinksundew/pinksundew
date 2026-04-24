@@ -89,7 +89,7 @@ export const INSTRUCTION_SYNC_TARGET_CATALOG = [
     name: 'VS Code',
     file_path: '.github/copilot-instructions.md',
     description: 'Write synced instructions to `.github/copilot-instructions.md`.',
-    default_enabled: true,
+    default_enabled: false,
   },
   {
     id: 'sync_target_cursor',

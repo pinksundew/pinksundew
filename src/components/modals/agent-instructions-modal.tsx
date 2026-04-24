@@ -41,6 +41,17 @@ const CONTEXT_DOCS_NOTE =
   'Project context documents live in .pinksundew/docs/. Read them before making architectural changes.'
 const DEFAULT_INSTRUCTION_FILE_NAME = 'agent-rules.md'
 
+const DEFAULT_AGENT_RULES_CONTENT = `### Task Workflow
+If I tell you to look at my tasks or check them out, it means to pull them from the board and start working on them. Work on all tasks unless specified not to.
+Only work on in-progress or todo tasks.
+Always mark tickets you work on as in progress. When finished, mark them for review, not as completed.
+Always check replies for more information.
+Signal tickets you are working on as Agent Working.
+If you are working on the instructions I have given you in the chat, but that task is not present on my board and doesn't relate to any other tasks on my board, create the ticket yourself and add it to my board.
+
+${CONTEXT_DOCS_NOTE}
+`
+
 function isContextDocument(file: Pick<AgentInstructionFile, 'file_name'>) {
   return file.file_name.replace(/\\/g, '/').startsWith(CONTEXT_DOCS_DIR)
 }
@@ -228,7 +239,7 @@ export function AgentInstructionsModal({
           const createdFile = await createInstructionFile(supabase, {
             set_id: nextSelectedSet.id,
             file_name: DEFAULT_INSTRUCTION_FILE_NAME,
-            content: CONTEXT_DOCS_NOTE,
+            content: DEFAULT_AGENT_RULES_CONTENT,
           })
 
           await loadInstructionSets({

@@ -45,6 +45,7 @@ export function KanbanColumn({
   return (
     <div
       data-board-column={columnId}
+      data-tour-target={columnId === 'done' ? 'completion-signals' : undefined}
       className={`flex-col bg-muted/30 border border-border rounded-lg w-full md:w-80 h-full overflow-hidden shrink-0 transition-colors ${
         isActiveMobile ? 'flex' : 'hidden md:flex'
       }`}

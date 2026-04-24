@@ -2,18 +2,13 @@ import Link from 'next/link'
 import Image from 'next/image'
 import {
   ArrowRight,
-  BadgeCheck,
   CheckCircle2,
   CircleDot,
   ClipboardCheck,
-  FileText,
-  Kanban,
-  ListChecks,
   MessageSquareText,
   PlugZap,
   Radio,
   RefreshCw,
-  Sparkles,
   TerminalSquare,
   type LucideIcon,
 } from 'lucide-react'
@@ -31,13 +26,6 @@ type FeatureCard = {
   description: string
   Icon: LucideIcon
   accentClassName: string
-}
-
-type TutorialStep = {
-  title: string
-  description: string
-  target: string
-  Icon: LucideIcon
 }
 
 const featureCards: FeatureCard[] = [
@@ -64,42 +52,11 @@ const featureCards: FeatureCard[] = [
   },
 ]
 
-const tutorialSteps: TutorialStep[] = [
-  {
-    title: 'Start with the shared board',
-    description:
-      'Welcome guests and new users with a tiny tour of the task columns, add-task action, and project context.',
-    target: 'Board surface',
-    Icon: Kanban,
-  },
-  {
-    title: 'Show the agent connection',
-    description:
-      'Highlight MCP setup and instruction sync so users understand how their coding agent sees the project.',
-    target: 'Agent sync card',
-    Icon: PlugZap,
-  },
-  {
-    title: 'Open a task like an agent would',
-    description:
-      'Point at title, description, replies, priority, and tags as the information the agent reads before work.',
-    target: 'Task detail modal',
-    Icon: FileText,
-  },
-  {
-    title: 'Finish with review signals',
-    description:
-      'Demonstrate progress notes, needs-help, and ready-for-review as the completion loop for agent work.',
-    target: 'Workflow signal',
-    Icon: BadgeCheck,
-  },
-]
-
 const boardColumns = [
   {
     name: 'Todo',
     tone: 'border-slate-200 bg-white',
-    tasks: ['Wire guest tutorial', 'Refresh homepage copy'],
+    tasks: ['Write agent handoff', 'Refresh homepage copy'],
   },
   {
     name: 'In progress',
@@ -132,25 +89,6 @@ function FeaturePanel({ title, description, Icon, accentClassName }: FeatureCard
   )
 }
 
-function TutorialPlanStep({ title, description, target, Icon }: TutorialStep) {
-  return (
-    <li className="rounded-lg border border-slate-800 bg-slate-900/70 p-4">
-      <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-white">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-300">{description}</p>
-          <p className="mt-3 inline-flex rounded-full border border-slate-700 px-2.5 py-1 text-xs font-semibold text-slate-300">
-            {target}
-          </p>
-        </div>
-      </div>
-    </li>
-  )
-}
-
 export function LandingPage({
   isAuthenticated = false,
   workspaceHref = null,
@@ -171,20 +109,8 @@ export function LandingPage({
 
   return (
     <main className="min-h-screen bg-slate-50 text-foreground">
-      <section className="relative isolate overflow-hidden border-b border-pink-100 bg-white">
-        <video
-          src={demoVideoSrc}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          aria-hidden="true"
-          className="absolute inset-0 -z-20 h-full w-full object-cover opacity-30"
-        >
-          Your browser does not support the video tag.
-        </video>
-        <div className="absolute inset-0 -z-10 bg-white/78" />
+      <section className="relative isolate overflow-hidden border-b border-pink-100 bg-slate-50">
+        <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#e2e8f0_1px,transparent_1px),linear-gradient(to_bottom,#e2e8f0_1px,transparent_1px)] bg-[size:24px_24px] opacity-50" />
 
         <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
           <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-950">
@@ -198,18 +124,6 @@ export function LandingPage({
             />
             <span>Pink Sundew</span>
           </Link>
-
-          <nav className="hidden items-center gap-5 text-sm font-medium text-slate-600 md:flex">
-            <a href="#agent-sync" className="transition-colors hover:text-slate-950">
-              Agent sync
-            </a>
-            <a href="#task-loop" className="transition-colors hover:text-slate-950">
-              Task loop
-            </a>
-            <a href="#tutorial" className="transition-colors hover:text-slate-950">
-              Tutorial
-            </a>
-          </nav>
 
           <div className="flex items-center gap-2">
             <Link
@@ -229,9 +143,9 @@ export function LandingPage({
           </div>
         </header>
 
-        <div className="relative z-10 mx-auto flex min-h-[min(760px,88svh)] w-full max-w-7xl flex-col justify-center px-5 pb-12 pt-6 sm:px-8 lg:pb-16">
-          <div className="max-w-4xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-pink-200 bg-white/82 px-3 py-1.5 text-xs font-bold uppercase text-pink-900 shadow-sm backdrop-blur">
+        <div className="relative z-10 mx-auto flex min-h-[min(760px,88svh)] w-full max-w-7xl flex-col items-center px-5 pb-16 pt-10 sm:px-8 lg:pb-24">
+          <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-pink-200 bg-pink-50/50 px-3 py-1.5 text-xs font-bold uppercase text-pink-900 shadow-sm backdrop-blur">
               <Radio className="h-3.5 w-3.5" aria-hidden="true" />
               Live board for coding agents
             </div>
@@ -245,7 +159,7 @@ export function LandingPage({
               Give your agent a real workspace to read from, write back to, and move through review with you.
             </p>
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href={primaryHref}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md bg-primary px-6 py-3 text-base font-bold text-primary-foreground shadow-lg shadow-pink-200/80 transition hover:-translate-y-0.5 hover:bg-primary/90"
@@ -253,31 +167,50 @@ export function LandingPage({
                 {primaryLabel}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
-              <a
-                href="#tutorial"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white/80 px-6 py-3 text-base font-bold text-slate-900 shadow-sm backdrop-blur transition hover:-translate-y-0.5 hover:bg-white"
-              >
-                See first-minute tour
-                <ListChecks className="h-4 w-4" aria-hidden="true" />
-              </a>
             </div>
             <p className="mt-4 max-w-2xl text-sm font-medium leading-6 text-slate-600">{helperText}</p>
           </div>
 
-          <div className="mt-12 grid gap-3 sm:grid-cols-3">
+          <div className="mx-auto mt-16 grid w-full max-w-5xl gap-4 sm:grid-cols-3">
             {[
-              ['Agent sync', 'Instructions and clients stay current.'],
-              ['Task reading', 'Agents see scope, replies, tags, and status.'],
-              ['Review loop', 'Finished work returns as board signals.'],
+              ['Plan work on a board', 'Map out features and let agents pull tasks from columns.'],
+              ['Post progress notes', 'Agents use MCP to reply to tasks and ask for clarity.'],
+              ['Keep instructions synced', 'No more pasting context. Rules stay fresh globally.'],
             ].map(([title, description]) => (
-              <div key={title} className="rounded-lg border border-white/70 bg-white/72 p-4 shadow-sm backdrop-blur">
-                <div className="flex items-center gap-2 text-sm font-bold text-slate-950">
-                  <CheckCircle2 className="h-4 w-4 text-pink-700" aria-hidden="true" />
+              <div key={title} className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-pink-200 hover:shadow-md">
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-50/50 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="relative z-10 flex items-center gap-2 text-base font-bold text-slate-950">
+                  <CheckCircle2 className="h-5 w-5 text-pink-600" aria-hidden="true" />
                   {title}
                 </div>
-                <p className="mt-2 text-sm leading-5 text-slate-600">{description}</p>
+                <p className="relative z-10 mt-2 text-sm leading-relaxed text-slate-600">{description}</p>
               </div>
             ))}
+          </div>
+
+          <div className="mx-auto mt-16 w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200/60 bg-white/50 shadow-2xl shadow-pink-900/10 backdrop-blur-xl ring-1 ring-white/50">
+            <div className="flex items-center justify-between border-b border-slate-200/60 bg-white/60 px-4 py-3 backdrop-blur-md">
+              <div className="flex gap-2">
+                <div className="h-3 w-3 rounded-full bg-slate-300"></div>
+                <div className="h-3 w-3 rounded-full bg-slate-300"></div>
+                <div className="h-3 w-3 rounded-full bg-slate-300"></div>
+              </div>
+              <div className="flex items-center gap-2 rounded-md bg-white/80 px-3 py-1 text-xs font-semibold text-slate-500 shadow-sm ring-1 ring-slate-200/60">
+                pinksundew.com
+              </div>
+              <div className="w-10"></div>
+            </div>
+            <video
+              src={demoVideoSrc}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="w-full object-cover bg-slate-50"
+            >
+              Your browser does not support the video tag.
+            </video>
           </div>
         </div>
       </section>
@@ -358,39 +291,6 @@ export function LandingPage({
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section id="tutorial" className="bg-slate-950 px-5 py-16 text-white sm:px-8 lg:py-20">
-        <div className="mx-auto grid w-full max-w-7xl gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-          <div>
-            <p className="text-sm font-bold uppercase text-pink-300">Guest and new-user tutorial</p>
-            <h2 className="mt-3 text-balance text-3xl font-black leading-tight sm:text-5xl">
-              A quick first-minute tour, focused on the agent loop.
-            </h2>
-            <p className="mt-5 text-base leading-7 text-slate-300">
-              The tour should appear after a guest board opens for the first time, and once after signup for
-              new authenticated users. Keep it short, skippable, and centered on the features that make the
-              board different.
-            </p>
-            <div className="mt-6 rounded-lg border border-slate-800 bg-slate-900 p-4">
-              <div className="flex items-center gap-2 text-sm font-bold text-white">
-                <Sparkles className="h-4 w-4 text-pink-300" aria-hidden="true" />
-                Tour rules
-              </div>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
-                <li>Show once per browser for guests, with a replay option in help or profile.</li>
-                <li>Use custom in-app overlays, never browser alerts or confirm dialogs.</li>
-                <li>End by inviting users to create a sample task or connect their agent.</li>
-              </ul>
-            </div>
-          </div>
-
-          <ol className="grid gap-3 md:grid-cols-2">
-            {tutorialSteps.map((step) => (
-              <TutorialPlanStep key={step.title} {...step} />
-            ))}
-          </ol>
         </div>
       </section>
     </main>

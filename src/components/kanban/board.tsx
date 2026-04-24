@@ -36,6 +36,7 @@ import { ConfirmModal } from '@/components/modals/confirm-modal'
 import { AbyssModal } from '@/components/modals/abyss-modal'
 import { ConnectMcpModal } from '@/components/modals/connect-mcp-modal'
 import { ProjectSettingsModal } from '@/components/modals/project-settings-modal'
+import { OnboardingTour } from '@/components/onboarding/onboarding-tour'
 import { FileText, Ghost, Settings, Trash2, X } from 'lucide-react'
 import { isVisibleOnBoard, sortTasksByPosition } from '@/domains/task/visibility'
 import { DashboardStatusSection } from './dashboard-status-section'
@@ -1031,6 +1032,14 @@ export function KanbanBoard({
   const anonymousTaskLimitReached =
     isAnonymousUser && countActiveAnonymousTasks(tasks) >= ANONYMOUS_ACTIVE_TASK_LIMIT
 
+  const openTourCreateTask = () => {
+    openCreateFromPill({
+      title: 'Ask an agent to read this task',
+      description:
+        'Describe the outcome, useful context, and how you want the agent to report progress.',
+    })
+  }
+
   const shouldShowActionPill = !isSelectionMode && !isAnyModalOpen
   const shouldShowSelectionPill = isSelectionMode && !isAnyModalOpen
 
@@ -1138,6 +1147,19 @@ export function KanbanBoard({
            })}
          </div>
       </div>
+
+      {viewer ? (
+        <OnboardingTour
+          projectId={projectId}
+          viewerId={viewer.id}
+          isAnonymousUser={isAnonymousUser}
+          taskCount={tasks.length}
+          isSuspended={isAnyModalOpen}
+          onOpenCreateTask={openTourCreateTask}
+          onOpenConnect={() => setIsConnectModalOpen(true)}
+          onOpenInstructions={() => setIsAgentInstructionsOpen(true)}
+        />
+      ) : null}
       
       <CreateTaskModal
         isOpen={isCreateModalOpen}
@@ -1175,6 +1197,7 @@ export function KanbanBoard({
       >
         <div
           ref={boardScrollContainerRef}
+          data-tour-target="task-board"
           className="flex min-h-0 flex-1 justify-start xl:justify-center gap-6 w-full pb-10 overflow-x-hidden md:overflow-x-auto min-viewport-p"
         >
           {COLUMNS.map((columnId) => (
@@ -1214,6 +1237,7 @@ export function KanbanBoard({
                 style={{ width: pillWidth !== null ? `${pillWidth}px` : 'min(22rem, calc(100vw - 1.5rem))' }}
               >
                 <div
+                  data-tour-target="quick-add-task"
                   className={`pointer-events-auto transition-all duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
                     activeTask ? 'translate-y-1 scale-95 opacity-0' : 'translate-y-0 scale-100 opacity-100'
                   }`}

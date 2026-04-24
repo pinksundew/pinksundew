@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getProfile } from '@/domains/profile/queries'
-import { updateProfile } from '@/domains/profile/mutations'
+import { syncProfileFromAuthUser, updateProfile } from '@/domains/profile/mutations'
 import { getUserApiKeys } from '@/domains/api-key/queries'
 import { revalidatePath } from 'next/cache'
 import { LogOut, Mail, User } from 'lucide-react'
@@ -14,6 +14,10 @@ export default async function ProfilePage() {
   if (!user) {
     redirect('/login')
   }
+
+  await syncProfileFromAuthUser(supabase, user).catch((error) => {
+    console.error('Unable to sync profile from auth user:', error)
+  })
 
   const [profile, apiKeys] = await Promise.all([
     getProfile(supabase, user.id),

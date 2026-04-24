@@ -158,15 +158,11 @@ export function AgentInstructionsModal({
     useState<AgentInstructionFile | null>(null)
   const [isControlsSaving, setIsControlsSaving] = useState(false)
   const [supabase] = useState(() => createClient())
+  const isGlobalTab = activeTab === 'global'
 
   const selectedSet = useMemo(
     () => instructionSets.find((instructionSet) => instructionSet.id === selectedSetId) ?? null,
     [instructionSets, selectedSetId]
-  )
-
-  const selectedFile = useMemo(
-    () => selectedSet?.files.find((file) => file.id === selectedFileId) ?? null,
-    [selectedSet, selectedFileId]
   )
 
   const ruleFiles = useMemo(
@@ -179,7 +175,17 @@ export function AgentInstructionsModal({
     [selectedSet]
   )
 
-  const selectedFileIsContextDocument = selectedFile ? isContextDocument(selectedFile) : false
+  const selectedFile = useMemo(() => {
+    if (!selectedSet) {
+      return null
+    }
+
+    if (isGlobalTab) {
+      return ruleFiles.find((file) => file.id === selectedFileId) ?? ruleFiles[0] ?? null
+    }
+
+    return contextFiles.find((file) => file.id === selectedFileId) ?? null
+  }, [contextFiles, isGlobalTab, ruleFiles, selectedFileId, selectedSet])
 
   const fetchInstructionSets = useCallback(async (options?: { selectedSetId?: string | null; selectedFileId?: string | null }) => {
     setInstructionErrorMessage(null)
@@ -280,18 +286,18 @@ export function AgentInstructionsModal({
       return
     }
 
-    if (selectedSet.files.length === 0) {
+    const visibleFiles = isGlobalTab ? ruleFiles : contextFiles
+    if (visibleFiles.length === 0) {
       setSelectedFileId(null)
       return
     }
 
-    if (selectedFileId && selectedSet.files.some((file) => file.id === selectedFileId)) {
+    if (selectedFileId && visibleFiles.some((file) => file.id === selectedFileId)) {
       return
     }
 
-    const nextRuleFile = selectedSet.files.find((file) => !isContextDocument(file))
-    setSelectedFileId(nextRuleFile?.id ?? selectedSet.files[0]?.id ?? null)
-  }, [selectedSetId, selectedSet, selectedFileId])
+    setSelectedFileId(visibleFiles[0]?.id ?? null)
+  }, [contextFiles, isGlobalTab, ruleFiles, selectedFileId, selectedSet])
 
   useEffect(() => {
     if (!selectedFile) {
@@ -303,26 +309,6 @@ export function AgentInstructionsModal({
     setDraftContent(selectedFile.content)
     setDraftFileName(getInstructionFileLabel(selectedFile))
   }, [selectedFile])
-
-  useEffect(() => {
-    if (activeTab === 'global') {
-      if (selectedFileIsContextDocument && ruleFiles.length > 0) {
-        setSelectedFileId(ruleFiles[0].id)
-      }
-      return
-    }
-
-    if (activeTab === 'custom') {
-      if (contextFiles.length === 0) {
-        setSelectedFileId(null)
-        return
-      }
-
-      if (!selectedFileIsContextDocument) {
-        setSelectedFileId(contextFiles[0].id)
-      }
-    }
-  }, [activeTab, contextFiles, ruleFiles, selectedFileIsContextDocument])
 
   const handleToggleTool = (toolId: CoreMcpToolId) => {
     setToolToggles((previous) => ({
@@ -458,13 +444,12 @@ export function AgentInstructionsModal({
     await Promise.all(promises)
   }
 
-  const isGlobalTab = activeTab === 'global'
   const currentInstructionFiles = isGlobalTab ? ruleFiles : contextFiles
   const currentInstructionIcon = isGlobalTab ? FileText : BookOpen
-  const currentInstructionTitle = isGlobalTab ? 'Global Agent Rules' : 'Custom Context Document'
+  const currentInstructionTitle = isGlobalTab ? 'Global Agent Rules' : 'Custom Context Files'
   const currentInstructionDescription = isGlobalTab
     ? 'Behavioral rules applied to connected AI sessions.'
-    : 'Custom markdown documents sync as separate files in .pinksundew/docs/.'
+    : 'Markdown context documents that sync separately into .pinksundew/docs/.'
   const currentInstructionPlaceholder = isGlobalTab
     ? `# Agent Rules\n\n${CONTEXT_DOCS_NOTE}`
     : '# Architecture\n\nDescribe important domain, data, and product context here.'
@@ -712,9 +697,33 @@ export function AgentInstructionsModal({
                         className="h-full min-h-0 w-full resize-none overflow-y-auto bg-white p-5 font-mono text-sm leading-loose text-slate-700 outline-none focus:ring-0"
                       />
                     </div>
-                  ) : (
+                  ) : isGlobalTab ? (
                     <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white/50 px-6 text-center text-sm text-slate-500">
                       {emptyInstructionState}
+                    </div>
+                  ) : (
+                    <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white px-6">
+                      <div className="max-w-md text-center">
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                          <BookOpen className="h-5 w-5" />
+                        </div>
+                        <h4 className="mt-4 text-base font-semibold text-slate-900">
+                          No custom files yet
+                        </h4>
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                          Keep architecture notes, product context, and schema docs separate from
+                          your global rules file.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={handleAddContextDocument}
+                          disabled={!selectedSet || isInstructionLoading}
+                          className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <FilePlus2 className="h-4 w-4" />
+                          Create your first file
+                        </button>
+                      </div>
                     </div>
                   )}
 

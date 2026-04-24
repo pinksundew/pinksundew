@@ -1,7 +1,7 @@
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getUserProjects } from '@/domains/project/queries'
 import { LandingPage } from '@/components/guest/landing-page'
+import { PostAuthMerge } from '@/components/auth/post-auth-merge'
 
 export default async function IndexRedirect() {
   const supabase = await createClient()
@@ -11,14 +11,20 @@ export default async function IndexRedirect() {
     return <LandingPage />
   }
 
+  let workspaceHref: string | null = null
   try {
     const projects = await getUserProjects(supabase)
     if (projects && projects.length > 0) {
-      redirect(`/${projects[0].id}`)
+      workspaceHref = `/${projects[0].id}`
     }
   } catch (error) {
     console.error('Error fetching projects', error)
   }
 
-  redirect('/create-project')
+  return (
+    <>
+      <LandingPage isAuthenticated workspaceHref={workspaceHref} />
+      <PostAuthMerge userId={user.id} />
+    </>
+  )
 }

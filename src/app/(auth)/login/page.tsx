@@ -9,30 +9,31 @@ import posthog from 'posthog-js'
 import { stashPendingAnonMerge, clearPendingAnonMerge } from '@/lib/anon-merge'
 import { consumePendingAnonMerge } from '@/lib/anon-merge-client'
 import { getCurrentSessionUser } from '@/lib/supabase/guest-session'
+import { syncProfileFromAuthUser } from '@/domains/profile/mutations'
 
 type Mode = 'password' | 'magic-link'
+
+function buildCallbackUrl(nextPath: string) {
+  const callbackUrl = new URL('/callback', window.location.origin)
+  callbackUrl.searchParams.set('next', nextPath)
+  return callbackUrl.toString()
+}
 
 function LoginPageInner() {
   const [mode, setMode] = useState<Mode>('password')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
   const [infoMsg, setInfoMsg] = useState('')
   const router = useRouter()
   const searchParams = useSearchParams()
   const rawNextPath = searchParams.get('next') || '/'
   const nextPath = rawNextPath.startsWith('/') ? rawNextPath : '/'
   const initialError = searchParams.get('error')
+  const [errorMsg, setErrorMsg] = useState(initialError ?? '')
 
   const supabase = useMemo(() => createClient(), [])
   const [pendingAnonId, setPendingAnonId] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (initialError) {
-      setErrorMsg(initialError)
-    }
-  }, [initialError])
 
   useEffect(() => {
     let cancelled = false
@@ -75,6 +76,10 @@ function LoginPageInner() {
     }
 
     if (signInData.user) {
+      await syncProfileFromAuthUser(supabase, signInData.user).catch((syncError) => {
+        console.error('Unable to sync profile from signed-in user:', syncError)
+      })
+
       posthog.identify(signInData.user.id, { email: signInData.user.email })
       posthog.capture('user_logged_in', { method: 'email' })
 
@@ -102,13 +107,10 @@ function LoginPageInner() {
       stashPendingAnonMerge(pendingAnonId)
     }
 
-    const callbackUrl = new URL('/callback', window.location.origin)
-    callbackUrl.searchParams.set('next', nextPath)
-
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: callbackUrl.toString(),
+        emailRedirectTo: buildCallbackUrl(nextPath),
         shouldCreateUser: true,
       },
     })
@@ -129,13 +131,10 @@ function LoginPageInner() {
       stashPendingAnonMerge(pendingAnonId)
     }
 
-    const callbackUrl = new URL('/callback', window.location.origin)
-    callbackUrl.searchParams.set('next', nextPath)
-
     await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: callbackUrl.toString(),
+        redirectTo: buildCallbackUrl(nextPath),
         scopes: provider === 'github' ? 'repo' : undefined,
       },
     })

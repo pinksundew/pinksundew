@@ -40,15 +40,21 @@ export function PostClaimToasts() {
       // Ignore private-mode errors and continue.
     }
 
-    setShow(true)
-    setClaimMode(claimFlag)
-    posthog.capture('guest_claim_completed', { method: claimFlag })
-
     const params = new URLSearchParams(Array.from(searchParams.entries()))
     params.delete('claim')
     const queryString = params.toString()
     const nextUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname
-    router.replace(nextUrl)
+
+    const showToastTimeout = window.setTimeout(() => {
+      setShow(true)
+      setClaimMode(claimFlag)
+      posthog.capture('guest_claim_completed', { method: claimFlag })
+      router.replace(nextUrl)
+    }, 0)
+
+    return () => {
+      window.clearTimeout(showToastTimeout)
+    }
   }, [router, searchParams])
 
   const dismiss = () => {

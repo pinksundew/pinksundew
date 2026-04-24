@@ -9,6 +9,13 @@ import posthog from 'posthog-js'
 import { clearPendingAnonMerge, stashPendingAnonMerge } from '@/lib/anon-merge'
 import { consumePendingAnonMerge } from '@/lib/anon-merge-client'
 import { getCurrentSessionUser } from '@/lib/supabase/guest-session'
+import { syncProfileFromAuthUser } from '@/domains/profile/mutations'
+
+function buildCallbackUrl(nextPath: string) {
+  const callbackUrl = new URL('/callback', window.location.origin)
+  callbackUrl.searchParams.set('next', nextPath)
+  return callbackUrl.toString()
+}
 
 function SignupPageInner() {
   const [email, setEmail] = useState('')
@@ -50,7 +57,10 @@ function SignupPageInner() {
     // via updateUser to preserve the existing user_id and workspace. This
     // keeps the guest board attached rather than orphaning it.
     if (pendingAnonId) {
-      const { error } = await supabase.auth.updateUser({ email, password })
+      const { error } = await supabase.auth.updateUser(
+        { email, password },
+        { emailRedirectTo: buildCallbackUrl(nextPath) }
+      )
       if (error) {
         setMsg({ type: 'error', text: error.message })
         posthog.captureException(error)
@@ -80,6 +90,10 @@ function SignupPageInner() {
     }
 
     if (signUpData.user) {
+      await syncProfileFromAuthUser(supabase, signUpData.user).catch((syncError) => {
+        console.error('Unable to sync profile from signed-up user:', syncError)
+      })
+
       posthog.identify(signUpData.user.id, { email: signUpData.user.email })
       posthog.capture('user_signed_up', { method: 'email' })
 
@@ -109,13 +123,10 @@ function SignupPageInner() {
       stashPendingAnonMerge(pendingAnonId)
     }
 
-    const callbackUrl = new URL('/callback', window.location.origin)
-    callbackUrl.searchParams.set('next', nextPath)
-
     await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: callbackUrl.toString(),
+        redirectTo: buildCallbackUrl(nextPath),
         scopes: provider === 'github' ? 'repo' : undefined,
       },
     })

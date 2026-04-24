@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { syncProfileFromAuthUser } from '@/domains/profile/mutations'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
@@ -38,6 +39,16 @@ export async function GET(request: Request) {
 
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        await syncProfileFromAuthUser(supabase, user).catch((syncError) => {
+          console.error('Unable to sync profile from auth user:', syncError)
+        })
+      }
+
       const forwardedHost = request.headers.get('x-forwarded-host')
       const isLocalhost = process.env.NODE_ENV === 'development'
 

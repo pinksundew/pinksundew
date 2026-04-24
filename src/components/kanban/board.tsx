@@ -249,7 +249,8 @@ export function KanbanBoard({
 
   const redirectToAuth = () => {
     if (typeof window === 'undefined') return
-    window.location.href = '/login?next=/guest'
+    const nextPath = `${window.location.pathname}${window.location.search}`
+    window.location.href = `/login?next=${encodeURIComponent(nextPath)}`
   }
 
   useEffect(() => {

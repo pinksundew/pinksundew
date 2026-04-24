@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { syncProfileFromAuthUser } from '@/domains/profile/mutations'
 
 type MergeAnonymousBody = {
   anon_user_id?: unknown
@@ -38,6 +39,10 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   }
+
+  await syncProfileFromAuthUser(supabase, user).catch((syncError) => {
+    console.error('Unable to sync profile from auth user before merge:', syncError)
+  })
 
   if (user.id === anonUserId) {
     return NextResponse.json({ ok: true, no_op: true, reason: 'same_user' })

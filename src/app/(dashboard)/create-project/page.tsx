@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { createProject } from '@/domains/project/mutations'
+import { syncProfileFromAuthUser } from '@/domains/profile/mutations'
 import { Loader2, PlusCircle, Sparkles } from 'lucide-react'
 import posthog from 'posthog-js'
 
@@ -74,6 +75,8 @@ export default function CreateProjectPage() {
     }
 
     try {
+      await syncProfileFromAuthUser(supabase, user)
+
       const project = await createProject(supabase, {
         name: name.trim(),
         description: description.trim() || undefined,

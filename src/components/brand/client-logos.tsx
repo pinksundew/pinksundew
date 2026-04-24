@@ -18,13 +18,9 @@ export function CursorLogo(props: LogoProps) {
   return (
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cursor" {...props}>
       <path
-        fill="#0F0F0F"
-        d="M11.925 24 22.35 18V6L11.925 0 1.5 6v12L11.925 24Zm0-2.317L3.503 16.84V7.16L11.925 2.317 20.348 7.16v9.68L11.925 21.683Z"
-      />
-      <path
-        fill="#0F0F0F"
-        d="m11.925 12 10.425-6L11.925 0v12Zm0 0L1.5 18l10.425 6V12Zm0 0L1.5 6l10.425 6Z"
-        opacity=".75"
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M22.106 5.68 12.5.135a.998.998 0 0 0-.998 0L1.893 5.68a.84.84 0 0 0-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 0 0 .998 0l9.608-5.547a.84.84 0 0 0 .42-.727V6.407a.84.84 0 0 0-.42-.726Zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 0 0-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514Z"
       />
     </svg>
   )
@@ -55,37 +51,11 @@ export function ClaudeCodeLogo(props: LogoProps) {
 export function AntigravityLogo(props: LogoProps) {
   return (
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Antigravity" {...props}>
-      <defs>
-        <linearGradient id="antigravity-orbit-a" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#4285F4" />
-          <stop offset="1" stopColor="#34A853" />
-        </linearGradient>
-        <linearGradient id="antigravity-orbit-b" x1="24" y1="0" x2="0" y2="24" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#EA4335" />
-          <stop offset="1" stopColor="#FBBC04" />
-        </linearGradient>
-      </defs>
-      <ellipse
-        cx="12"
-        cy="12"
-        rx="10"
-        ry="4"
-        fill="none"
-        stroke="url(#antigravity-orbit-a)"
-        strokeWidth="1.5"
-        transform="rotate(35 12 12)"
+      <path
+        fill="currentColor"
+        fillRule="evenodd"
+        d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715Z"
       />
-      <ellipse
-        cx="12"
-        cy="12"
-        rx="10"
-        ry="4"
-        fill="none"
-        stroke="url(#antigravity-orbit-b)"
-        strokeWidth="1.5"
-        transform="rotate(-35 12 12)"
-      />
-      <circle cx="12" cy="12" r="2.4" fill="#4285F4" />
     </svg>
   )
 }

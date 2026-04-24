@@ -4,12 +4,11 @@ import {
   ArrowRight,
   CheckCircle2,
   CircleDot,
-  FileText,
+  Link2,
   MessageSquareText,
   PlugZap,
   Radio,
   RefreshCw,
-  TerminalSquare,
 } from 'lucide-react'
 import { CLIENT_LOGOS } from '@/components/brand/client-logos'
 
@@ -46,78 +45,97 @@ const syncTargets = [
 ]
 
 function HeroWorkflowCards() {
-  const CodexLogo = CLIENT_LOGOS.codex
-
   return (
     <div className="mt-8 grid w-full max-w-5xl gap-3 text-left min-[760px]:grid-cols-3">
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-xl shadow-slate-200/70 ring-1 ring-white/80">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/35 bg-primary/15 text-primary-foreground">
-              <PlugZap className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div>
-              <p className="text-xs font-black uppercase tracking-wide text-primary-foreground/70">01 Sync</p>
-              <p className="text-sm font-bold text-slate-950">Rules pushed to agent</p>
-            </div>
-          </div>
-          <CodexLogo className="h-5 w-5 shrink-0" aria-hidden="true" />
-        </div>
-        <div className="mt-4 space-y-2">
-          {['AGENTS.md', 'copilot-instructions.md'].map((file) => (
-            <div key={file} className="flex items-center justify-between rounded-lg border border-primary/25 bg-primary/10 px-3 py-2">
-              <span className="text-xs font-semibold text-slate-700">{file}</span>
-              <CheckCircle2 className="h-3.5 w-3.5 text-primary-foreground" aria-hidden="true" />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-xl shadow-slate-200/70 ring-1 ring-white/80">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-slate-800">
-            <FileText className="h-4 w-4" aria-hidden="true" />
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70">
+        <div className="flex items-center gap-3 border-b border-slate-200/80 bg-gradient-to-b from-slate-100/40 to-slate-50/90 px-4 py-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-pink-700 shadow-sm ring-1 ring-slate-200/60">
+            <PlugZap className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-primary-foreground/70">02 Read</p>
-            <p className="text-sm font-bold text-slate-950">Task context, not chat paste</p>
+            <p className="text-base font-black leading-tight text-slate-950">One ruleset</p>
+            <p className="text-xs font-semibold text-slate-600">Synced for every agent &amp; IDE</p>
           </div>
         </div>
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-          <div className="flex items-center gap-2">
-            <CircleDot className="h-3.5 w-3.5 text-pink-700" aria-hidden="true" />
-            <p className="text-sm font-black text-slate-900">Build onboarding guide</p>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {['reply', 'priority', 'tags'].map((item) => (
-              <span key={item} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700">
-                {item}
+        <div className="space-y-2 p-3.5 sm:p-4">
+          {['AGENTS.md', 'copilot-instructions.md'].map((file) => (
+            <div key={file} className="flex items-center justify-between rounded-lg border border-pink-100/90 bg-pink-50/70 px-3 py-2">
+              <span className="text-xs font-semibold text-slate-700">{file}</span>
+              <CheckCircle2 className="h-3.5 w-3.5 text-pink-700" aria-hidden="true" />
+            </div>
+          ))}
+          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+            {syncTargets.map(({ name, Logo }) => (
+              <span
+                key={name}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200/80 bg-white/90 px-1.5 py-0.5 text-[10px] font-bold text-slate-600"
+              >
+                <Logo className="h-3 w-3 opacity-80" aria-hidden="true" />
+                {name}
               </span>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-xl shadow-slate-200/70 ring-1 ring-white/80">
-        <div className="flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/35 bg-primary/15 text-primary-foreground">
-            <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70">
+        <div className="flex items-center gap-3 border-b border-slate-200/80 bg-gradient-to-b from-slate-100/40 to-slate-50/90 px-4 py-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-pink-700 shadow-sm ring-1 ring-slate-200/60">
+            <Link2 className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-primary-foreground/70">03 Review</p>
-            <p className="text-sm font-bold text-slate-950">Progress lands on the board</p>
+            <p className="text-base font-black leading-tight text-slate-950">MCP link</p>
+            <p className="text-xs font-semibold text-slate-600">Board and agent stay wired</p>
           </div>
         </div>
-        <div className="mt-4 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2">
-          <div className="flex items-center justify-between gap-3">
-            <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black uppercase text-primary-foreground shadow-sm">
-              Ready for review
-            </span>
-            <RefreshCw className="h-3.5 w-3.5 text-primary-foreground" aria-hidden="true" />
+        <div className="p-3.5 sm:p-4">
+          <div className="rounded-xl border border-pink-100/90 bg-pink-50/70 p-3">
+            <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] font-bold text-slate-800">
+              <span className="rounded-md border border-slate-200/80 bg-white px-2 py-1">Board</span>
+              <span className="text-slate-400" aria-hidden="true">
+                ↔
+              </span>
+              <span className="inline-flex items-center gap-0.5 rounded-md border border-pink-200 bg-white px-2 py-1 text-pink-800">
+                <span className="text-[9px] font-black uppercase tracking-wide text-pink-600">MCP</span>
+              </span>
+              <span className="text-slate-400" aria-hidden="true">
+                ↔
+              </span>
+              <span className="rounded-md border border-slate-200/80 bg-white px-2 py-1">Agent</span>
+            </div>
+            <p className="mt-2.5 text-center text-[11px] font-medium leading-relaxed text-slate-600">
+              Your tool pulls work from the board and reports back without paste-hunting.
+            </p>
+            <div className="mt-2 flex items-center justify-center gap-2 rounded-lg border border-dashed border-pink-200/60 bg-white/60 px-2 py-1.5">
+              <CircleDot className="h-3.5 w-3.5 shrink-0 text-pink-700" aria-hidden="true" />
+              <p className="text-[11px] font-bold text-slate-800">E.g. “Build onboarding guide” in todo</p>
+            </div>
           </div>
-          <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">
-            Validated MCP reads, task updates, and sync state.
-          </p>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70">
+        <div className="flex items-center gap-3 border-b border-slate-200/80 bg-gradient-to-b from-slate-100/40 to-slate-50/90 px-4 py-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-pink-700 shadow-sm ring-1 ring-slate-200/60">
+            <MessageSquareText className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-base font-black leading-tight text-slate-950">Review</p>
+            <p className="text-xs font-semibold text-slate-600">Progress lands on the board</p>
+          </div>
+        </div>
+        <div className="p-3.5 sm:p-4">
+          <div className="rounded-xl border border-pink-100/90 bg-pink-50/70 px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black uppercase text-pink-700 shadow-sm">
+                Ready for review
+              </span>
+              <RefreshCw className="h-3.5 w-3.5 text-pink-700" aria-hidden="true" />
+            </div>
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">
+              Validated MCP reads, task updates, and sync state.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -128,9 +146,9 @@ function WorkflowPreview() {
   return (
     <div
       id="agent-sync"
-      className="mx-auto w-full max-w-6xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70 lg:min-h-[31rem]"
+      className="mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70"
     >
-      <div className="flex flex-col gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3.5">
         <div className="flex items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/25 text-primary-foreground">
             <PlugZap className="h-5 w-5" aria-hidden="true" />
@@ -154,21 +172,21 @@ function WorkflowPreview() {
         </div>
       </div>
 
-      <div id="task-loop" className="grid gap-3 bg-slate-50/70 p-3 min-[560px]:grid-cols-3 sm:p-4 lg:min-h-[20rem]">
+      <div id="task-loop" className="grid gap-2.5 bg-slate-50/70 p-2.5 min-[560px]:grid-cols-3 sm:gap-3 sm:p-3">
         {boardColumns.map((column) => (
-          <div key={column.name} className={`rounded-xl border p-3 lg:min-h-[17rem] ${column.tone}`}>
-            <div className="mb-3 flex items-center justify-between gap-2">
+          <div key={column.name} className={`rounded-xl border p-2.5 sm:p-3 ${column.tone}`}>
+            <div className="mb-2 flex items-center justify-between gap-2">
               <h3 className="text-sm font-black text-slate-900">{column.name}</h3>
               <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500 shadow-sm">
                 {column.tasks.length}
               </span>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5 sm:space-y-2">
               {column.tasks.map((task) => (
-                <div key={task} className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                <div key={task} className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
                   <div className="flex items-start gap-2">
                     <CircleDot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-pink-700" aria-hidden="true" />
-                    <p className="text-sm font-bold leading-5 text-slate-800">{task}</p>
+                    <p className="text-sm font-bold leading-snug text-slate-800">{task}</p>
                   </div>
                 </div>
               ))}
@@ -177,13 +195,6 @@ function WorkflowPreview() {
         ))}
       </div>
 
-      <div className="border-t border-slate-200 bg-gradient-to-r from-primary/10 via-white to-slate-50 px-4 py-4">
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white bg-white/85 px-3 py-2 text-sm text-slate-600 shadow-sm">
-          <TerminalSquare className="h-4 w-4 text-primary-foreground" aria-hidden="true" />
-          <span className="font-black text-slate-950">Agent note</span>
-          <span>Read task, synced instructions, moved result to review.</span>
-        </div>
-      </div>
     </div>
   )
 }
@@ -286,7 +297,7 @@ export function LandingPage({
           </div>
         </div>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl items-center px-5 py-10 sm:px-8 lg:min-h-[calc(100svh-4rem)] lg:py-20">
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-5 py-10 sm:px-8 sm:py-12 lg:py-16">
           <WorkflowPreview />
         </div>
 

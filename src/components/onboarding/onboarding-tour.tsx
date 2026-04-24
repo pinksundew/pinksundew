@@ -287,15 +287,21 @@ export function OnboardingTour({
 
     if (additions.length === 0) return
 
-    setCompletedStepIds((previous) => {
-      const next = new Set(previous)
-      additions.forEach((id) => next.add(id))
-      persistState({
-        completedStepIds: Array.from(next),
-        dismissed: isDismissed,
+    const autoCompleteTimer = window.setTimeout(() => {
+      setCompletedStepIds((previous) => {
+        const next = new Set(previous)
+        additions.forEach((id) => next.add(id))
+        persistState({
+          completedStepIds: Array.from(next),
+          dismissed: isDismissed,
+        })
+        return next
       })
-      return next
-    })
+    }, 0)
+
+    return () => {
+      window.clearTimeout(autoCompleteTimer)
+    }
   }, [
     completedStepIds,
     isDismissed,

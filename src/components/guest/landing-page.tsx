@@ -1,16 +1,9 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import {
-  ArrowRight,
-  CheckCircle2,
-  CircleDot,
-  Link2,
-  MessageSquareText,
-  PlugZap,
-  Radio,
-  RefreshCw,
-} from 'lucide-react'
+import { ArrowRight, CircleDot, Link2, PlugZap, Radio } from 'lucide-react'
 import { CLIENT_LOGOS } from '@/components/brand/client-logos'
+import { SyncIdeOrbit } from '@/components/guest/landing-hero-graphics'
+import { McpFlowGraphic } from '@/components/guest/mcp-flow-graphic'
 
 const demoVideoSrc = process.env.NEXT_PUBLIC_DEMO_VIDEO_URL ?? '/demo/HeroVid.mp4'
 
@@ -46,95 +39,54 @@ const syncTargets = [
 
 function HeroWorkflowCards() {
   return (
-    <div className="mt-8 grid w-full max-w-5xl gap-3 text-left min-[760px]:grid-cols-3">
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70">
-        <div className="flex items-center gap-3 border-b border-slate-200/80 bg-gradient-to-b from-slate-100/40 to-slate-50/90 px-4 py-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-pink-700 shadow-sm ring-1 ring-slate-200/60">
-            <PlugZap className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-base font-black leading-tight text-slate-950">One ruleset</p>
-            <p className="text-xs font-semibold text-slate-600">Synced for every agent &amp; IDE</p>
-          </div>
-        </div>
-        <div className="space-y-2 p-3.5 sm:p-4">
-          {['AGENTS.md', 'copilot-instructions.md'].map((file) => (
-            <div key={file} className="flex items-center justify-between rounded-lg border border-pink-100/90 bg-pink-50/70 px-3 py-2">
-              <span className="text-xs font-semibold text-slate-700">{file}</span>
-              <CheckCircle2 className="h-3.5 w-3.5 text-pink-700" aria-hidden="true" />
+    <div className="mt-8 w-full max-w-5xl text-left">
+      {/*
+        Single “bento” shell: one shadow, shared interior, column seam—reads as one flow
+        (rules → IDEs → MCP bridge) instead of two disconnected rectangles.
+      */}
+      <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-gradient-to-br from-slate-100/90 via-white to-pink-50/25 p-px shadow-lg shadow-slate-300/20 ring-1 ring-white/90 sm:rounded-3xl sm:p-1 sm:shadow-xl">
+        <div className="grid items-start divide-y divide-slate-200/70 min-[760px]:grid-cols-2 min-[760px]:divide-x min-[760px]:divide-y-0 min-[760px]:divide-pink-100/50">
+          {/* Sync — circular vignette hugs the orbit (no aspect-square “stage”) */}
+          <div className="flex w-full flex-col self-start bg-gradient-to-br from-white via-slate-50/35 to-pink-50/15">
+            <div className="flex shrink-0 items-start gap-2 border-b border-slate-200/60 px-2.5 py-2 sm:gap-2.5 sm:px-3 sm:py-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-pink-700 shadow-sm ring-1 ring-slate-200/50">
+                <PlugZap className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 pt-px">
+                <p className="text-sm font-black leading-tight text-slate-950">Sync</p>
+                <p className="text-[10px] font-semibold leading-snug text-slate-600 sm:text-[11px]">
+                  Same rules in Cursor, Codex, VS Code, Antigravity—no drift.
+                </p>
+              </div>
             </div>
-          ))}
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            {syncTargets.map(({ name, Logo }) => (
-              <span
-                key={name}
-                className="inline-flex items-center gap-1 rounded-md border border-slate-200/80 bg-white/90 px-1.5 py-0.5 text-[10px] font-bold text-slate-600"
+            <div className="flex justify-center px-2 pb-2 pt-1.5 sm:px-3 sm:pb-2.5 sm:pt-2">
+              <div
+                className="inline-flex rounded-full p-2 shadow-sm ring-1 ring-pink-100/40 sm:p-2.5"
+                style={{
+                  background:
+                    'radial-gradient(circle at 50% 42%, rgb(255 255 255) 0%, rgb(252 231 243 / 0.45) 52%, rgb(241 245 249 / 0.65) 100%)',
+                }}
               >
-                <Logo className="h-3 w-3 opacity-80" aria-hidden="true" />
-                {name}
-              </span>
-            ))}
+                <SyncIdeOrbit className="flex items-center justify-center" />
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70">
-        <div className="flex items-center gap-3 border-b border-slate-200/80 bg-gradient-to-b from-slate-100/40 to-slate-50/90 px-4 py-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-pink-700 shadow-sm ring-1 ring-slate-200/60">
-            <Link2 className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-base font-black leading-tight text-slate-950">MCP link</p>
-            <p className="text-xs font-semibold text-slate-600">Board and agent stay wired</p>
-          </div>
-        </div>
-        <div className="p-3.5 sm:p-4">
-          <div className="rounded-xl border border-pink-100/90 bg-pink-50/70 p-3">
-            <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] font-bold text-slate-800">
-              <span className="rounded-md border border-slate-200/80 bg-white px-2 py-1">Board</span>
-              <span className="text-slate-400" aria-hidden="true">
-                ↔
+          <div className="flex w-full flex-col self-start bg-gradient-to-bl from-white via-pink-50/20 to-slate-50/25">
+            <div className="flex shrink-0 items-start gap-2 border-b border-slate-200/60 px-2.5 py-2 sm:gap-2.5 sm:px-3 sm:py-2.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white text-pink-700 shadow-sm ring-1 ring-slate-200/50">
+                <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
               </span>
-              <span className="inline-flex items-center gap-0.5 rounded-md border border-pink-200 bg-white px-2 py-1 text-pink-800">
-                <span className="text-[9px] font-black uppercase tracking-wide text-pink-600">MCP</span>
-              </span>
-              <span className="text-slate-400" aria-hidden="true">
-                ↔
-              </span>
-              <span className="rounded-md border border-slate-200/80 bg-white px-2 py-1">Agent</span>
+              <div className="min-w-0 pt-px">
+                <p className="text-sm font-black leading-tight text-slate-950">Connect</p>
+                <p className="text-[10px] font-semibold leading-snug text-slate-600 sm:text-[11px]">
+                  Your agent and your board stay in sync—without pasting links into chat.
+                </p>
+              </div>
             </div>
-            <p className="mt-2.5 text-center text-[11px] font-medium leading-relaxed text-slate-600">
-              Your tool pulls work from the board and reports back without paste-hunting.
-            </p>
-            <div className="mt-2 flex items-center justify-center gap-2 rounded-lg border border-dashed border-pink-200/60 bg-white/60 px-2 py-1.5">
-              <CircleDot className="h-3.5 w-3.5 shrink-0 text-pink-700" aria-hidden="true" />
-              <p className="text-[11px] font-bold text-slate-800">E.g. “Build onboarding guide” in todo</p>
+            <div className="w-full px-2 pb-2 pt-1.5 sm:px-3 sm:pb-2.5 sm:pt-2">
+              <McpFlowGraphic />
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70">
-        <div className="flex items-center gap-3 border-b border-slate-200/80 bg-gradient-to-b from-slate-100/40 to-slate-50/90 px-4 py-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-pink-700 shadow-sm ring-1 ring-slate-200/60">
-            <MessageSquareText className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <div>
-            <p className="text-base font-black leading-tight text-slate-950">Review</p>
-            <p className="text-xs font-semibold text-slate-600">Progress lands on the board</p>
-          </div>
-        </div>
-        <div className="p-3.5 sm:p-4">
-          <div className="rounded-xl border border-pink-100/90 bg-pink-50/70 px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black uppercase text-pink-700 shadow-sm">
-                Ready for review
-              </span>
-              <RefreshCw className="h-3.5 w-3.5 text-pink-700" aria-hidden="true" />
-            </div>
-            <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">
-              Validated MCP reads, task updates, and sync state.
-            </p>
           </div>
         </div>
       </div>
@@ -146,7 +98,7 @@ function WorkflowPreview() {
   return (
     <div
       id="agent-sync"
-      className="mx-auto w-full max-w-5xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70"
+      className="w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/70"
     >
       <div className="flex flex-col gap-3 border-b border-slate-200 bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-3.5">
         <div className="flex items-center gap-3">
@@ -298,7 +250,9 @@ export function LandingPage({
         </div>
 
         <div className="relative z-10 mx-auto w-full max-w-7xl px-5 py-10 sm:px-8 sm:py-12 lg:py-16">
-          <WorkflowPreview />
+          <div className="mx-auto w-full max-w-5xl">
+            <WorkflowPreview />
+          </div>
         </div>
 
         <footer className="relative z-10 flex min-h-44 items-center justify-center px-5 pb-10 text-xs font-black uppercase tracking-[0.24em] text-slate-300">

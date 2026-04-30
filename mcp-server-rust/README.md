@@ -7,6 +7,8 @@ Rust runtime implementation of the Pink Sundew MCP stdio server.
 - Global auth is stored in the platform config directory at `pinksundew-mcp/auth.json`.
 - Workspace project context is stored locally at `.pinksundew/project.json`.
 - Client MCP configs launch `pinksundew-mcp` only; they do not store API keys or project IDs.
+- Cursor sync writes managed Pink Sundew project rules into `.cursor/rules/*.mdc`.
+- End users do not need Node.js to install or run `pinksundew-mcp`; Node remains a web-app development dependency for this repo only.
 
 ## Optional runtime env vars
 

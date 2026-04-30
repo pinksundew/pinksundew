@@ -113,7 +113,7 @@ function createGuides(): Record<GuideId, Guide> {
       label: 'Cursor',
       title: 'Connect Cursor',
       description:
-        'Register Pink Sundew in this workspace and link the current directory to this project.',
+        'Register Pink Sundew in this workspace, link the repo, and sync managed Cursor project rules.',
       steps: [
         'Install the Pink Sundew CLI once on your machine.',
         'Copy the setup command and run it from your repo root.',

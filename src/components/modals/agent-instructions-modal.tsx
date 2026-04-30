@@ -17,6 +17,12 @@ import {
   deleteInstructionFile,
   updateInstructionFile,
 } from '@/domains/agent-instruction/mutations'
+import {
+  buildDefaultCursorRuleDescription,
+  CursorRuleMode,
+  parseCursorRuleDocument,
+  serializeCursorRuleDocument,
+} from '@/domains/agent-instruction/cursor-rules'
 import { upsertProjectAgentControls } from '@/domains/agent-control/mutations'
 import { getProjectAgentControls } from '@/domains/agent-control/queries'
 import { ConfirmModal } from './confirm-modal'
@@ -40,6 +46,27 @@ const CONTEXT_DOCS_DIR = '.pinksundew/docs/'
 const CONTEXT_DOCS_NOTE =
   'Project context documents live in .pinksundew/docs/. Read them before making architectural changes.'
 const DEFAULT_INSTRUCTION_FILE_NAME = 'agent-rules.md'
+const CURSOR_RULE_MODE_OPTIONS: Array<{
+  id: CursorRuleMode
+  label: string
+  description: string
+}> = [
+  {
+    id: 'always',
+    label: 'Always',
+    description: 'Always attach this file in Cursor.',
+  },
+  {
+    id: 'agent-requested',
+    label: 'Agent Decides',
+    description: 'Let Cursor pull this file in when it seems relevant.',
+  },
+  {
+    id: 'auto-attached',
+    label: 'Match Files',
+    description: 'Attach this file when matching paths are referenced.',
+  },
+]
 
 const DEFAULT_AGENT_RULES_CONTENT = `### Task Workflow
 If I tell you to look at my tasks or check them out, it means to pull them from the board and start working on them. Work on all tasks unless specified not to.
@@ -156,6 +183,9 @@ export function AgentInstructionsModal({
 
   const [draftContent, setDraftContent] = useState('')
   const [draftFileName, setDraftFileName] = useState('')
+  const [cursorRuleMode, setCursorRuleMode] = useState<CursorRuleMode>('always')
+  const [cursorRuleDescription, setCursorRuleDescription] = useState('')
+  const [cursorRuleGlobs, setCursorRuleGlobs] = useState('')
 
   const [allowTaskCompletion, setAllowTaskCompletion] = useState(true)
   const [toolToggles, setToolToggles] = useState<ToolToggleMap>(getDefaultToolToggles())
@@ -314,12 +344,30 @@ export function AgentInstructionsModal({
     if (!selectedFile) {
       setDraftContent('')
       setDraftFileName('')
+      setCursorRuleMode('always')
+      setCursorRuleDescription('')
+      setCursorRuleGlobs('')
       return
     }
 
-    setDraftContent(selectedFile.content)
     setDraftFileName(getInstructionFileLabel(selectedFile))
-  }, [selectedFile])
+    if (isGlobalTab) {
+      setDraftContent(selectedFile.content)
+      setCursorRuleMode('always')
+      setCursorRuleDescription('')
+      setCursorRuleGlobs('')
+      return
+    }
+
+    const parsedDocument = parseCursorRuleDocument(selectedFile.content, {
+      defaultDescription: buildDefaultCursorRuleDescription(getInstructionFileLabel(selectedFile)),
+    })
+
+    setDraftContent(parsedDocument.body)
+    setCursorRuleMode(parsedDocument.config.mode)
+    setCursorRuleDescription(parsedDocument.config.description)
+    setCursorRuleGlobs(parsedDocument.config.globs)
+  }, [isGlobalTab, selectedFile])
 
   const handleToggleTool = (toolId: CoreMcpToolId) => {
     setToolToggles((previous) => ({
@@ -375,13 +423,32 @@ export function AgentInstructionsModal({
   const handleSaveFile = async () => {
     if (!selectedFile) return
 
+    if (!isGlobalTab && cursorRuleMode === 'agent-requested' && !cursorRuleDescription.trim()) {
+      setInstructionErrorMessage('Add a short Cursor description so Agent Decides mode knows when to use this file.')
+      return
+    }
+
+    if (!isGlobalTab && cursorRuleMode === 'auto-attached' && !cursorRuleGlobs.trim()) {
+      setInstructionErrorMessage('Add one or more glob patterns for Match Files mode.')
+      return
+    }
+
     setIsInstructionLoading(true)
     setInstructionErrorMessage(null)
 
     try {
+      const content =
+        isGlobalTab
+          ? draftContent
+          : serializeCursorRuleDocument(draftContent, {
+              mode: cursorRuleMode,
+              description: cursorRuleDescription,
+              globs: cursorRuleGlobs,
+            })
+
       await updateInstructionFile(supabase, selectedFile.id, {
         file_name: normalizeInstructionFileName(draftFileName, selectedFile),
-        content: draftContent,
+        content,
       })
 
       await fetchInstructionSets({
@@ -460,7 +527,7 @@ export function AgentInstructionsModal({
   const currentInstructionTitle = isGlobalTab ? 'Global Agent Rules' : 'Custom Context Files'
   const currentInstructionDescription = isGlobalTab
     ? 'Behavioral rules applied to connected AI sessions.'
-    : 'Markdown context documents that sync separately into .pinksundew/docs/.'
+    : 'Markdown context documents that stay in `.pinksundew/docs/` and become Cursor project rules when Cursor sync is enabled.'
   const currentInstructionPlaceholder = isGlobalTab
     ? `# Agent Rules\n\n${CONTEXT_DOCS_NOTE}`
     : '# Architecture\n\nDescribe important domain, data, and product context here.'
@@ -606,8 +673,8 @@ export function AgentInstructionsModal({
                       Custom Files
                     </h3>
                     <p className="mt-1.5 text-xs leading-snug text-slate-500">
-                      These files sync separately into .pinksundew/docs/ and are not appended to
-                      your global rules file.
+                      These files stay in .pinksundew/docs/ for shared tooling. When Cursor sync is
+                      enabled, Pink Sundew also generates matching `.cursor/rules/*.mdc` files.
                     </p>
                     <button
                       type="button"
@@ -698,6 +765,69 @@ export function AgentInstructionsModal({
                               <Trash2 className="h-3.5 w-3.5" />
                               Delete
                             </button>
+                          </div>
+
+                          <div className="mt-4 rounded-lg border border-pink-200/70 bg-pink-50/60 p-3">
+                            <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                              Cursor Rule Mode
+                            </div>
+                            <p className="mt-1 text-xs leading-5 text-slate-500">
+                              These settings only affect Cursor. Other clients still read the
+                              markdown file from {CONTEXT_DOCS_DIR}.
+                            </p>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {CURSOR_RULE_MODE_OPTIONS.map((option) => (
+                                <button
+                                  key={option.id}
+                                  type="button"
+                                  onClick={() => setCursorRuleMode(option.id)}
+                                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                    cursorRuleMode === option.id
+                                      ? 'border-primary bg-white text-primary shadow-sm'
+                                      : 'border-pink-200 bg-white/70 text-slate-600 hover:border-primary/30 hover:text-slate-800'
+                                  }`}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            <p className="mt-2 text-xs text-slate-500">
+                              {CURSOR_RULE_MODE_OPTIONS.find((option) => option.id === cursorRuleMode)
+                                ?.description ?? ''}
+                            </p>
+
+                            {cursorRuleMode === 'agent-requested' ? (
+                              <div className="mt-3">
+                                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                  Cursor Description
+                                </label>
+                                <input
+                                  value={cursorRuleDescription}
+                                  onChange={(event) => setCursorRuleDescription(event.target.value)}
+                                  placeholder={buildDefaultCursorRuleDescription(draftFileName)}
+                                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-primary"
+                                />
+                              </div>
+                            ) : null}
+
+                            {cursorRuleMode === 'auto-attached' ? (
+                              <div className="mt-3">
+                                <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                                  File Globs
+                                </label>
+                                <input
+                                  value={cursorRuleGlobs}
+                                  onChange={(event) => setCursorRuleGlobs(event.target.value)}
+                                  placeholder="src/**/*.ts,src/**/*.tsx"
+                                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition-colors focus:border-primary"
+                                />
+                                <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                                  Separate multiple patterns with commas.
+                                </p>
+                              </div>
+                            ) : null}
                           </div>
                         </div>
                       ) : null}

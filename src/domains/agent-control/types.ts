@@ -94,8 +94,8 @@ export const INSTRUCTION_SYNC_TARGET_CATALOG = [
   {
     id: 'sync_target_cursor',
     name: 'Cursor',
-    file_path: '.cursorrules',
-    description: 'Write synced instructions to `.cursorrules`.',
+    file_path: '.cursor/rules/*.mdc',
+    description: 'Write synced instructions to managed Cursor project rules in `.cursor/rules/`.',
     default_enabled: false,
   },
   {

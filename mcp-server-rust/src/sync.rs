@@ -17,17 +17,48 @@ use tracing::{error, info, warn};
 
 const SYNC_START: &str = "<!-- BEGIN:pinksundew-sync -->";
 const SYNC_END: &str = "<!-- END:pinksundew-sync -->";
-const SYNC_TARGET_TOGGLES: [(&str, &str); 6] = [
-    ("sync_target_cursor", ".cursorrules"),
+const SYNC_TARGET_TOGGLES: [(&str, &str); 5] = [
     ("sync_target_claude", "CLAUDE.md"),
     ("sync_target_windsurf", ".windsurfrules"),
     ("sync_target_vscode", ".github/copilot-instructions.md"),
     ("sync_target_codex", "AGENTS.md"),
     ("sync_target_antigravity", "antigravity.md"),
 ];
+const CURSOR_SYNC_TARGET_TOGGLE: &str = "sync_target_cursor";
+const CURSOR_RULES_DIR: &str = ".cursor/rules";
+const CURSOR_RULES_DISPLAY_PATH: &str = ".cursor/rules/*.mdc";
+const CURSOR_GLOBAL_RULE_FILE: &str = ".cursor/rules/pinksundew-global.mdc";
+const CURSOR_MANAGED_RULE_PREFIX: &str = "pinksundew-";
+const LEGACY_CURSOR_RULE_FILE: &str = ".cursorrules";
 const CONTEXT_DOCS_DIR: &str = ".pinksundew/docs/";
 const CONTEXT_DOCS_NOTE: &str =
     "Project context documents live in .pinksundew/docs/. Read them before making architectural changes.";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CursorRuleMode {
+    Always,
+    AgentRequested,
+    AutoAttached,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CursorRuleMetadata {
+    mode: CursorRuleMode,
+    description: String,
+    globs: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ParsedInstructionDocument {
+    body: String,
+    cursor: CursorRuleMetadata,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct GeneratedCursorRuleFile {
+    relative_path: String,
+    content: String,
+}
 
 #[derive(Clone)]
 pub struct SyncService {
@@ -49,16 +80,27 @@ impl SyncService {
             .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
         let project_id = self.scope.project_id().to_string();
-        let board_targets = match self.resources.get_project_agent_controls(&project_id).await {
-            Ok(controls) => resolve_board_target_files(&controls.tool_toggles),
+        let (board_targets, cursor_target_enabled) =
+            match self.resources.get_project_agent_controls(&project_id).await {
+            Ok(controls) => (
+                resolve_board_target_files(&controls.tool_toggles),
+                controls
+                    .tool_toggles
+                    .get(CURSOR_SYNC_TARGET_TOGGLE)
+                    .copied()
+                    .unwrap_or(false),
+            ),
             Err(err) => {
                 if verbose {
                     warn!(target: "pinksundew::sync", "[sync] Failed to load board sync targets: {err}");
                 }
-                Vec::new()
+                (Vec::new(), false)
             }
         };
-        let output_files = get_output_file_paths(&board_targets);
+        let mut output_files = get_output_file_paths(&board_targets);
+        if cursor_target_enabled {
+            output_files.push(CURSOR_RULES_DISPLAY_PATH.to_string());
+        }
 
         if verbose {
             if !board_targets.is_empty() {
@@ -87,13 +129,16 @@ impl SyncService {
             }
         };
 
-        let sync_block = build_sync_block(&instructions, &project_name);
+        let sync_block = build_sync_block(&instructions, &project_name, true);
         let context_documents = collect_context_documents(&instructions);
 
         let mut files_written = Vec::new();
         let mut write_errors = Vec::new();
 
         for output_file in &output_files {
+            if output_file == CURSOR_RULES_DISPLAY_PATH {
+                continue;
+            }
             let full_path = workspace_root.join(output_file);
             match write_instruction_file(&full_path, &sync_block).await {
                 Ok(_) => {
@@ -104,6 +149,20 @@ impl SyncService {
                 }
                 Err(err) => {
                     let message = format!("Failed to write {}: {}", output_file, err);
+                    if verbose {
+                        error!(target: "pinksundew::sync", "[sync] {}", message);
+                    }
+                    write_errors.push(message);
+                }
+            }
+        }
+
+        if cursor_target_enabled {
+            match sync_cursor_rule_files(&workspace_root, &instructions, &project_name, verbose).await
+            {
+                Ok(cursor_files) => files_written.extend(cursor_files),
+                Err(err) => {
+                    let message = format!("Failed to write Cursor project rules: {}", err);
                     if verbose {
                         error!(target: "pinksundew::sync", "[sync] {}", message);
                     }
@@ -367,9 +426,8 @@ async fn fetch_active_instructions(
     ))
 }
 
-fn build_sync_block(instructions: &[AgentInstructionSet], project_name: &str) -> String {
+fn collect_rule_content_blocks(instructions: &[AgentInstructionSet]) -> Vec<String> {
     let mut content_blocks = Vec::new();
-
     for instruction in instructions {
         let mut files = instruction.files.clone();
         files.sort_by(|a, b| a.file_name.cmp(&b.file_name));
@@ -388,7 +446,18 @@ fn build_sync_block(instructions: &[AgentInstructionSet], project_name: &str) ->
         }
     }
 
-    if !content_blocks
+    content_blocks
+}
+
+fn build_sync_block(
+    instructions: &[AgentInstructionSet],
+    project_name: &str,
+    include_context_docs_note: bool,
+) -> String {
+    let mut content_blocks = collect_rule_content_blocks(instructions);
+
+    if include_context_docs_note
+        && !content_blocks
         .iter()
         .any(|content| content.contains(CONTEXT_DOCS_NOTE))
     {
@@ -451,7 +520,8 @@ fn collect_context_documents(instructions: &[AgentInstructionSet]) -> Vec<(Strin
             let Some(content) = file.content else {
                 continue;
             };
-            let trimmed = content.trim();
+            let trimmed = parse_instruction_document(content.as_str()).body;
+            let trimmed = trimmed.trim();
             if trimmed.is_empty() {
                 continue;
             }
@@ -461,6 +531,339 @@ fn collect_context_documents(instructions: &[AgentInstructionSet]) -> Vec<(Strin
     }
 
     documents
+}
+
+fn parse_instruction_document(content: &str) -> ParsedInstructionDocument {
+    let normalized = content.replace("\r\n", "\n");
+    let default = ParsedInstructionDocument {
+        body: content.to_string(),
+        cursor: CursorRuleMetadata {
+            mode: CursorRuleMode::Always,
+            description: String::new(),
+            globs: String::new(),
+        },
+    };
+
+    let Some(frontmatter) = normalized.strip_prefix("---\n") else {
+        return default;
+    };
+    let Some((raw_frontmatter, body)) = frontmatter.split_once("\n---\n") else {
+        return default;
+    };
+
+    let mut description = String::new();
+    let mut globs = String::new();
+    let mut always_apply = false;
+
+    for line in raw_frontmatter.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        match key.trim() {
+            "description" => {
+                description = parse_frontmatter_string(value);
+            }
+            "globs" => {
+                globs = normalize_globs(parse_frontmatter_string(value).as_str());
+            }
+            "alwaysApply" => {
+                always_apply = value.trim() == "true";
+            }
+            _ => {}
+        }
+    }
+
+    let mode = if always_apply {
+        CursorRuleMode::Always
+    } else if !globs.is_empty() {
+        CursorRuleMode::AutoAttached
+    } else if !description.is_empty() {
+        CursorRuleMode::AgentRequested
+    } else {
+        CursorRuleMode::Always
+    };
+
+    ParsedInstructionDocument {
+        body: body.trim_start_matches('\n').to_string(),
+        cursor: CursorRuleMetadata {
+            mode,
+            description,
+            globs,
+        },
+    }
+}
+
+fn parse_frontmatter_string(raw_value: &str) -> String {
+    let trimmed = raw_value.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    if trimmed.starts_with('"') {
+        if let Ok(value) = serde_json::from_str::<String>(trimmed) {
+            return value;
+        }
+    }
+
+    if (trimmed.starts_with('"') && trimmed.ends_with('"'))
+        || (trimmed.starts_with('\'') && trimmed.ends_with('\''))
+    {
+        return trimmed[1..trimmed.len().saturating_sub(1)].to_string();
+    }
+
+    trimmed.to_string()
+}
+
+fn normalize_globs(raw_value: &str) -> String {
+    raw_value
+        .split(',')
+        .map(str::trim)
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+async fn sync_cursor_rule_files(
+    workspace_root: &Path,
+    instructions: &[AgentInstructionSet],
+    project_name: &str,
+    verbose: bool,
+) -> Result<Vec<String>> {
+    cleanup_managed_cursor_rules(workspace_root, verbose).await?;
+
+    let generated_files = build_cursor_rule_files(instructions, project_name);
+    if generated_files.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let rules_dir = workspace_root.join(CURSOR_RULES_DIR);
+    fs::create_dir_all(&rules_dir).await?;
+
+    let mut files_written = Vec::new();
+    for file in generated_files {
+        let full_path = workspace_root.join(file.relative_path.as_str());
+        if let Some(parent) = full_path.parent() {
+            fs::create_dir_all(parent).await?;
+        }
+        fs::write(&full_path, format!("{}\n", file.content.trim_end())).await?;
+        if verbose {
+            info!(target: "pinksundew::sync", "[sync] Wrote {}", file.relative_path);
+        }
+        files_written.push(file.relative_path);
+    }
+
+    Ok(files_written)
+}
+
+async fn cleanup_managed_cursor_rules(workspace_root: &Path, verbose: bool) -> Result<()> {
+    let legacy_cursor_file = workspace_root.join(LEGACY_CURSOR_RULE_FILE);
+    let _ = remove_sync_block_if_present(&legacy_cursor_file, LEGACY_CURSOR_RULE_FILE, verbose).await;
+
+    let rules_dir = workspace_root.join(CURSOR_RULES_DIR);
+    let mut read_dir = match fs::read_dir(&rules_dir).await {
+        Ok(handle) => handle,
+        Err(_) => return Ok(()),
+    };
+
+    while let Some(entry) = read_dir.next_entry().await? {
+        let path = entry.path();
+        let Some(file_name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+        if !file_name.starts_with(CURSOR_MANAGED_RULE_PREFIX) || !file_name.ends_with(".mdc") {
+            continue;
+        }
+
+        let _ = fs::remove_file(&path).await;
+        if verbose {
+            info!(
+                target: "pinksundew::sync",
+                "[sync] Removed {}",
+                path.strip_prefix(workspace_root)
+                    .ok()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or(file_name)
+            );
+        }
+    }
+
+    Ok(())
+}
+
+async fn remove_sync_block_if_present(
+    file_path: &Path,
+    relative_path: &str,
+    verbose: bool,
+) -> Result<()> {
+    let content = match fs::read_to_string(file_path).await {
+        Ok(value) => value,
+        Err(_) => return Ok(()),
+    };
+
+    let start_index = content.find(SYNC_START);
+    let end_index = content.find(SYNC_END);
+    let (Some(start), Some(end)) = (start_index, end_index) else {
+        return Ok(());
+    };
+
+    let end_pos = end + SYNC_END.len();
+    let mut cleaned = String::new();
+    cleaned.push_str(&content[..start]);
+    cleaned.push_str(&content[end_pos..]);
+
+    let cleaned = cleaned.trim().to_string();
+    if cleaned.is_empty() {
+        let _ = fs::remove_file(file_path).await;
+    } else {
+        fs::write(file_path, format!("{}\n", cleaned)).await?;
+    }
+
+    if verbose {
+        info!(
+            target: "pinksundew::sync",
+            "[sync] Removed legacy Cursor sync block from {}",
+            relative_path
+        );
+    }
+
+    Ok(())
+}
+
+fn build_cursor_rule_files(
+    instructions: &[AgentInstructionSet],
+    project_name: &str,
+) -> Vec<GeneratedCursorRuleFile> {
+    let mut generated = Vec::new();
+    let global_rules = collect_rule_content_blocks(instructions);
+
+    if !global_rules.is_empty() {
+        generated.push(GeneratedCursorRuleFile {
+            relative_path: CURSOR_GLOBAL_RULE_FILE.to_string(),
+            content: render_cursor_rule_file(
+                project_name,
+                "global instructions",
+                &CursorRuleMetadata {
+                    mode: CursorRuleMode::Always,
+                    description: String::new(),
+                    globs: String::new(),
+                },
+                global_rules.join("\n\n---\n\n").as_str(),
+            ),
+        });
+    }
+
+    let mut used_paths = HashSet::from([CURSOR_GLOBAL_RULE_FILE.to_string()]);
+
+    for instruction in instructions {
+        let mut files = instruction.files.clone();
+        files.sort_by(|a, b| a.file_name.cmp(&b.file_name));
+
+        for file in files {
+            let Some(relative_path) = safe_context_document_path(file.file_name.as_str()) else {
+                continue;
+            };
+            let Some(content) = file.content else {
+                continue;
+            };
+
+            let parsed = parse_instruction_document(content.as_str());
+            let body = parsed.body.trim();
+            if body.is_empty() {
+                continue;
+            }
+
+            let cursor_path = build_cursor_rule_path(relative_path.as_str(), &mut used_paths);
+            generated.push(GeneratedCursorRuleFile {
+                relative_path: cursor_path,
+                content: render_cursor_rule_file(
+                    project_name,
+                    relative_path.as_str(),
+                    &parsed.cursor,
+                    body,
+                ),
+            });
+        }
+    }
+
+    generated
+}
+
+fn build_cursor_rule_path(relative_path: &str, used_paths: &mut HashSet<String>) -> String {
+    let normalized = relative_path
+        .strip_prefix(CONTEXT_DOCS_DIR)
+        .unwrap_or(relative_path)
+        .strip_suffix(".md")
+        .unwrap_or(relative_path);
+
+    let slug = normalized
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+
+    let slug = if slug.is_empty() {
+        "context".to_string()
+    } else {
+        slug
+    };
+
+    let base_path = format!("{CURSOR_RULES_DIR}/{CURSOR_MANAGED_RULE_PREFIX}{slug}.mdc");
+    if used_paths.insert(base_path.clone()) {
+        return base_path;
+    }
+
+    let hashed = format!(
+        "{CURSOR_RULES_DIR}/{CURSOR_MANAGED_RULE_PREFIX}{slug}-{:08x}.mdc",
+        stable_cursor_rule_hash(relative_path)
+    );
+    used_paths.insert(hashed.clone());
+    hashed
+}
+
+fn stable_cursor_rule_hash(value: &str) -> u32 {
+    let mut hash = 0_u32;
+    for byte in value.bytes() {
+        hash = hash.wrapping_mul(31).wrapping_add(u32::from(byte));
+    }
+    hash
+}
+
+fn render_cursor_rule_file(
+    project_name: &str,
+    source_path: &str,
+    metadata: &CursorRuleMetadata,
+    body: &str,
+) -> String {
+    let description = match metadata.mode {
+        CursorRuleMode::AgentRequested => metadata.description.trim(),
+        _ => "",
+    };
+    let globs = match metadata.mode {
+        CursorRuleMode::AutoAttached => metadata.globs.trim(),
+        _ => "",
+    };
+    let timestamp = Utc::now().to_rfc3339();
+    let header = format!(
+        "<!-- AUTO-GENERATED BY PINK SUNDEW - DO NOT EDIT THIS FILE DIRECTLY.\nLast synced: {timestamp}\nProject: {project_name}\nSource: {source_path}\n-->"
+    );
+
+    format!(
+        "---\ndescription: {}\nglobs: {}\nalwaysApply: {}\n---\n\n{}\n\n{}",
+        serde_json::to_string(description).unwrap_or_else(|_| "\"\"".to_string()),
+        serde_json::to_string(globs).unwrap_or_else(|_| "\"\"".to_string()),
+        matches!(metadata.mode, CursorRuleMode::Always),
+        header,
+        body.trim()
+    )
 }
 
 fn replace_sync_block(existing: &str, sync_block: &str) -> String {
@@ -567,7 +970,8 @@ pub async fn cleanup_instruction_files(
     let mut files_cleaned = Vec::new();
 
     let all_files = vec![
-        ".cursorrules".to_string(),
+        LEGACY_CURSOR_RULE_FILE.to_string(),
+        CURSOR_GLOBAL_RULE_FILE.to_string(),
         "CLAUDE.md".to_string(),
         ".windsurfrules".to_string(),
         ".github/copilot-instructions.md".to_string(),
@@ -654,13 +1058,7 @@ mod tests {
         ]);
 
         let result = resolve_board_target_files(&toggles);
-        assert_eq!(
-            result,
-            vec![
-                ".cursorrules".to_string(),
-                ".github/copilot-instructions.md".to_string(),
-            ]
-        );
+        assert_eq!(result, vec![".github/copilot-instructions.md".to_string(),]);
     }
 
     #[test]
@@ -719,7 +1117,7 @@ mod tests {
             ],
         }];
 
-        let result = build_sync_block(&instructions, "Pink Sundew");
+        let result = build_sync_block(&instructions, "Pink Sundew", true);
 
         assert!(result.contains("Always read the task thread first."));
         assert!(result.contains(CONTEXT_DOCS_NOTE));
@@ -747,7 +1145,9 @@ mod tests {
                     content_hash: "context-hash".to_string(),
                     updated_at: "2026-04-20T00:00:00Z".to_string(),
                     created_at: None,
-                    content: Some("# Schema".to_string()),
+                    content: Some(
+                        "---\ndescription: \"Use when working on database schema changes.\"\nglobs: \"src/**/*.ts\"\nalwaysApply: false\n---\n\n# Schema".to_string(),
+                    ),
                 },
                 AgentInstructionFile {
                     id: "unsafe".to_string(),
@@ -768,6 +1168,59 @@ mod tests {
                 "# Schema".to_string()
             )]
         );
+    }
+
+    #[test]
+    fn build_cursor_rule_files_generates_project_rules_and_skips_context_note() {
+        let instructions = vec![AgentInstructionSet {
+            id: "set-1".to_string(),
+            project_id: None,
+            name: "Workspace".to_string(),
+            code: "workspace".to_string(),
+            scope: "global".to_string(),
+            description: None,
+            sort_order: None,
+            is_active: Some(true),
+            created_at: None,
+            updated_at: None,
+            files: vec![
+                AgentInstructionFile {
+                    id: "rules".to_string(),
+                    set_id: "set-1".to_string(),
+                    file_name: "agent-rules.md".to_string(),
+                    content_hash: "rules-hash".to_string(),
+                    updated_at: "2026-04-20T00:00:00Z".to_string(),
+                    created_at: None,
+                    content: Some("Always read the task thread first.".to_string()),
+                },
+                AgentInstructionFile {
+                    id: "context".to_string(),
+                    set_id: "set-1".to_string(),
+                    file_name: ".pinksundew/docs/architecture.md".to_string(),
+                    content_hash: "context-hash".to_string(),
+                    updated_at: "2026-04-20T00:00:00Z".to_string(),
+                    created_at: None,
+                    content: Some(
+                        "---\ndescription: \"Use when editing architecture flows.\"\nglobs: \"\"\nalwaysApply: false\n---\n\n# Architecture\n\nDetails".to_string(),
+                    ),
+                },
+            ],
+        }];
+
+        let files = build_cursor_rule_files(&instructions, "Pink Sundew");
+
+        assert_eq!(files.len(), 2);
+        assert_eq!(files[0].relative_path, CURSOR_GLOBAL_RULE_FILE);
+        assert!(files[0].content.contains("Always read the task thread first."));
+        assert!(!files[0].content.contains(CONTEXT_DOCS_NOTE));
+        assert!(files[1]
+            .relative_path
+            .starts_with(".cursor/rules/pinksundew-architecture"));
+        assert!(files[1].content.contains("alwaysApply: false"));
+        assert!(files[1]
+            .content
+            .contains("description: \"Use when editing architecture flows.\""));
+        assert!(files[1].content.contains("# Architecture"));
     }
 
     #[tokio::test]

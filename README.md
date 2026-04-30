@@ -16,6 +16,12 @@ Pink Sundew is a Next.js 16 board application with Supabase-backed data, an MCP 
 - `mcp-server-rust/`: Native Rust MCP runtime
 - `sst.config.ts`: production deployment config
 
+## Runtime Split
+
+- The Pink Sundew web app is still a Next.js workspace, so local frontend development uses Node.js and `npm`.
+- The distributed MCP experience is binary-first: end users install and run `pinksundew-mcp` without Node.js.
+- Cursor instruction sync now uses managed project rules in `.cursor/rules/*.mdc`; other clients keep their existing synced instruction files.
+
 ## Local Development
 
 Install dependencies:
@@ -23,6 +29,8 @@ Install dependencies:
 ```bash
 npm install
 ```
+
+This installs the web app toolchain only. It is not required for end users who are only setting up the Rust MCP binary.
 
 Start dev server:
 
@@ -64,5 +72,7 @@ Preferred install/upgrade channel for users:
 brew install pinksundew/tap/pinksundew-mcp
 brew upgrade pinksundew/tap/pinksundew-mcp
 ```
+
+End users do not need Node.js to install or run the MCP server.
 
 MCP release tags are canonicalized as `vX.Y.Z`.

@@ -706,8 +706,7 @@ fn build_instruction_title_from_path(file_name: &str) -> String {
         .strip_suffix(".md")
         .unwrap_or(normalized_path.as_str())
         .split('/')
-        .filter(|segment| !segment.is_empty())
-        .next_back()
+        .rfind(|segment| !segment.is_empty())
         .unwrap_or("untitled-instruction");
 
     let normalized = file_stem

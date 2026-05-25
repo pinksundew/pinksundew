@@ -40,7 +40,7 @@ export default $config({
         SUPABASE_SECRET_KEY: supabaseSecretKey.value,
         RESEND_API_KEY: resendApiKey.value,
         GEMINI_API_KEY: geminiApiKey.value,
-        GEMINI_MODEL: "gemini-3.1-flash-lite-preview",
+        GEMINI_MODEL: "gemini-3.1-flash-lite",
       },
     });
   },

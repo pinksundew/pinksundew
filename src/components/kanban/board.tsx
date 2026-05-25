@@ -1085,7 +1085,7 @@ export function KanbanBoard({
   const shouldShowSelectionPill = isSelectionMode && !isAnyModalOpen
 
   return (
-    <div className="h-full flex flex-col items-start w-full relative">
+    <div className="relative flex h-full w-full flex-col">
       <div className="sticky top-0 z-30 mb-4 w-full shrink-0 bg-background/80 py-2 backdrop-blur-sm">
          <div className="flex w-full justify-start xl:justify-center">
            <DashboardStatusSection
@@ -1241,7 +1241,7 @@ export function KanbanBoard({
           <div
             ref={boardScrollContainerRef}
             data-tour-target="task-board"
-            className="grid min-h-0 flex-1 w-full grid-cols-1 gap-6 pb-10 overflow-x-hidden md:grid-cols-3 md:items-stretch md:gap-6 md:overflow-x-auto min-viewport-p xl:mx-auto xl:max-w-[calc(3*20rem+3rem)]"
+            className="grid min-h-0 flex-1 w-full grid-cols-1 gap-6 overflow-x-hidden pb-10 md:grid-cols-[repeat(3,minmax(20rem,20rem))] md:items-stretch md:justify-center md:gap-6 md:overflow-x-auto"
           >
             {COLUMNS.map((columnId) => (
               <KanbanColumn

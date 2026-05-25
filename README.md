@@ -56,6 +56,18 @@ Deploy production with SST:
 npx sst deploy --stage production
 ```
 
+`production` is the canonical live stage name for this repo. Do not use `prod` as an alias: SST secrets are stage-scoped, so `--stage prod` creates a separate empty stage and surfaces `SecretMissingError` for the required secrets.
+
+If you are intentionally deploying a brand-new stage, set the required secrets for that exact stage first:
+
+```bash
+sst secret set SupabaseUrl <value>
+sst secret set SupabasePublishableKey <value>
+sst secret set SupabaseSecretKey <value>
+sst secret set ResendApiKey <value>
+sst secret set GeminiApiKey <value>
+```
+
 ## MCP Server
 
 Build native Rust MCP server:

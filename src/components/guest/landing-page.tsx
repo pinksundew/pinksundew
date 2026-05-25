@@ -202,10 +202,6 @@ export function LandingPage({
 
         <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col items-center px-5 pb-12 pt-10 sm:px-8 lg:pb-16">
           <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-pink-200 bg-pink-50/50 px-3 py-1.5 text-xs font-bold uppercase text-pink-900 shadow-sm backdrop-blur">
-              <Radio className="h-3.5 w-3.5" aria-hidden="true" />
-              Live board for coding agents
-            </div>
             <h1 className="text-balance text-5xl font-black leading-[0.94] text-slate-950 sm:text-7xl lg:text-8xl">
               Pink Sundew
             </h1>

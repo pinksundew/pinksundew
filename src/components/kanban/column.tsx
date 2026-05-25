@@ -64,7 +64,7 @@ export function KanbanColumn({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+        <div className="flex min-h-[10rem] flex-1 flex-col gap-3 overflow-y-auto p-3">
           <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
             {tasks.map((task) => (
               <TaskCard
